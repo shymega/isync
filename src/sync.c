@@ -34,7 +34,7 @@
 #include <errno.h>
 #include <sys/stat.h>
 
-static unsigned int MaildirCount = 0;
+static unsigned int MaildirCount;
 
 message_t *
 find_msg (message_t * list, unsigned int uid)
@@ -330,8 +330,8 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 	    for (;;)
 	    {
 		/* create new file */
-		snprintf (path, sizeof (path), "%s/tmp/%ld_%d.%d.%s%s",
-			  mbox->path, time (0), MaildirCount++, getpid (),
+		snprintf (path, sizeof (path), "%s/tmp/%ld.%d_%d.%s%s",
+			  mbox->path, time (0), getpid (), MaildirCount++,
 			  Hostname, suffix);
 
 		if ((fd = open (path, O_WRONLY | O_CREAT | O_EXCL, 0600)) > 0)
