@@ -374,14 +374,15 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 		/* its ok if this fails, the next time we sync the message
 		 * will get pulled down
 		 */
-		if (link (path, newpath))
-		    perror ("link");
+		if (rename (path, newpath))
+		    perror ("rename");
 		else
 		{
 		    /* update the db with the UID mapping for this file */
 		    set_uid (mbox->db, p + 1, cur->uid);
 		    if (cur->uid > mbox->maxuid)
 		    	mbox->maxuid = cur->uid;
+		    continue;
 		}
 	    }
 
