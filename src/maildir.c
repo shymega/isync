@@ -211,7 +211,7 @@ maildir_open (const char *path, int flags)
 	    fputs ("Error configuring database\n", stderr);
 	    goto err;
     }
-    m->db->open (m->db, buf, 0, DB_HASH, DB_CREATE, S_IRUSR | S_IWUSR);
+    m->db->open (m->db, 0, buf, 0, DB_HASH, DB_CREATE, S_IRUSR | S_IWUSR);
     if (m->db == NULL)
     {
 	fputs ("ERROR: unable to open UID db\n", stderr);
