@@ -260,6 +260,12 @@ File containing X.509 CA certificates used to verify server identities.
 This option is \fImandatory\fR if SSL is used. See \fBSSL CERTIFICATES\fR below.
 ..
 .TP
+\fBFingerprint\fR \fIstring\fR
+A colon separated, hex encoded MD5 fingerprint
+(as printed by \fBopenssl dgst -c\fR \fIfile\fR)
+to check the server certificate against.
+..
+.TP
 \fBUseSSLv2\fR \fIyes\fR|\fIno\fR
 Use SSLv2 for communication with the IMAP server over SSL?
 .br

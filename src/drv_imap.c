@@ -59,6 +59,7 @@ typedef struct imap_server_conf {
 	char *user;
 	char *pass;
 #if HAVE_LIBSSL
+	char *fingerprint;
 	char *cert_file;
 	unsigned use_imaps:1;
 	unsigned require_ssl:1;
@@ -189,8 +190,10 @@ static const char *Flags[] = {
 
 /* this gets called when a certificate is to be verified */
 static int
-verify_cert( SSL *ssl )
+verify_cert( imap_store_t *ctx )
 {
+	SSL *ssl = ctx->imap->buf.sock.ssl;
+	imap_store_conf_t *conf = (imap_store_conf_t *)ctx->gen.conf;
 	X509 *cert;
 	int err;
 	char buf[256];
@@ -204,8 +207,40 @@ verify_cert( SSL *ssl )
 	}
 
 	err = SSL_get_verify_result( ssl );
-	if (err == X509_V_OK)
+	if (err == X509_V_OK) {
+		if (conf->server->fingerprint) {
+			const EVP_MD *digest_tp;
+			unsigned dsz, dp;
+			unsigned char digest[EVP_MAX_MD_SIZE];
+			char text[EVP_MAX_MD_SIZE * 3], *tp;
+
+			if (!(digest_tp = EVP_md5())) {
+				fprintf( stderr, "Error, EVP_md5() failed\n" );
+				return 1;
+			}
+			if (!X509_digest( cert, digest_tp, digest, &dsz )) {
+				fprintf( stderr, "Out of memory\n" );
+				return 1;
+			}
+
+			tp = text;
+			for (dp = 0; dp < dsz; dp++) {
+				if (dp)
+					*tp++ = ':';
+				sprintf(tp, "%02X", digest[dp]);
+				tp += 2;
+			}
+			*tp = 0;
+
+			if (strcasecmp( text, conf->server->fingerprint )) {
+				fprintf( stderr, "Error, certificate fingerprint mismatch\n" );
+				return 1;
+			} else {
+				info( "Certificate fingerprint ok\n" );
+			}
+		}
 		return 0;
+	}
 
 	fprintf( stderr, "Error, can't verify certificate: %s (%d)\n",
 	         X509_verify_cert_error_string(err), err );
@@ -1103,7 +1138,7 @@ start_tls( imap_store_t *ctx )
 	}
 
 	/* verify the server certificate */
-	if (verify_cert( imap->buf.sock.ssl ))
+	if (verify_cert( ctx ))
 		return 1;
 
 	imap->buf.sock.use_ssl = 1;
@@ -1776,6 +1811,8 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep, int *err )
 			server->use_tlsv1 = parse_bool( cfg );
 		else if (!strcasecmp( "RequireCRAM", cfg->cmd ))
 			server->require_cram = parse_bool( cfg );
+		else if (!strcasecmp( "Fingerprint", cfg->cmd ))
+			server->fingerprint = nfstrdup( cfg->val );
 #endif
 		else if (!strcasecmp( "Tunnel", cfg->cmd ))
 			server->tunnel = nfstrdup( cfg->val );
