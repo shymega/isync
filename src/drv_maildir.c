@@ -764,6 +764,11 @@ maildir_scan( maildir_store_t *ctx, msglist_t *msglist )
 		qsort( msglist->ents, msglist->nents, sizeof(msg_t), maildir_compare );
 		for (uid = i = 0; i < msglist->nents; i++) {
 			entry = &msglist->ents[i];
+			/* ReiserFS bogosity hack. */
+			if (i && !strcmp( entry->base, msglist->ents[i-1].base )) {
+				warn( "Maildir warning: duplicate directory entries. Retrying ...\n" );
+				goto retry;
+			}
 			if (entry->uid != INT_MAX) {
 				if (uid == entry->uid) {
 #if 1
