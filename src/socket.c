@@ -647,18 +647,21 @@ socket_fill_z( conn_t *sock )
 	sock->in_z->avail_out = len;
 	sock->in_z->next_out = (unsigned char *)buf;
 
+	fprintf(stderr, "socket fill, avail in %d, avail out %d\n", sock->in_z->avail_in, sock->in_z->avail_out);
 	ret = inflate( sock->in_z, Z_SYNC_FLUSH );
 	if (ret != Z_OK && ret != Z_STREAM_END) {
 		error( "Error decompressing data from %s: %s\n", sock->name, sock->in_z->msg );
 		socket_fail( sock );
 		return;
 	}
+	fprintf(stderr, "  now avail in %d, avail out %d\n", sock->in_z->avail_in, sock->in_z->avail_out);
 
 	if (!sock->in_z->avail_out)
 		conf_wakeup( &sock->z_fake, 0 );
 
 	if ((len = (char *)sock->in_z->next_out - buf)) {
 		sock->bytes += len;
+		fprintf(stderr, "  notifying about read of %d\n", len);
 		sock->read_callback( sock->callback_aux );
 	}
 }
@@ -785,11 +788,15 @@ do_queued_write( conn_t *conn )
 {
 	buff_chunk_t *bc;
 
+	fprintf(stderr, "  queued write\n");
 	if (!conn->write_buf)
+{		fprintf(stderr, "    nothing there\n");
 		return 0;
+}
 
 	while ((bc = conn->write_buf)) {
 		int n, len = bc->len - conn->write_offset;
+		fprintf(stderr, "    writing %d\n", len);
 		if ((n = do_write( conn, bc->data + conn->write_offset, len )) < 0)
 			return -1;
 		if (n != len) {
@@ -804,6 +811,7 @@ do_queued_write( conn_t *conn )
 	if (conn->ssl && SSL_pending( conn->ssl ))
 		conf_wakeup( &conn->ssl_fake, 0 );
 #endif
+	fprintf(stderr, "    all written, calling back\n");
 	conn->writing = 0;
 	conn->write_callback( conn->callback_aux );
 	return -1;
@@ -816,6 +824,7 @@ do_append( conn_t *conn, buff_chunk_t *bc )
 	conn->buffer_mem += bc->len;
 	*conn->write_buf_append = bc;
 	conn->write_buf_append = &bc->next;
+	fprintf(stderr, "  appending %d\n", bc->len);
 }
 
 /* This is big enough to avoid excessive chunking, but is
@@ -826,11 +835,14 @@ static void
 do_flush( conn_t *conn )
 {
 	buff_chunk_t *bc = conn->append_buf;
+	fprintf(stderr, "  do_flush\n");
 #ifdef HAVE_LIBZ
 	if (conn->out_z) {
 		int buf_avail = conn->append_avail;
 		if (!conn->z_written)
+{			fprintf(stderr, "    nothing to flush\n");
 			return;
+}
 		do {
 			if (!bc) {
 				buf_avail = WRITE_CHUNK_SIZE;
@@ -841,10 +853,12 @@ do_flush( conn_t *conn )
 			conn->out_z->avail_in = 0;
 			conn->out_z->next_out = (uchar *)bc->data + bc->len;
 			conn->out_z->avail_out = buf_avail;
+			fprintf(stderr, "    pre-deflate: avail in %d, avail out %d\n", conn->out_z->avail_in, conn->out_z->avail_out);
 			if (deflate( conn->out_z, Z_PARTIAL_FLUSH ) != Z_OK) {
 				error( "Fatal: Compression error: %s\n", conn->out_z->msg );
 				abort();
 			}
+			fprintf(stderr, "    post-deflate: avail in %d, avail out %d\n", conn->out_z->avail_in, conn->out_z->avail_out);
 			bc->len = (char *)conn->out_z->next_out - bc->data;
 			if (bc->len) {
 				do_append( conn, bc );
@@ -876,6 +890,7 @@ socket_write( conn_t *conn, conn_iovec_t *iov, int iovcnt )
 
 	for (i = 0; i < iovcnt; i++)
 		total += iov[i].len;
+	fprintf(stderr, "write %d bytes in %d chunks\n", total, iovcnt);
 	if (total >= WRITE_CHUNK_SIZE) {
 		/* If the new data is too big, queue the pending buffer to avoid latency. */
 		do_flush( conn );
@@ -900,6 +915,7 @@ socket_write( conn_t *conn, conn_iovec_t *iov, int iovcnt )
 			buf_avail = WRITE_CHUNK_SIZE - bc->len;
 #endif
 		}
+		fprintf(stderr, "  buffer with %d filled, %d available\n", bc->len, buf_avail);
 		while (total) {
 			len = iov->len - offset;
 #ifdef HAVE_LIBZ
@@ -908,10 +924,12 @@ socket_write( conn_t *conn, conn_iovec_t *iov, int iovcnt )
 				conn->out_z->avail_in = len;
 				conn->out_z->next_out = (uchar *)bc->data + bc->len;
 				conn->out_z->avail_out = buf_avail;
+				fprintf(stderr, "  pre-deflate: avail in %d, avail out %d\n", conn->out_z->avail_in, conn->out_z->avail_out);
 				if (deflate( conn->out_z, Z_NO_FLUSH ) != Z_OK) {
 					error( "Fatal: Compression error: %s\n", conn->out_z->msg );
 					abort();
 				}
+				fprintf(stderr, "  post-deflate: avail in %d, avail out %d\n", conn->out_z->avail_in, conn->out_z->avail_out);
 				bc->len = (char *)conn->out_z->next_out - bc->data;
 				buf_avail = conn->out_z->avail_out;
 				len -= conn->out_z->avail_in;
@@ -927,6 +945,8 @@ socket_write( conn_t *conn, conn_iovec_t *iov, int iovcnt )
 			}
 			offset += len;
 			total -= len;
+			fprintf(stderr, "  buffered %d, buffer len %d, %d buffer remain, offset %d, %d total remain\n",
+			       len, bc->len, buf_avail, offset, total);
 			if (offset == iov->len) {
 				if (iov->takeOwn == GiveOwn)
 					free( iov->buf );
@@ -999,6 +1019,7 @@ socket_fake_cb( void *aux )
 {
 	conn_t *conn = (conn_t *)aux;
 
+	fprintf(stderr, "  fake activity, %s writing\n", conn->writing ? "already" : "not yet");
 	/* Ensure that a pending write gets queued. */
 	do_flush( conn );
 	/* If no writes are ongoing, start writing now. */
@@ -1026,6 +1047,7 @@ z_fake_cb( void *aux )
 {
 	conn_t *conn = (conn_t *)aux;
 
+	fprintf(stderr, "  fake zlib activity\n");
 	socket_fill_z( conn );
 }
 #endif
