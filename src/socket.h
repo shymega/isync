@@ -116,9 +116,9 @@ typedef struct {
 	int offset; /* start of filled bytes in buffer */
 	int bytes; /* number of filled bytes in buffer */
 	int scanoff; /* offset to continue scanning for newline at, relative to 'offset' */
-	char buf[100000];
+	char buf[2000];
 #ifdef HAVE_LIBZ
-	char z_buf[100000];
+	char z_buf[2000];
 #endif
 } conn_t;
 
