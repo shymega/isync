@@ -276,6 +276,8 @@ send_imap_cmd( imap_store_t *ctx, struct imap_cmd *cmd )
 	conn_iovec_t iov[3];
 	char buf[1024];
 
+printf("sending\n");
+fflush(stdout);
 	cmd->tag = ++ctx->nexttag;
 	if (!cmd->param.data) {
 		buffmt = "%d %s\r\n";
@@ -321,6 +323,8 @@ send_imap_cmd( imap_store_t *ctx, struct imap_cmd *cmd )
 	*ctx->in_progress_append = cmd;
 	ctx->in_progress_append = &cmd->next;
 	ctx->num_in_progress++;
+printf("sent; num_in_progress %d\n", ctx->num_in_progress);
+fflush(stdout);
 	socket_expect_read( &ctx->conn, 1 );
 }
 
@@ -329,6 +333,10 @@ cmd_sendable( imap_store_t *ctx, struct imap_cmd *cmd )
 {
 	struct imap_cmd *cmdp;
 
+printf("submitable? write buf %p; in_progress %p; in_progress_append %p; num_in_progress %d (of %d)\n",
+       ctx->conn.write_buf, ctx->in_progress, ctx->in_progress_append,
+       ctx->num_in_progress, ((imap_store_conf_t *)ctx->gen.conf)->server->max_in_progress);
+fflush(stdout);
 	return !ctx->conn.write_buf &&
 	       !(ctx->in_progress &&
 	         (cmdp = (struct imap_cmd *)((char *)ctx->in_progress_append -
@@ -343,6 +351,8 @@ flush_imap_cmds( imap_store_t *ctx )
 {
 	struct imap_cmd *cmd;
 
+printf("flushing\n");
+fflush(stdout);
 	if ((cmd = ctx->pending) && cmd_sendable( ctx, cmd )) {
 		if (!(ctx->pending = cmd->next))
 			ctx->pending_append = &ctx->pending;
@@ -383,6 +393,8 @@ submit_imap_cmd( imap_store_t *ctx, struct imap_cmd *cmd )
 	assert( cmd );
 	assert( cmd->param.done );
 
+printf("submit %s; prio %d; pending %p\n", cmd->cmd, cmd->param.high_prio, ctx->pending);
+fflush(stdout);
 	if ((ctx->pending && !cmd->param.high_prio) || !cmd_sendable( ctx, cmd )) {
 		if (ctx->pending && cmd->param.high_prio) {
 			cmd->next = ctx->pending;
@@ -1345,6 +1357,9 @@ imap_socket_read( void *aux )
 				ctx->in_progress_append = pcmdp;
 			if (!--ctx->num_in_progress)
 				socket_expect_read( &ctx->conn, 0 );
+printf("command %d done; in_progress %p; in_progress_append %p; num_in_progress %d\n",
+	   tag, ctx->in_progress, ctx->in_progress_append, ctx->num_in_progress);
+fflush(stdout);
 			arg = next_arg( &cmd );
 			if (!arg) {
 				error( "IMAP error: malformed tagged response\n" );
