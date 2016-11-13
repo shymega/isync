@@ -143,6 +143,7 @@ typedef struct sync_rec {
 	/* string_list_t *keywords; */
 	uint uid[2];
 	message_t *msg[2];
+	char *msgid;
 	uchar status, wstate, flags, aflags[2], dflags[2];
 	char tuid[TUIDL];
 } sync_rec_t;
@@ -335,10 +336,12 @@ copy_msg_bytes( char **out_ptr, const char *in_buf, int *in_idx, int in_len, int
 static int
 copy_msg_convert( int in_cr, int out_cr, copy_vars_t *vars )
 {
+	DECL_INIT_SVARS(vars->aux);
 	char *in_buf = vars->data.data;
 	int in_len = vars->data.len;
 	int idx = 0, sbreak = 0, ebreak = 0;
-	int lines = 0, hdr_crs = 0, bdy_crs = 0, app_cr = 0, extra = 0;
+	int lines = 0, hdr_crs = 0, bdy_crs = 0, app_cr = 0, extra = 0, in_msgid = 0;
+	int want_msgid = svars->recover_uidval && !vars->msg->msgid;
 	if (vars->srec) {
 	  nloop: ;
 		int start = idx;
@@ -348,17 +351,46 @@ copy_msg_convert( int in_cr, int out_cr, copy_vars_t *vars )
 			if (c == '\r') {
 				line_crs++;
 			} else if (c == '\n') {
-				if (starts_with_upper( in_buf + start, in_len - start, "X-TUID: ", 8 )) {
+				int rle = idx - line_crs - 1;
+				if (!ebreak && starts_with_upper( in_buf + start, rle - start, "X-TUID: ", 8 )) {
 					extra = (sbreak = start) - (ebreak = idx);
+					if (want_msgid) {
+						in_msgid = 0;
+						goto nloop;
+					}
 					goto oke;
 				}
 				lines++;
 				hdr_crs += line_crs;
-				if (idx - line_crs - 1 == start) {
-					sbreak = ebreak = start;
+				if (start == rle) {
+					if (!ebreak)
+						sbreak = ebreak = start;
 					goto oke;
 				}
-				goto nloop;
+				if (want_msgid && starts_with_upper( in_buf + start, rle - start, "MESSAGE-ID:", 11 )) {
+					start += 11;
+				} else if (in_msgid) {
+					if (!isspace( in_buf[start] )) {
+						in_msgid = 0;
+						goto nloop;
+					}
+					start++;
+				} else {
+					goto nloop;
+				}
+				while (start < rle && isspace( in_buf[start] ))
+					start++;
+				if (start == rle) {
+					in_msgid = 1;
+					goto nloop;
+				}
+				vars->msg->msgid = nfstrndup( in_buf + start, rle - start );
+				if (!ebreak) {
+					want_msgid = 0;
+					in_msgid = 0;
+					goto nloop;
+				}
+				goto oke;
 			}
 		}
 		/* invalid message */
@@ -668,9 +700,18 @@ save_state( sync_vars_t *svars )
 	for (srec = svars->srecs; srec; srec = srec->next) {
 		if (srec->status & S_DEAD)
 			continue;
-		make_flags( srec->flags, fbuf );
-		Fprintf( svars->nfp, "%u %u %s%s\n", srec->uid[M], srec->uid[S],
-		         (srec->status & S_SKIPPED) ? "^" : (srec->status & S_PENDING) ? "!" : (srec->status & S_EXPIRED) ? "~" : "", fbuf );
+		char *fptr = fbuf;
+		if (srec->status & S_SKIPPED)
+			*fptr++ = '^';
+		else if (srec->status & S_PENDING)
+			*fptr++ = '!';
+		else if (srec->status & S_EXPIRED)
+			*fptr++ = '~';
+		else if (!srec->flags && svars->chan->move_detect)
+			*fptr++ = '-';
+		make_flags( srec->flags, fptr );
+		Fprintf( svars->nfp, svars->chan->move_detect ? "%u %u %s %s\n" : "%u %u %s\n",
+		         srec->uid[M], srec->uid[S], fbuf, srec->msgid );
 	}
 
 	Fclose( svars->nfp, 1 );
@@ -695,7 +736,7 @@ load_state( sync_vars_t *svars )
 	char c;
 	struct stat st;
 	char fbuf[16]; /* enlarge when support for keywords is added */
-	char buf[128], buf1[64], buf2[64];
+	char buf[256], buf1[64], buf2[64];
 
 	if ((jfp = fopen( svars->dname, "r" ))) {
 		if (!lock_state( svars ))
@@ -755,7 +796,8 @@ load_state( sync_vars_t *svars )
 			buf[ll] = 0;
 			fbuf[0] = 0;
 			uint t1, t2;
-			if (sscanf( buf, "%u %u %15s", &t1, &t2, fbuf ) < 2) {
+			int t3 = 0;
+			if (sscanf( buf, "%u %u %15s %n", &t1, &t2, fbuf, &t3 ) < 2) {
 				error( "Error: invalid sync state entry at %s:%d\n", svars->dname, line );
 				goto jbail;
 			}
@@ -787,9 +829,17 @@ load_state( sync_vars_t *svars )
 			} else
 				srec->status = 0;
 			srec->wstate = 0;
-			srec->flags = parse_flags( s );
-			debug( "  entry (%u,%u,%u,%s)\n", srec->uid[M], srec->uid[S], srec->flags,
-			       (srec->status & S_SKIPPED) ? "SKIP" : (srec->status & S_PENDING) ? "FAIL" : (srec->status & S_EXPIRED) ? "XPIRE" : "" );
+			if (*s != '-')
+				srec->flags = parse_flags( s );
+			else
+				srec->flags = 0;
+			if (t3 && t3 != ll)
+				srec->msgid = nfstrndup( buf + t3, ll - t3 );
+			else
+				srec->msgid = 0;
+			debug( "  entry (%u,%u,%u,%s,%s)\n", srec->uid[M], srec->uid[S], srec->flags,
+			       (srec->status & S_SKIPPED) ? "SKIP" : (srec->status & S_PENDING) ? "FAIL" : (srec->status & S_EXPIRED) ? "XPIRE" : "",
+			       srec->msgid );
 			srec->msg[M] = srec->msg[S] = 0;
 			srec->tuid[0] = 0;
 			srec->next = 0;
@@ -869,7 +919,9 @@ load_state( sync_vars_t *svars )
 				        (sscanf( buf + 2, "%u", &t1 ) != 1) :
 				        c == 'F' || c == 'T' || c == '+' || c == '&' || c == '-' || c == '=' || c == '|' ?
 				          (sscanf( buf + 2, "%u %u", &t1, &t2 ) != 2) :
-				          (sscanf( buf + 2, "%u %u %u", &t1, &t2, &t3 ) != 3))
+				          c == '@' ?
+				            (tn = 0, (sscanf( buf + 2, "%u %u %n", &t1, &t2, &tn ) < 2) || !tn || ll - tn == 2) :
+				            (sscanf( buf + 2, "%u %u %u", &t1, &t2, &t3 ) != 3))
 				{
 					error( "Error: malformed journal entry at %s:%d\n", svars->jname, line );
 					goto jbail;
@@ -899,6 +951,7 @@ load_state( sync_vars_t *svars )
 					srec->wstate = 0;
 					srec->flags = 0;
 					srec->tuid[0] = 0;
+					srec->msgid = 0;
 					srec->next = 0;
 					*svars->srecadd = srec;
 					svars->srecadd = &srec->next;
@@ -932,6 +985,10 @@ load_state( sync_vars_t *svars )
 						debug( "TUID %." stringify(TUIDL) "s lost\n", srec->tuid );
 						srec->flags = 0;
 						srec->tuid[0] = 0;
+						break;
+					case '@':
+						srec->msgid = nfstrndup( buf + 2 + tn, ll - tn - 2 );
+						debug( "message-id now %s\n", srec->msgid );
 						break;
 					case '<':
 						debug( "master now %u\n", t3 );
@@ -1225,6 +1282,7 @@ box_opened2( sync_vars_t *svars, int t )
 	}
 	if (!(svars->jfp = fopen( svars->jname, "a" ))) {
 		sys_error( "Error: cannot create journal %s", svars->jname );
+	  nbail:
 		fclose( svars->nfp );
 		goto bail;
 	}
@@ -1233,7 +1291,9 @@ box_opened2( sync_vars_t *svars, int t )
 		jFprintf( svars, JOURNAL_VERSION "\n" );
 
 	opts[M] = opts[S] = 0;
-	if (fails)
+	if (chan->move_detect)
+		opts[M] = opts[S] = OPEN_OLD|OPEN_OLD_IDS|OPEN_NEW|OPEN_NEW_IDS;
+	else if (fails)
 		opts[M] = opts[S] = OPEN_OLD|OPEN_OLD_IDS;
 	for (t = 0; t < 2; t++) {
 		if (chan->ops[t] & (OP_DELETE|OP_FLAGS)) {
@@ -1439,6 +1499,27 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 	if (!(svars->state[1-t] & ST_LOADED))
 		return;
 
+	/* Amend legacy sync state without Message-Ids. */
+	for (t = 0; t < 2; t++) {
+		if ((svars->ctx[t]->opts & OPEN_OLD_IDS) && svars->uidval[t] == svars->ctx[t]->uidvalidity) {
+			debug( "amending state with message-ids from %s\n", str_ms[t] );
+			for (srec = svars->srecs; srec; srec = srec->next) {
+				if (srec->status & S_DEAD)
+					continue;
+				if (!srec->msgid && srec->msg[t]) {
+					if (srec->msg[t]->msgid) {
+						srec->msgid = srec->msg[t]->msgid;
+						srec->msg[t]->msgid = 0;
+					} else {
+						srec->msgid = nfstrdup( "<>" );
+					}
+					debug( "  -> set msgid on (%d,%d): %s\n", srec->uid[M], srec->uid[S], srec->msgid );
+					Fprintf( svars->jfp, "@ %d %d %s\n", srec->uid[M], srec->uid[S], srec->msgid );
+				}
+			}
+		}
+	}
+
 	for (t = 0; t < 2; t++) {
 		if (svars->uidval[t] != UIDVAL_BAD && svars->uidval[t] != svars->newuidval[t]) {
 			unsigned need = 0, got = 0;
@@ -1607,6 +1688,7 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 						srec->uid[t] = 0;
 						srec->msg[1-t] = tmsg;
 						srec->msg[t] = 0;
+						srec->msgid = 0;
 						tmsg->srec = srec;
 						if (svars->newmaxuid[1-t] < tmsg->uid)
 							svars->newmaxuid[1-t] = tmsg->uid;
@@ -1843,6 +1925,16 @@ msg_copied( int sts, uint uid, copy_vars_t *vars )
 			vars->srec->uid[t] = uid;
 			vars->srec->status &= ~S_PENDING;
 			vars->srec->tuid[0] = 0;
+		}
+		if (svars->chan->move_detect) {
+			if (vars->msg->msgid) {
+				vars->srec->msgid = vars->msg->msgid;
+				vars->msg->msgid = 0;
+			} else {
+				vars->srec->msgid = nfstrdup( "<>" );
+			}
+			debug( "  -> set msgid on (%u,%u): %s\n", vars->srec->uid[M], vars->srec->uid[S], vars->srec->msgid );
+			Fprintf( svars->jfp, "@ %u %u %s\n", vars->srec->uid[M], vars->srec->uid[S], vars->srec->msgid );
 		}
 		break;
 	case SYNC_NOGOOD:
@@ -2202,6 +2294,7 @@ sync_bail( sync_vars_t *svars )
 	free( svars->trashed_msgs[S].array.data );
 	for (srec = svars->srecs; srec; srec = nsrec) {
 		nsrec = srec->next;
+		free( srec->msgid );
 		free( srec );
 	}
 	if (svars->lfd >= 0) {

@@ -55,6 +55,7 @@ typedef struct channel_conf {
 	uint max_messages; /* for slave only */
 	signed char expire_unread;
 	char use_internal_date;
+	char move_detect;
 } channel_conf_t;
 
 typedef struct group_conf {

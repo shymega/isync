@@ -82,6 +82,7 @@ typedef struct message {
 #define OPEN_APPEND     (1<<7)
 #define OPEN_FIND       (1<<8)
 #define OPEN_OLD_IDS    (1<<9)
+#define OPEN_NEW_IDS    (1<<10)
 
 #define UIDVAL_BAD ((uint)-1)
 

@@ -578,6 +578,16 @@ Note that for safety, non-empty mailboxes are never deleted.
 (Global default: \fBNone\fR)
 ..
 .TP
+\fBMoveDetect\fR \fByes\fR|\fBno\fR
+Detect message moves between folders.
+When this option is enabled, \fBmbsync\fR queries and stores Message-Ids
+in addition to UIDs, and uses them to identify messages which were
+previously seen in other folders. This adds some minor overhead to the
+overall synchronization process, but can save a lot of bandwith when
+messages are often moved between folders.
+(Default: \fBTBD\fR).
+..
+.TP
 \fBExpunge\fR {\fBNone\fR|\fBMaster\fR|\fBSlave\fR|\fBBoth\fR}
 Permanently remove all messages [on the Master/Slave] marked for deletion.
 See \fBRECOMMENDATIONS\fR below.
@@ -595,7 +605,7 @@ date\fR) is actually the arrival time, but it is usually close enough.
 ..
 .P
 \fBSync\fR, \fBCreate\fR, \fBRemove\fR, \fBExpunge\fR,
-\fBMaxMessages\fR, and \fBCopyArrivalDate\fR
+\fBMoveDetect\fR, \fBMaxMessages\fR, and \fBCopyArrivalDate\fR
 can be used before any section for a global effect.
 The global settings are overridden by Channel-specific options,
 which in turn are overridden by command line switches.
