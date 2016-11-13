@@ -1017,7 +1017,8 @@ sync_boxes( store_t *ctx[], const char *names[], int present[], channel_conf_t *
 		if (!ctx[t]->conf->flat_delim) {
 			svars->box_name[t] = nfstrdup( svars->orig_name[t] );
 		} else if (map_name( svars->orig_name[t], &svars->box_name[t], 0, "/", ctx[t]->conf->flat_delim ) < 0) {
-			error( "Error: canonical mailbox name '%s' contains flattened hierarchy delimiter\n", svars->orig_name[t] );
+			error( "Error: channel %s: canonical mailbox name '%s' contains flattened hierarchy delimiter\n",
+			       svars->chan->name, svars->orig_name[t] );
 		  bail3:
 			svars->ret = SYNC_FAIL;
 			sync_bail3( svars );
@@ -1531,7 +1532,8 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 						srec->uid[S] = 0;
 					} else {
 						if (srec->msg[t] && (srec->msg[t]->status & M_FLAGS) && srec->msg[t]->flags != srec->flags)
-							notice( "Notice: conflicting changes in (%u,%u)\n", srec->uid[M], srec->uid[S] );
+							notice( "Notice: channel %s: conflicting changes in (%u,%u)\n",
+							        svars->chan->name, srec->uid[M], srec->uid[S] );
 						if (svars->chan->ops[t] & OP_DELETE) {
 							debug( "  %sing delete\n", str_hl[t] );
 							srec->aflags[t] = F_DELETED;
@@ -1708,9 +1710,9 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 		}
 		debug( "%d excess messages remain\n", todel );
 		if (svars->chan->expire_unread < 0 && (uint)alive * 2 > svars->chan->max_messages) {
-			error( "%s: %d unread messages in excess of MaxMessages (%d).\n"
+			error( "Error: channel %s, slave %s: %d unread messages in excess of MaxMessages.\n"
 			       "Please set ExpireUnread to decide outcome. Skipping mailbox.\n",
-			       svars->orig_name[S], alive, svars->chan->max_messages );
+			       svars->chan->name, svars->orig_name[S], alive );
 			svars->ret |= SYNC_FAIL;
 			cancel_sync( svars );
 			return;
