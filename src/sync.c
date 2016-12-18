@@ -1434,11 +1434,12 @@ box_loaded( int sts, void *aux )
 
 	for (t = 0; t < 2; t++) {
 		if (svars->uidval[t] >= 0 && svars->uidval[t] != svars->ctx[t]->uidvalidity) {
-			unsigned need = 0, got = 0;
+			unsigned total = 0, need = 0, got = 0;
 			debug( "trying to re-approve uid validity of %s\n", str_ms[t] );
 			for (srec = svars->srecs; srec; srec = srec->next) {
 				if (srec->status & S_DEAD)
 					continue;
+				total++;
 				if (!srec->msg[t])
 					continue;  // Message disappeared.
 				need++;  // Present paired messages require re-validation.
@@ -1461,12 +1462,37 @@ box_loaded( int sts, void *aux )
 				// A proper fallback would be fetching more headers (which potentially need
 				// normalization) or the message body (which should be truncated for sanity)
 				// and comparing.
+				// But for simplicity, we employ a heuristic instead. We limit it to mailboxes
+				// with at most 10 messages as a means to limit (hypothetical) damage (though
+				// with more messages, the likelihood of a false positive is even lower).
+				// The algorithm checks whether enough (80%) of the messages are still in place,
+				// not too many (20%) new messages appeared, and that no new messages appeared
+				// in the already seen UID range. A genuine UID re-enumeration would quickly
+				// invalidate these assertions. The algorithm is most reliable when the UIDs
+				// are non-adjacent (which increases with mailbox use) due to looking random.
+				if (total <= 10 && need * 5 >= total * 4) {
+					unsigned neu = 0;
+					debug( "doing purely UID-based recovery\n" );
+					for (tmsg = svars->ctx[t]->msgs; tmsg; tmsg = tmsg->next) {
+						if (!tmsg->srec) {
+							if (tmsg->uid <= svars->maxuid[t]) {
+								error( "Error: channel %s, %s %s: UIDVALIDITY genuinely changed (at UID %d).\n",
+								       svars->chan->name, str_ms[t], svars->orig_name[t], tmsg->uid );
+								goto uvchg;
+							}
+							neu++;
+						}
+					}
+					if (neu * 5 <= total)
+						goto uvchgok;
+				}
 				error( "Error: channel %s, %s %s: Unable to recover from UIDVALIDITY change\n"
 				       "(got %d, expected %d).\n",
 				       svars->chan->name, str_ms[t], svars->orig_name[t],
 				       svars->ctx[t]->uidvalidity, svars->uidval[t] );
 				goto uvchg;
 			}
+		  uvchgok:
 			notice( "Notice: channel %s, %s %s: Recovered from change of UIDVALIDITY.\n",
 			        svars->chan->name, str_ms[t], svars->orig_name[t] );
 			svars->uidval[t] = -1;
