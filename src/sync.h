@@ -62,6 +62,7 @@ typedef struct channel_conf {
 	char use_internal_date;
 	uint max_line_len;
 	char cut_lines;
+	char skip_binary_content; /* for master only */
 } channel_conf_t;
 
 typedef struct group_conf {

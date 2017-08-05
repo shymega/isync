@@ -1926,7 +1926,14 @@ imap_socket_read( void *aux )
 						resp = RESP_NO;
 						// Fall through - we still complain
 					} else {
-						resp = RESP_CANCEL;
+						//resp = RESP_CANCEL;
+						// Ignore BAD Error 10 (or 11) when SkipBinaryContent is not used.
+						// this doesn't seem like a terribly good idea to me - this server response
+						// indicates that the client (allegedly) did something wrong. that may mean
+						// that the subsequent command stream will be interpreted as garbage, which
+						// may have unpredictable effects. it just isn't safe to continue at this
+						// point.
+						resp = RESP_NO;
 					}
 				}
 				error( "IMAP command '%s' returned an error: %s\n",
