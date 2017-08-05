@@ -104,7 +104,7 @@ struct imap_store {
 	enum { SST_BAD, SST_HALF, SST_GOOD } state;
 	/* trash folder's existence is not confirmed yet */
 	enum { TrashUnknown, TrashChecking, TrashKnown } trashnc;
-	uint got_namespace:1;
+	char got_namespace, is_ms_exchange;
 	char delimiter[2]; /* hierarchy delimiter */
 	list_t *ns_personal, *ns_other, *ns_shared; /* NAMESPACE info */
 	string_list_t *boxes; // _list results
@@ -1147,37 +1147,37 @@ parse_capability( imap_store_t *ctx, char *cmd )
 }
 
 static int
-parse_response_code( imap_store_t *ctx, imap_cmd_t *cmd, char *s )
+parse_response_code( imap_store_t *ctx, imap_cmd_t *cmd, char **s )
 {
 	char *arg, *earg, *p;
 
-	if (!s || *s != '[')
+	if (!*s || **s != '[')
 		return RESP_OK;		/* no response code */
-	s++;
-	if (!(p = strchr( s, ']' ))) {
+	(*s)++;
+	if (!(p = strchr( *s, ']' ))) {
 	  bad_resp:
 		error( "IMAP error: malformed response code\n" );
 		return RESP_CANCEL;
 	}
 	*p++ = 0;
-	if (!(arg = next_arg( &s )))
+	if (!(arg = next_arg( s )))
 		goto bad_resp;
 	if (!strcmp( "UIDVALIDITY", arg )) {
-		if (!(arg = next_arg( &s )) ||
+		if (!(arg = next_arg( s )) ||
 		    (ctx->uidvalidity = strtoul( arg, &earg, 10 ), *earg))
 		{
 			error( "IMAP error: malformed UIDVALIDITY status\n" );
 			return RESP_CANCEL;
 		}
 	} else if (!strcmp( "UIDNEXT", arg )) {
-		if (!(arg = next_arg( &s )) ||
+		if (!(arg = next_arg( s )) ||
 		    (ctx->uidnext = strtoul( arg, &earg, 10 ), *earg))
 		{
 			error( "IMAP error: malformed NEXTUID status\n" );
 			return RESP_CANCEL;
 		}
 	} else if (!strcmp( "CAPABILITY", arg )) {
-		parse_capability( ctx, s );
+		parse_capability( ctx, *s );
 	} else if (!strcmp( "ALERT", arg )) {
 		/* RFC2060 says that these messages MUST be displayed
 		 * to the user
@@ -1185,9 +1185,9 @@ parse_response_code( imap_store_t *ctx, imap_cmd_t *cmd, char *s )
 		for (; isspace( (uchar)*p ); p++);
 		error( "*** IMAP ALERT *** %s\n", p );
 	} else if (cmd && !strcmp( "APPENDUID", arg )) {
-		if (!(arg = next_arg( &s )) ||
+		if (!(arg = next_arg( s )) ||
 		    (ctx->uidvalidity = strtoul( arg, &earg, 10 ), *earg) ||
-		    !(arg = next_arg( &s )) ||
+		    !(arg = next_arg( s )) ||
 		    (((imap_cmd_out_uid_t *)cmd)->out_uid = strtoul( arg, &earg, 10 ), *earg))
 		{
 			error( "IMAP error: malformed APPENDUID status\n" );
@@ -1195,6 +1195,15 @@ parse_response_code( imap_store_t *ctx, imap_cmd_t *cmd, char *s )
 		}
 	}
 	return RESP_OK;
+}
+
+static void
+parse_server_id( imap_store_t *ctx, char *cmd )
+{
+	if (starts_with( cmd, -1, "The Microsoft Exchange", 22 )) {
+		info( "Microsoft Exchange server detected; workarounds may be enabled.\n" );
+		ctx->is_ms_exchange = 1;
+	}
 }
 
 static int parse_list_rsp_p2( imap_store_t *, list_t *, char * );
@@ -1360,7 +1369,8 @@ imap_socket_read( void *aux )
 			}
 
 			if (ctx->greeting == GreetingPending && !strcmp( "PREAUTH", arg )) {
-				parse_response_code( ctx, 0, cmd );
+				parse_response_code( ctx, 0, &cmd );
+				parse_server_id( ctx, cmd );
 				ctx->greeting = GreetingPreauth;
 			  dogreet:
 				imap_ref( ctx );
@@ -1368,8 +1378,9 @@ imap_socket_read( void *aux )
 				if (imap_deref( ctx ))
 					return;
 			} else if (!strcmp( "OK", arg )) {
-				parse_response_code( ctx, 0, cmd );
+				parse_response_code( ctx, 0, &cmd );
 				if (ctx->greeting == GreetingPending) {
+					parse_server_id( ctx, cmd );
 					ctx->greeting = GreetingOk;
 					goto dogreet;
 				}
@@ -1493,7 +1504,7 @@ imap_socket_read( void *aux )
 				       arg, cmd ? cmd : "" );
 			}
 		  doresp:
-			if ((resp2 = parse_response_code( ctx, cmdp, cmd )) > resp)
+			if ((resp2 = parse_response_code( ctx, cmdp, &cmd )) > resp)
 				resp = resp2;
 			imap_ref( ctx );
 			if (resp == RESP_CANCEL)
