@@ -59,6 +59,8 @@ typedef struct channel_conf {
 	int expire_side;
 	signed char expire_unread;
 	char use_internal_date;
+	uint max_line_len;
+	char cut_lines;
 } channel_conf_t;
 
 typedef struct group_conf {
