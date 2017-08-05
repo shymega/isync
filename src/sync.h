@@ -56,6 +56,11 @@ typedef struct channel_conf {
 	int max_messages;  // For near side only.
 	signed char expire_unread;
 	char use_internal_date;
+	uint max_line_len;
+	char cut_lines;
+	char ignore_max_pulled_uid; /* for master only */
+	char skip_binary_content; /* for master only */
+	char delete_nonempty;
 } channel_conf_t;
 
 typedef struct group_conf {
@@ -75,6 +80,7 @@ extern const char *str_fn[2], *str_hl[2];
 #define SYNC_BAD(fn)  (4<<(fn))
 #define SYNC_NOGOOD   16 /* internal */
 #define SYNC_CANCELED 32 /* internal */
+#define SYNC_MALFORMED 64 /* internal */
 
 #define BOX_POSSIBLE -1
 #define BOX_ABSENT    0

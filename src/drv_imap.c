@@ -78,6 +78,7 @@ typedef union imap_store_conf {
 		char delimiter;
 		char use_namespace;
 		char use_lsub;
+		char ignore_keyword_warnings;
 	};
 } imap_store_conf_t;
 
@@ -1627,7 +1628,8 @@ imap_socket_read( void *aux )
 				error( "IMAP error: bogus greeting response %s\n", arg );
 				break;
 			} else if (!strcmp( "NO", arg )) {
-				warn( "Warning from IMAP server: %s\n", cmd );
+				if (!ctx->conf->ignore_keyword_warnings || strcmp( cmd, "Keywords are not supported" ))
+					warn( "Warning from IMAP server: %s\n", cmd );
 			} else if (!strcmp( "BAD", arg )) {
 				error( "Error from IMAP server: %s\n", cmd );
 			} else if (!strcmp( "CAPABILITY", arg )) {
@@ -1725,8 +1727,16 @@ imap_socket_read( void *aux )
 					resp = RESP_NO;
 					if (cmdp->param.failok)
 						goto doresp;
-				} else /*if (!strcmp( "BAD", arg ))*/
-					resp = RESP_CANCEL;
+				} else /*if (!strcmp( "BAD", arg ))*/ {
+					//resp = RESP_CANCEL;
+					// Ignore BAD Error 10 (or 11) when SkipBinaryContent is not used.
+					// this doesn't seem like a terribly good idea to me - this server response
+					// indicates that the client (allegedly) did something wrong. that may mean
+					// that the subsequent command stream will be interpreted as garbage, which
+					// may have unpredictable effects. it just isn't safe to continue at this
+					// point.
+					resp = RESP_NO;
+				}
 				error( "IMAP command '%s' returned an error: %s %s\n",
 				       starts_with( cmdp->cmd, -1, "LOGIN", 5 ) ?
 				           "LOGIN <user> <pass>" :
@@ -3671,6 +3681,8 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep )
 				store->use_namespace = parse_bool( cfg );
 			else if (!strcasecmp( "SubscribedOnly", cfg->cmd ))
 				store->use_lsub = parse_bool( cfg );
+			else if (!strcasecmp( "IgnoreKeywordWarnings", cfg->cmd ))
+				store->ignore_keyword_warnings = parse_bool( cfg );
 			else if (!strcasecmp( "Path", cfg->cmd ))
 				store->path = nfstrdup( cfg->val );
 			else if (!strcasecmp( "PathDelimiter", cfg->cmd )) {
