@@ -55,6 +55,11 @@ typedef struct channel_conf {
 	uint max_messages; /* for slave only */
 	signed char expire_unread;
 	char use_internal_date;
+       uint max_line_len;
+       char cut_lines;
+       char ignore_max_pulled_uid; /* for master only */
+       char skip_binary_content; /* for master only */
+       char delete_nonempty;
 } channel_conf_t;
 
 typedef struct group_conf {
@@ -69,11 +74,12 @@ extern group_conf_t *groups;
 
 extern const char *str_ms[2], *str_hl[2];
 
-#define SYNC_OK       0 /* assumed to be 0 */
-#define SYNC_FAIL     1
-#define SYNC_BAD(ms)  (4<<(ms))
-#define SYNC_NOGOOD   16 /* internal */
-#define SYNC_CANCELED 32 /* internal */
+#define SYNC_OK        0 /* assumed to be 0 */
+#define SYNC_FAIL      1
+#define SYNC_BAD(ms)   (4<<(ms))
+#define SYNC_NOGOOD    16 /* internal */
+#define SYNC_CANCELED  32 /* internal */
+#define SYNC_MALFORMED 64 /* internal */
 
 #define BOX_POSSIBLE -1
 #define BOX_ABSENT    0

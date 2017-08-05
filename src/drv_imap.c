@@ -66,6 +66,7 @@ typedef struct imap_store_conf {
 	imap_server_conf_t *server;
 	char delimiter;
 	char use_namespace;
+       char ignore_keyword_warnings;
 } imap_store_conf_t;
 
 typedef struct imap_message {
@@ -1259,6 +1260,7 @@ static void
 imap_socket_read( void *aux )
 {
 	imap_store_t *ctx = (imap_store_t *)aux;
+       imap_store_conf_t *cfg = (imap_store_conf_t *)ctx->gen.conf;
 	struct imap_cmd *cmdp, **pcmdp;
 	char *cmd, *arg, *arg1, *p;
 	int resp, resp2, tag;
@@ -1326,7 +1328,8 @@ imap_socket_read( void *aux )
 				error( "IMAP error: bogus greeting response %s\n", arg );
 				break;
 			} else if (!strcmp( "NO", arg )) {
-				warn( "Warning from IMAP server: %s\n", cmd );
+                               if (!strcmp( "Keywords are not supported", arg) && !cfg->ignore_keyword_warnings)
+                                       warn( "Warning from IMAP server: %s\n", cmd );
 			} else if (!strcmp( "BAD", arg )) {
 				error( "Error from IMAP server: %s\n", cmd );
 			} else if (!strcmp( "CAPABILITY", arg )) {
@@ -1416,6 +1419,16 @@ imap_socket_read( void *aux )
 					resp = RESP_NO;
 					if (cmdp->param.failok)
 						goto doresp;
+                               } else if (!strcmp( "BAD", arg )) {
+                                       resp = RESP_NO;
+                               warn( "Warning: IMAP command '%s' returned an error: %s %s\n",
+                                      starts_with( cmdp->cmd, -1, "LOGIN", 5 ) ?
+                                          "LOGIN <user> <pass>" :
+                                          starts_with( cmdp->cmd, -1, "AUTHENTICATE PLAIN", 18 ) ?
+                                              "AUTHENTICATE PLAIN <authdata>" :
+                                               cmdp->cmd,
+                                      arg, cmd ? cmd : "" );
+                                       goto doresp;
 				} else /*if (!strcmp( "BAD", arg ))*/
 					resp = RESP_CANCEL;
 				error( "IMAP command '%s' returned an error: %s %s\n",
@@ -2968,6 +2981,8 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep )
 				store->server = srv;
 			} else if (!strcasecmp( "UseNamespace", cfg->cmd ))
 				store->use_namespace = parse_bool( cfg );
+                       else if (!strcasecmp( "IgnoreKeywordWarnings", cfg->cmd ))
+                               store->ignore_keyword_warnings = parse_bool( cfg );
 			else if (!strcasecmp( "Path", cfg->cmd ))
 				store->gen.path = nfstrdup( cfg->val );
 			else if (!strcasecmp( "PathDelimiter", cfg->cmd )) {
