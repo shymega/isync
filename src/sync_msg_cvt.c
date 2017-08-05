@@ -8,12 +8,15 @@
 #include "sync_p.h"
 
 static void
-copy_msg_bytes( char **out_ptr, const char *in_buf, uint *in_idx, uint in_len, int in_cr, int out_cr )
+copy_msg_bytes( char **out_ptr, const char *in_buf, uint *in_idx, uint in_len, int in_cr, int out_cr, uint max_line_len )
 {
 	char *out = *out_ptr;
 	uint idx = *in_idx;
 	if (out_cr != in_cr) {
+		/* message needs to be converted */
+		assert( !max_line_len );  // not supported yet
 		if (out_cr) {
+			/* adding CR */
 			for (char c, pc = 0; idx < in_len; idx++) {
 				if (((c = in_buf[idx]) == '\n') && (pc != '\r'))
 					*out++ = '\r';
@@ -21,6 +24,7 @@ copy_msg_bytes( char **out_ptr, const char *in_buf, uint *in_idx, uint in_len, i
 				pc = c;
 			}
 		} else {
+			/* removing CR */
 			for (char c, pc = 0; idx < in_len; idx++) {
 				if (((c = in_buf[idx]) == '\n') && (pc == '\r'))
 					out--;
@@ -29,9 +33,40 @@ copy_msg_bytes( char **out_ptr, const char *in_buf, uint *in_idx, uint in_len, i
 			}
 		}
 	} else {
-		memcpy( out, in_buf + idx, in_len - idx );
-		out += in_len - idx;
-		idx = in_len;
+		/* no CRLF change */
+		if (max_line_len > 0) {
+			/* there are too long lines in the message */
+			for (;;) {
+				const char *curLine = in_buf + idx;
+				uint leftLen = in_len - idx;
+				char *nextLine = memchr( curLine, '\n', leftLen );
+				uint curLineLen = nextLine ? (uint)(nextLine - curLine) + 1 : leftLen;
+				uint line_idx = 0;
+				for (;;) {
+					uint cutLen = curLineLen - line_idx;
+					if (cutLen > max_line_len)
+						cutLen = max_line_len;
+					memcpy( out, curLine + line_idx, cutLen );
+					out += cutLen;
+					line_idx += cutLen;
+					if (line_idx == curLineLen)
+						break;
+					/* add (CR)LF except for the last line */
+					if (out_cr)
+						*out++ = '\r';
+					*out++ = '\n';
+				}
+				idx += curLineLen;
+				if (!nextLine)
+					break;
+			}
+			//debug("End index %d (message size %d), message size should be %d\n", idx, in_len, *in_idx + out - *out_ptr);
+		} else {
+			/* simple copy */
+			memcpy( out, in_buf + idx, in_len - idx );
+			out += in_len - idx;
+			idx = in_len;
+		}
 	}
 	*out_ptr = out;
 	*in_idx = idx;
@@ -43,10 +78,34 @@ copy_msg_convert( int in_cr, int out_cr, copy_vars_t *vars )
 	char *in_buf = vars->data.data;
 	uint in_len = vars->data.len;
 	uint idx = 0, sbreak = 0, ebreak = 0, break2 = UINT_MAX;
-	uint lines = 0, hdr_crs = 0, bdy_crs = 0, app_cr = 0, extra = 0;
+	uint lines = 0, hdr_crs = 0, bdy_crs = 0, app_cr = 0, extra = 0, extra_bytes = 0;
 	uint add_subj = 0, fix_tuid = 0, fix_subj = 0, fix_hdr = 0, end_hdr = 0;
 
 	if (vars->srec) {
+		if (global_conf.max_line_len) {
+			char *curLine = in_buf;
+			uint leftLen = in_len;
+			for (;;) {
+				char *nextLine = memchr( curLine, '\n', leftLen );
+				uint curLineLen = nextLine ? (uint)(nextLine - curLine) + 1 : leftLen;
+				if (curLineLen > global_conf.max_line_len) {
+					if (!global_conf.cut_lines) {
+						/* stop here with too long line error */
+						free( in_buf );
+						return "contains too long line(s)";
+					}
+					/* compute the addded lines as we are going to cut them */
+					uint extra_lines = (curLineLen - 1) / global_conf.max_line_len;
+					if (out_cr)
+						extra_bytes += extra_lines;   // CR
+					extra_bytes += extra_lines;   // LF
+				}
+				if (!nextLine)
+					break;
+				curLine = nextLine + 1;
+				leftLen -= curLineLen;
+			}
+		}
 		for (;;) {
 			uint start = idx;
 			uint line_cr = 0;
@@ -172,7 +231,7 @@ copy_msg_convert( int in_cr, int out_cr, copy_vars_t *vars )
 			*out_buf++ = '\n'; \
 		} while (0)
 
-	vars->data.len = in_len + extra;
+	vars->data.len = in_len + extra + extra_bytes;
 	if (vars->data.len > INT_MAX) {
 		free( in_buf );
 		return "is too big after conversion";
@@ -181,11 +240,12 @@ copy_msg_convert( int in_cr, int out_cr, copy_vars_t *vars )
 	idx = 0;
 	if (vars->srec) {
 		if (break2 < sbreak) {
-			copy_msg_bytes( &out_buf, in_buf, &idx, break2, in_cr, out_cr );
+			copy_msg_bytes( &out_buf, in_buf, &idx, break2, in_cr, out_cr, 0 );
 			memcpy( out_buf, dummy_pfx, strlen(dummy_pfx) );
 			out_buf += strlen(dummy_pfx);
 		}
-		copy_msg_bytes( &out_buf, in_buf, &idx, sbreak, in_cr, out_cr );
+		//debug ("Calling copy_msg_bytes for the header (0 to %d) with %d extra bytes\n", sbreak, extra);
+		copy_msg_bytes( &out_buf, in_buf, &idx, sbreak, in_cr, out_cr, 0 );
 
 		if (fix_tuid)
 			ADD_NL();
@@ -197,7 +257,7 @@ copy_msg_convert( int in_cr, int out_cr, copy_vars_t *vars )
 		idx = ebreak;
 
 		if (break2 != UINT_MAX && break2 >= sbreak) {
-			copy_msg_bytes( &out_buf, in_buf, &idx, break2, in_cr, out_cr );
+			copy_msg_bytes( &out_buf, in_buf, &idx, break2, in_cr, out_cr, 0 );
 			if (!add_subj) {
 				memcpy( out_buf, dummy_pfx, strlen(dummy_pfx) );
 				out_buf += strlen(dummy_pfx);
@@ -210,7 +270,10 @@ copy_msg_convert( int in_cr, int out_cr, copy_vars_t *vars )
 			}
 		}
 	}
-	copy_msg_bytes( &out_buf, in_buf, &idx, in_len, in_cr, out_cr );
+	//debug ("Calling copy_msg_bytes for the body (at %d) with %d extra byte(s), limit is %d \n", ebreak, extra_bytes, extra_bytes > 0 ? global_conf.max_line_len : 0);
+	copy_msg_bytes( &out_buf, in_buf, &idx, in_len, in_cr, out_cr, extra_bytes > 0 ? global_conf.max_line_len : 0 );
+	//debug("Message after %s\n", vars->data.data);
+	//debug("Good message size should be %d + %d\n",vars->data.len-extra, extra);
 
 	if (vars->minimal) {
 		if (end_hdr) {

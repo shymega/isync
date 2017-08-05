@@ -259,6 +259,10 @@ getopt_helper( conffile_t *cfile, int *cops, channel_conf_t *conf )
 		conf->sync_state = !strcmp( cfile->val, "*" ) ? "*" : expand_strdup( cfile->val, cfile );
 	} else if (!strcasecmp( "CopyArrivalDate", cfile->cmd )) {
 		conf->use_internal_date = parse_bool( cfile );
+	} else if (!strcasecmp( "MaxLineLength", cfile->cmd )) {
+		conf->max_line_len = parse_int( cfile );
+	} else if (!strcasecmp( "CutLongLines", cfile->cmd )) {
+		conf->cut_lines = parse_bool( cfile );
 	} else if (!strcasecmp( "MaxMessages", cfile->cmd )) {
 		conf->max_messages = parse_int( cfile );
 	} else if (!strcasecmp( "ExpireSide", cfile->cmd )) {
