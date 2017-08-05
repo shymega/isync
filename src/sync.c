@@ -444,8 +444,13 @@ box_confirmed2( sync_vars_t *svars, int t )
 					       svars->chan->name, str_fn[t], svars->orig_name[t] );
 					goto bail;
 				}
+<<<<<<< HEAD
 				if (svars->drv[t^1]->confirm_box_empty( svars->ctx[t^1] ) != DRV_OK) {
 					warn( "Warning: channel %s: %s box %s cannot be opened anymore, and %s box %s is not empty.\n",
+=======
+				if (!global_conf.delete_nonempty && svars->drv[t^1]->confirm_box_empty( svars->ctx[t^1] ) != DRV_OK) {
+					warn( "Warning: channel %s: %s box %s cannot be opened and %s box %s is not empty.\n",
+>>>>>>> 0af9331 (*** allow deleting non-empty folders)
 					      svars->chan->name, str_fn[t], svars->orig_name[t], str_fn[t^1], svars->orig_name[t^1] );
 					goto done;
 				}
