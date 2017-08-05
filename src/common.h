@@ -73,10 +73,7 @@ typedef unsigned int uint;
 #define DEBUG_DRV       0x40
 #define DEBUG_DRV_ALL   0x80
 #define DEBUG_ALL       (0xFF & ~(DEBUG_NET_ALL | DEBUG_DRV_ALL))
-#define QUIET           0x100
-#define VERYQUIET       0x200
 #define PROGRESS        0x400
-#define VERBOSE         0x800
 #define KEEPJOURNAL     0x1000
 #define ZERODELAY       0x2000
 
@@ -109,6 +106,17 @@ void ATTR_PRINTFLIKE(1, 2) warn( const char *, ... );
 void ATTR_PRINTFLIKE(1, 2) error( const char *, ... );
 void ATTR_PRINTFLIKE(1, 2) sys_error( const char *, ... );
 void flushn( void );
+
+extern int PrintLevel;
+#define PRN_ERROR   0
+#define PRN_WARN    1
+#define PRN_NOTICE  2
+#define PRN_INFO    3
+#define PRN_NONL    0x100
+#define PRN_CONT    0x200
+
+char *nfeprintf( char *buf, char *buf_end, const char *fmt, ... );
+char *nfevprintf( char *buf, char *buf_end, const char *fmt, va_list ap );
 
 typedef struct string_list {
 	struct string_list *next;

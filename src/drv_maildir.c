@@ -129,7 +129,7 @@ static int
 maildir_ensure_path( maildir_store_conf_t *conf )
 {
 	if (!conf->gen.path) {
-		error( "Maildir error: store '%s' has no Path\n", conf->gen.name );
+		drv_print( PRN_ERROR, "Maildir store '%s' has no Path\n", conf->gen.name );
 		conf->failed = FAIL_FINAL;
 		return -1;
 	}
@@ -157,13 +157,13 @@ maildir_join_path( maildir_store_conf_t *conf, int in_inbox, const char *box )
 	for (bl = 0, n = 0; (c = box[bl]); bl++)
 		if (c == '/') {
 			if (conf->sub_style == SUB_UNSET) {
-				error( "Maildir error: accessing subfolder '%s', but store '%s' does not specify SubFolders style\n",
+				drv_print( PRN_ERROR, "Accessing subfolder '%s', but Maildir store '%s' does not specify SubFolders style\n",
 				       box, conf->gen.name );
 				return 0;
 			}
 			n++;
 		} else if (c == '.' && conf->sub_style == SUB_MAILDIRPP) {
-			error( "Maildir error: store '%s', folder '%s': SubFolders style Maildir++ does not support dots in mailbox names\n",
+			drv_print( PRN_ERROR, "Maildir store '%s', folder '%s': SubFolders style Maildir++ does not support dots in mailbox names\n",
 			       conf->gen.name, box );
 			return 0;
 		}
@@ -397,7 +397,7 @@ maildir_list_recurse( maildir_store_t *ctx, int isBox, int flags,
 	if (!(dir = opendir( path ))) {
 		if (isBox && (errno == ENOENT || errno == ENOTDIR))
 			return 0;
-		sys_error( "Maildir error: cannot list %s", path );
+		sys_error( "Maildir error: cannot list %s: %m\n", path );
 		return -1;
 	}
 	if (isBox > 1 && style == SUB_UNSET) {
@@ -550,7 +550,7 @@ maildir_clear_tmp( char *buf, int bufsz, int bl )
 	memcpy( buf + bl, "tmp/", 5 );
 	bl += 4;
 	if (!(dirp = opendir( buf ))) {
-		sys_error( "Maildir error: cannot list %s", buf );
+		sys_error( "Maildir error: cannot list %s: %m\n", buf );
 		return DRV_BOX_BAD;
 	}
 	time( &now );
@@ -558,14 +558,14 @@ maildir_clear_tmp( char *buf, int bufsz, int bl )
 		nfsnprintf( buf + bl, bufsz - bl, "%s", entry->d_name );
 		if (stat( buf, &st )) {
 			if (errno != ENOENT)
-				sys_error( "Maildir error: cannot access %s", buf );
+				sys_error( "Maildir error: cannot access %s: %m\n", buf );
 		} else if (S_ISREG(st.st_mode) && now - st.st_ctime >= _24_HOURS) {
 			/* This should happen infrequently enough that it won't be
 			 * bothersome to the user to display when it occurs.
 			 */
 			notice( "Maildir notice: removing stale file %s\n", buf );
 			if (unlink( buf ) && errno != ENOENT)
-				sys_error( "Maildir error: cannot remove %s", buf );
+				sys_error( "Maildir error: cannot remove %s: %m\n", buf );
 		}
 	}
 	closedir( dirp );
@@ -597,13 +597,13 @@ maildir_validate( const char *box, int create, maildir_store_t *ctx )
 	bl = nfsnprintf( buf, sizeof(buf) - 4, "%s/", box );
 	if (stat( buf, &st )) {
 		if (errno != ENOENT) {
-			sys_error( "Maildir error: cannot access mailbox '%s'", box );
+			sys_error( "Maildir error: cannot access mailbox '%s': %m\n", box );
 			return DRV_BOX_BAD;
 		}
 		if (!create)
 			return DRV_BOX_BAD;
 		if (make_box_dir( buf, bl )) {
-			sys_error( "Maildir error: cannot create mailbox '%s'", box );
+			sys_error( "Maildir error: cannot create mailbox '%s': %m\n", box );
 			((maildir_store_conf_t *)ctx->gen.conf)->failed = FAIL_FINAL;
 			maildir_invoke_bad_callback( ctx );
 			return DRV_CANCELED;
@@ -620,7 +620,7 @@ maildir_validate( const char *box, int create, maildir_store_t *ctx )
 			if (!i && !create)
 				return DRV_BOX_BAD;
 			if (mkdir( buf, 0700 )) {
-				sys_error( "Maildir error: cannot create directory %s", buf );
+				sys_error( "Maildir error: cannot create directory %s: %m\n", buf );
 				return DRV_BOX_BAD;
 			}
 			ctx->fresh[i] = 1;
@@ -736,7 +736,7 @@ maildir_uidval_lock( maildir_store_t *ctx )
 #ifdef USE_DB
 	if (ctx->usedb) {
 		if (fstat( ctx->uvfd, &st )) {
-			sys_error( "Maildir error: cannot fstat UID database" );
+			sys_error( "Maildir error: cannot fstat UID database: %m\n" );
 			return DRV_BOX_BAD;
 		}
 		if (db_create( &ctx->db, 0, 0 )) {
@@ -938,7 +938,7 @@ maildir_scan( maildir_store_t *ctx, msg_t_array_alloc_t *msglist )
 		for (i = 0; i < 2; i++) {
 			memcpy( buf + bl, subdirs[i], 4 );
 			if (stat( buf, &st )) {
-				sys_error( "Maildir error: cannot stat %s", buf );
+				sys_error( "Maildir error: cannot stat %s: %m\n", buf );
 				goto dfail;
 			}
 			if (st.st_mtime == now && !(DFlags & ZERODELAY) && !ctx->fresh[i]) {
@@ -955,7 +955,7 @@ maildir_scan( maildir_store_t *ctx, msg_t_array_alloc_t *msglist )
 		for (i = 0; i < 2; i++) {
 			memcpy( buf + bl, subdirs[i], 4 );
 			if (!(d = opendir( buf ))) {
-				sys_error( "Maildir error: cannot list %s", buf );
+				sys_error( "Maildir error: cannot list %s: %m\n", buf );
 			  rfail:
 				maildir_free_scan( msglist );
 			  dfail:
@@ -1016,7 +1016,7 @@ maildir_scan( maildir_store_t *ctx, msg_t_array_alloc_t *msglist )
 		for (i = 0; i < 2; i++) {
 			memcpy( buf + bl, subdirs[i], 4 );
 			if (stat( buf, &st )) {
-				sys_error( "Maildir error: cannot re-stat %s", buf );
+				sys_error( "Maildir error: cannot re-stat %s: %m\n", buf );
 				goto rfail;
 			}
 			if (st.st_mtime != stamps[i]) {
@@ -1115,7 +1115,7 @@ maildir_scan( maildir_store_t *ctx, msg_t_array_alloc_t *msglist )
 				nfsnprintf( nbuf + bl + 4, sizeof(nbuf) - bl - 4, "%s", entry->base );
 				if (rename( nbuf, buf )) {
 					if (errno != ENOENT) {
-						sys_error( "Maildir error: cannot rename %s to %s", nbuf, buf );
+						sys_error( "Maildir error: cannot rename %s to %s: %m\n", nbuf, buf );
 					  fail:
 						maildir_free_scan( msglist );
 						return DRV_BOX_BAD;
@@ -1137,7 +1137,7 @@ maildir_scan( maildir_store_t *ctx, msg_t_array_alloc_t *msglist )
 			if (want_size) {
 				if (stat( buf, &st )) {
 					if (errno != ENOENT) {
-						sys_error( "Maildir error: cannot stat %s", buf );
+						sys_error( "Maildir error: cannot stat %s: %m\n", buf );
 						goto fail;
 					}
 					goto retry;
@@ -1147,7 +1147,7 @@ maildir_scan( maildir_store_t *ctx, msg_t_array_alloc_t *msglist )
 			if (want_tuid || want_msgid) {
 				if (!(f = fopen( buf, "r" ))) {
 					if (errno != ENOENT) {
-						sys_error( "Maildir error: cannot open %s", buf );
+						sys_error( "Maildir error: cannot open %s: %m\n", buf );
 						goto fail;
 					}
 					goto retry;
@@ -1299,7 +1299,7 @@ maildir_open_box( store_t *gctx,
 				if ((ctx->uvfd = open( uvpath, O_RDWR|O_CREAT, 0600 )) >= 0)
 					goto fnok;
 			}
-			sys_error( "Maildir error: cannot write %s", uvpath );
+			sys_error( "Maildir error: cannot write %s: %m\n", uvpath );
 			cb( DRV_BOX_BAD, UIDVAL_BAD, aux );
 			return;
 		} else {
@@ -1356,7 +1356,7 @@ maildir_delete_box( store_t *gctx,
 	bl = nfsnprintf( buf, sizeof(buf) - 4, "%s/", ctx->path );
 	if (stat( buf, &st )) {
 		if (errno != ENOENT) {
-			sys_error( "Maildir error: cannot access mailbox '%s'", ctx->path );
+			sys_error( "Maildir error: cannot access mailbox '%s': %m\n", ctx->path );
 			ret = DRV_BOX_BAD;
 		}
 	} else if (!S_ISDIR(st.st_mode)) {
@@ -1377,7 +1377,7 @@ maildir_delete_box( store_t *gctx,
 			memcpy( buf + bl, subdirs[i], 4 );
 			if (rmdir( buf ) && errno != ENOENT) {
 			  badrm:
-				sys_error( "Maildir error: cannot remove '%s'", buf );
+				sys_error( "Maildir error: cannot remove '%s': %m\n", buf );
 				ret = DRV_BOX_BAD;
 				break;
 			}
@@ -1394,7 +1394,7 @@ maildir_finish_delete_box( store_t *gctx )
 	/* Subfolders are not deleted; the deleted folder is only "stripped of its mailboxness".
 	 * Consequently, the rmdir may legitimately fail. This behavior follows the IMAP spec. */
 	if (rmdir( ctx->path ) && errno != ENOENT && errno != ENOTEMPTY) {
-		sys_error( "Maildir warning: cannot remove '%s'", ctx->path );
+		sys_error( "Maildir warning: cannot remove '%s': %m\n", ctx->path );
 		return DRV_BOX_BAD;
 	}
 	return DRV_OK;
@@ -1522,7 +1522,7 @@ maildir_fetch_msg( store_t *gctx, message_t *gmsg, msg_data_t *data,
 		nfsnprintf( buf, sizeof(buf), "%s/%s/%s", ctx->path, subdirs[gmsg->status & M_RECENT], msg->base );
 		if ((fd = open( buf, O_RDONLY )) >= 0)
 			break;
-		if ((ret = maildir_again( ctx, msg, "Cannot open %s", buf, 0 )) != DRV_OK) {
+		if ((ret = maildir_again( ctx, msg, "Cannot open %s: %m\n", buf, 0 )) != DRV_OK) {
 			cb( ret, aux );
 			return;
 		}
@@ -1533,7 +1533,7 @@ maildir_fetch_msg( store_t *gctx, message_t *gmsg, msg_data_t *data,
 		data->date = st.st_mtime;
 	data->data = nfmalloc( data->len );
 	if (read( fd, data->data, data->len ) != data->len) {
-		sys_error( "Maildir error: cannot read %s", buf );
+		sys_error( "Maildir error: cannot read %s: %m\n", buf );
 		close( fd );
 		cb( DRV_MSG_BAD, aux );
 		return;
@@ -1598,7 +1598,7 @@ maildir_store_msg( store_t *gctx, msg_data_t *data, int to_trash,
 	nfsnprintf( buf, sizeof(buf), "%s/tmp/%s%s", box, base, fbuf );
 	if ((fd = open( buf, O_WRONLY|O_CREAT|O_EXCL, 0600 )) < 0) {
 		if (errno != ENOENT || !to_trash) {
-			sys_error( "Maildir error: cannot create %s", buf );
+			sys_error( "Maildir error: cannot create %s: %m\n", buf );
 			free( data->data );
 			cb( DRV_BOX_BAD, 0, aux );
 			return;
@@ -1609,7 +1609,7 @@ maildir_store_msg( store_t *gctx, msg_data_t *data, int to_trash,
 			return;
 		}
 		if ((fd = open( buf, O_WRONLY|O_CREAT|O_EXCL, 0600 )) < 0) {
-			sys_error( "Maildir error: cannot create %s", buf );
+			sys_error( "Maildir error: cannot create %s: %m\n", buf );
 			free( data->data );
 			cb( DRV_BOX_BAD, 0, aux );
 			return;
@@ -1619,7 +1619,7 @@ maildir_store_msg( store_t *gctx, msg_data_t *data, int to_trash,
 	free( data->data );
 	if (ret != data->len || (UseFSync && (ret = fsync( fd )))) {
 		if (ret < 0)
-			sys_error( "Maildir error: cannot write %s", buf );
+			sys_error( "Maildir error: cannot write %s: %m\n", buf );
 		else
 			error( "Maildir error: cannot write %s. Disk full?\n", buf );
 		close( fd );
@@ -1628,7 +1628,7 @@ maildir_store_msg( store_t *gctx, msg_data_t *data, int to_trash,
 	}
 	if (close( fd ) < 0) {
 		/* Quota exceeded may cause this. */
-		sys_error( "Maildir error: cannot write %s", buf );
+		sys_error( "Maildir error: cannot write %s: %m\n", buf );
 		cb( DRV_BOX_BAD, 0, aux );
 		return;
 	}
@@ -1638,7 +1638,7 @@ maildir_store_msg( store_t *gctx, msg_data_t *data, int to_trash,
 		struct utimbuf utimebuf;
 		utimebuf.actime = utimebuf.modtime = data->date;
 		if (utime( buf, &utimebuf ) < 0) {
-			sys_error( "Maildir error: cannot set times for %s", buf );
+			sys_error( "Maildir error: cannot set times for %s: %m\n", buf );
 			cb( DRV_BOX_BAD, 0, aux );
 			return;
 		}
@@ -1647,7 +1647,7 @@ maildir_store_msg( store_t *gctx, msg_data_t *data, int to_trash,
 	/* Moving seen messages to cur/ is strictly speaking incorrect, but makes mutt happy. */
 	nfsnprintf( nbuf, sizeof(nbuf), "%s/%s/%s%s", box, subdirs[!(data->flags & F_SEEN)], base, fbuf );
 	if (rename( buf, nbuf )) {
-		sys_error( "Maildir error: cannot rename %s to %s", buf, nbuf );
+		sys_error( "Maildir error: cannot rename %s to %s: %m\n", buf, nbuf );
 		cb( DRV_BOX_BAD, 0, aux );
 		return;
 	}
@@ -1705,7 +1705,7 @@ maildir_set_msg_flags( store_t *gctx, message_t *gmsg, uint uid ATTR_UNUSED, int
 		}
 		if (!rename( buf, nbuf ))
 			break;
-		if ((ret = maildir_again( ctx, msg, "Maildir error: cannot rename %s to %s", buf, nbuf )) != DRV_OK) {
+		if ((ret = maildir_again( ctx, msg, "Maildir error: cannot rename %s to %s: %m\n", buf, nbuf )) != DRV_OK) {
 			cb( ret, aux );
 			return;
 		}
@@ -1762,12 +1762,12 @@ maildir_trash_msg( store_t *gctx, message_t *gmsg,
 			if (!rename( buf, nbuf ))
 				break;
 			if (errno != ENOENT) {
-				sys_error( "Maildir error: cannot move %s to %s", buf, nbuf );
+				sys_error( "Maildir error: cannot move %s to %s: %m\n", buf, nbuf );
 				cb( DRV_BOX_BAD, aux );
 				return;
 			}
 		}
-		if ((ret = maildir_again( ctx, msg, "Maildir error: cannot move %s to %s", buf, nbuf )) != DRV_OK) {
+		if ((ret = maildir_again( ctx, msg, "Maildir error: cannot move %s to %s: %m\n", buf, nbuf )) != DRV_OK) {
 			cb( ret, aux );
 			return;
 		}
@@ -1803,7 +1803,7 @@ maildir_close_box( store_t *gctx,
 					if (errno == ENOENT)
 						retry = 1;
 					else
-						sys_error( "Maildir error: cannot remove %s", buf );
+						sys_error( "Maildir error: cannot remove %s: %m\n", buf );
 				} else {
 					msg->status |= M_DEAD;
 					ctx->total_msgs--;

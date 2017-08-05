@@ -23,8 +23,10 @@
 #include "common.h"
 
 #include <assert.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <string.h>
 #include <ctype.h>
@@ -43,14 +45,25 @@ flushn( void )
 }
 
 static void
-printn( const char *msg, va_list va )
+vprintn( const char *msg, va_list va )
 {
 	if (*msg == '\v')
 		msg++;
 	else
 		flushn();
-	vprintf( msg, va );
+	char buf[1000];
+	fwrite( buf, 1, nfevprintf( buf, buf + sizeof(buf), msg, va ) - buf, stdout );
 	fflush( stdout );
+}
+
+static void
+printn( const char *msg, ... )
+{
+	va_list va;
+
+	va_start( va, msg );
+	vprintn( msg, va );
+	va_end( va );
 }
 
 void
@@ -92,7 +105,7 @@ info( const char *msg, ... )
 
 	if (DFlags & VERBOSE) {
 		va_start( va, msg );
-		printn( msg, va );
+		vprintn( msg, va );
 		va_end( va );
 		need_nl = 0;
 	}
@@ -105,7 +118,7 @@ infon( const char *msg, ... )
 
 	if (DFlags & VERBOSE) {
 		va_start( va, msg );
-		printn( msg, va );
+		vprintn( msg, va );
 		va_end( va );
 		need_nl = 1;
 	}
@@ -115,10 +128,12 @@ void
 notice( const char *msg, ... )
 {
 	va_list va;
+	char buf[1000];
 
 	if (!(DFlags & QUIET)) {
+		flushn();
 		va_start( va, msg );
-		printn( msg, va );
+		fwrite( buf, 1, nfeprintf( buf, buf + sizeof(buf), "Notice: %v", msg, &va ) - buf, stdout );
 		va_end( va );
 		need_nl = 0;
 	}
@@ -128,11 +143,12 @@ void
 warn( const char *msg, ... )
 {
 	va_list va;
+	char buf[1000];
 
 	if (!(DFlags & VERYQUIET)) {
 		flushn();
 		va_start( va, msg );
-		vfprintf( stderr, msg, va );
+		fwrite( buf, 1, nfeprintf( buf, buf + sizeof(buf), "WARNING: %v", msg, &va ) - buf, stderr );
 		va_end( va );
 	}
 }
@@ -141,10 +157,11 @@ void
 error( const char *msg, ... )
 {
 	va_list va;
+	char buf[1000];
 
 	flushn();
 	va_start( va, msg );
-	vfprintf( stderr, msg, va );
+	fwrite( buf, 1, nfeprintf( buf, buf + sizeof(buf), "ERROR: %v", msg, &va ) - buf, stderr );
 	va_end( va );
 }
 
@@ -160,6 +177,98 @@ sys_error( const char *msg, ... )
 		oob();
 	va_end( va );
 	perror( buf );
+}
+
+/* Minimal printf() core with some extensions:
+ * - %m to print strerror(errno) (GNU compatible extension)
+ * - %\s to print backslash-escaped IMAP string literals
+ * - %v to recurse formatting; expects (const char *fmt, va_list *ap) as parameters
+ */
+char *
+nfevprintf( char *d, char *ed, const char *fmt, va_list ap )
+{
+	const char *s = fmt;
+	for (;;) {
+		char c = *fmt;
+		if (!c || c == '%') {
+			int l = fmt - s;
+			if (d + l > ed)
+				oob();
+			memcpy( d, s, l );
+			d += l;
+			if (!c)
+				return d;
+			int maxlen = INT_MAX;
+			c = *++fmt;
+			if (c == '\\') {
+				c = *++fmt;
+				if (c != 's') {
+					fputs( "Fatal: unsupported escaped format specifier. Please report a bug.\n", stderr );
+					abort();
+				}
+				s = va_arg( ap, const char * );
+				while ((c = *s++)) {
+					if (d + 2 > ed)
+						oob();
+					if (c == '\\' || c == '"')
+						*d++ = '\\';
+					*d++ = c;
+				}
+			} else { /* \\ cannot be combined with anything else. */
+				if (c == '.') {
+					c = *++fmt;
+					if (c != '*') {
+						fputs( "Fatal: unsupported string length specification. Please report a bug.\n", stderr );
+						abort();
+					}
+					maxlen = va_arg( ap, int );
+					c = *++fmt;
+				}
+				if (c == 'c') {
+					if (d + 1 > ed)
+						oob();
+					*d++ = (char)va_arg( ap, int );
+				} else if (c == 's') {
+					s = va_arg( ap, const char * );
+					l = strnlen( s, maxlen );
+				  cpstr:
+					if (d + l > ed)
+						oob();
+					memcpy( d, s, l );
+					d += l;
+				} else if (c == 'm') {
+					s = strerror( errno );
+					l = strlen( s );
+					goto cpstr;
+				} else if (c == 'v') {
+					s = va_arg( ap, const char * );
+					va_list *nap = va_arg( ap, va_list * );
+					d = nfevprintf( d, ed, s, *nap );
+				} else if (c == 'd') {
+					d += nfsnprintf( d, ed - d, "%d", va_arg( ap, int ) );
+				} else if (c == 'u') {
+					d += nfsnprintf( d, ed - d, "%u", va_arg( ap , uint ) );
+				} else {
+					fputs( "Fatal: unsupported format specifier. Please report a bug.\n", stderr );
+					abort();
+				}
+			}
+			s = ++fmt;
+		} else {
+			fmt++;
+		}
+	}
+}
+
+char *
+nfeprintf( char *d, char *ed, const char *fmt, ... )
+{
+	va_list va;
+
+	va_start( va, fmt );
+	char *ret = nfevprintf( d, ed, fmt, va );
+	va_end( va );
+	return ret;
 }
 
 void
@@ -579,11 +688,11 @@ arc4_init( void )
 	uchar j, si, dat[128];
 
 	if ((fd = open( "/dev/urandom", O_RDONLY )) < 0 && (fd = open( "/dev/random", O_RDONLY )) < 0) {
-		error( "Fatal: no random number source available.\n" );
+		glbl_print( PRN_FATAL, "No random number source available.\n" );
 		exit( 3 );
 	}
 	if (read( fd, dat, 128 ) != 128) {
-		error( "Fatal: cannot read random number source.\n" );
+		glbl_print( PRN_FATAL, "Cannot read random number source.\n" );
 		exit( 3 );
 	}
 	close( fd );

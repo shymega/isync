@@ -69,7 +69,7 @@ void
 Fclose( FILE *f, int safe )
 {
 	if ((safe && (fflush( f ) || (UseFSync && fdatasync( fileno( f ) )))) || fclose( f ) == EOF) {
-		sys_error( "Error: cannot close file" );
+		glbl_print( PRN_ERROR, "Cannot close file: %m\n" );
 		exit( 1 );
 	}
 }
@@ -81,7 +81,7 @@ vFprintf( FILE *f, const char *msg, va_list va )
 
 	r = vfprintf( f, msg, va );
 	if (r < 0) {
-		sys_error( "Error: cannot write file" );
+		glbl_print( PRN_ERROR, "Cannot write file: %m\n" );
 		exit( 1 );
 	}
 }
@@ -614,7 +614,7 @@ prepare_state( sync_vars_t *svars )
 		}
 		*s = 0;
 		if (mkdir( svars->dname, 0700 ) && errno != EEXIST) {
-			sys_error( "Error: cannot create SyncState directory '%s'", svars->dname );
+			drv_print( PRN_ERROR, "Cannot create SyncState directory '%s': %m\n", svars->dname );
 			return 0;
 		}
 		*s = '/';
@@ -640,7 +640,7 @@ lock_state( sync_vars_t *svars )
 	lck.l_type = F_WRLCK;
 #endif
 	if ((svars->lfd = open( svars->lname, O_WRONLY|O_CREAT, 0666 )) < 0) {
-		sys_error( "Error: cannot create lock file %s", svars->lname );
+		drv_print( PRN_ERROR, "Cannot create lock file %s: %m\n", svars->lname );
 		return 0;
 	}
 	if (fcntl( svars->lfd, F_SETLK, &lck )) {
@@ -801,7 +801,7 @@ load_state( sync_vars_t *svars )
 		svars->existing = 1;
 	} else {
 		if (errno != ENOENT) {
-			sys_error( "Error: cannot read sync state %s", svars->dname );
+			drv_print( PRN_ERROR, "Cannot read sync state %s: %m\n", svars->dname );
 			return 0;
 		}
 		svars->existing = 0;
@@ -963,7 +963,7 @@ load_state( sync_vars_t *svars )
 		fclose( jfp );
 	} else {
 		if (errno != ENOENT) {
-			sys_error( "Error: cannot read journal %s", svars->jname );
+			drv_print( PRN_ERROR, "Cannot read journal %s: %m\n", svars->jname );
 			return 0;
 		}
 	}
@@ -978,7 +978,7 @@ delete_state( sync_vars_t *svars )
 	unlink( svars->nname );
 	unlink( svars->jname );
 	if (unlink( svars->dname ) || unlink( svars->lname )) {
-		sys_error( "Error: channel %s: sync state cannot be deleted", svars->chan->name );
+		drv_print( PRN_ERROR, "Channel %s: sync state cannot be deleted: %m\n", svars->chan->name );
 		svars->ret = SYNC_FAIL;
 	}
 }
@@ -1221,11 +1221,11 @@ box_opened2( sync_vars_t *svars, int t )
 	if (!lock_state( svars ))
 		goto bail;
 	if (!(svars->nfp = fopen( svars->nname, "w" ))) {
-		sys_error( "Error: cannot create new sync state %s", svars->nname );
+		drv_print( PRN_ERROR, "Cannot create new sync state %s: %m\n", svars->nname );
 		goto bail;
 	}
 	if (!(svars->jfp = fopen( svars->jname, "a" ))) {
-		sys_error( "Error: cannot create journal %s", svars->jname );
+		drv_print( PRN_ERROR, "Cannot create journal %s: %m\n", svars->jname );
 		fclose( svars->nfp );
 		goto bail;
 	}

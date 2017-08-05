@@ -85,13 +85,13 @@ ssl_return( const char *func, conn_t *conn, int ret )
 				conn->read_callback( conn->callback_aux );
 				return -1;
 			}
-			sys_error( "Socket error: secure %s %s", func, conn->name );
+			sock_print( PRN_ERROR, "SSL %s %s: %m\n", func, conn->name );
 		} else {
-			error( "Socket error: secure %s %s: %s\n", func, conn->name, ERR_error_string( err, 0 ) );
+			sock_print( PRN_ERROR, "SSL %s %s: %s\n", func, conn->name, ERR_error_string( err, 0 ) );
 		}
 		break;
 	default:
-		error( "Socket error: secure %s %s: unhandled SSL error %d\n", func, conn->name, err );
+		sock_print( PRN_ERROR, "SSL %s %s: unhandled error %d\n", func, conn->name, err );
 		break;
 	}
 	if (conn->state == SCK_STARTTLS)
@@ -117,7 +117,7 @@ host_matches( const char *host, const char *pattern )
 }
 
 static int
-verify_hostname( X509 *cert, const char *hostname )
+verify_hostname( conn_t *conn, X509 *cert, const char *hostname )
 {
 	int i, len, found;
 	X509_NAME *subj;
@@ -145,17 +145,17 @@ verify_hostname( X509 *cert, const char *hostname )
 
 	/* try the common name */
 	if (!(subj = X509_get_subject_name( cert ))) {
-		error( "Error, cannot get certificate subject\n" );
+		sock_print( PRN_ERROR, "Cannot get subject from SSL certificate for %s\n", conn->name );
 		return -1;
 	}
 	if ((len = X509_NAME_get_text_by_NID( subj, NID_commonName, cname, sizeof(cname) )) < 0) {
-		error( "Error, cannot get certificate common name\n" );
+		sock_print( PRN_ERROR, "Cannot get SSL certificate subject's common name for %s\n", conn->name );
 		return -1;
 	}
 	if (strlen( cname ) == (size_t)len && host_matches( hostname, cname ))
 		return 0;
 
-	error( "Error, certificate owner does not match hostname %s\n", hostname );
+	sock_print( PRN_ERROR, "SSL certificate subject for %s does not match hostname %s\n", conn->name, hostname );
 	return -1;
 }
 
@@ -169,7 +169,7 @@ verify_cert_host( const server_conf_t *conf, conn_t *sock )
 
 	cert = SSL_get_peer_certificate( sock->ssl );
 	if (!cert) {
-		error( "Error, no server certificate\n" );
+		sock_print( PRN_ERROR, "No SSL certificate provided by %s\n", sock->name );
 		return -1;
 	}
 
@@ -181,21 +181,22 @@ verify_cert_host( const server_conf_t *conf, conn_t *sock )
 
 	err = SSL_get_verify_result( sock->ssl );
 	if (err != X509_V_OK) {
-		error( "SSL error connecting %s: %s\n", sock->name, X509_verify_cert_error_string( err ) );
+		sock_print( PRN_ERROR, "Cannot verify SSL certificate for %s: %s\n", sock->name, X509_verify_cert_error_string( err ) );
 		return -1;
 	}
 
 	if (!conf->host) {
-		error( "SSL error connecting %s: Neither host nor matching certificate specified\n", sock->name );
+		sock_print( PRN_ERROR, "Neither hostname nor matching SSL certificate specified for %s\n", sock->name );
 		return -1;
 	}
 
-	return verify_hostname( cert, conf->host );
+	return verify_hostname( sock, cert, conf->host );
 }
 
 static int
-init_ssl_ctx( const server_conf_t *conf )
+init_ssl_ctx( conn_t *conn )
 {
+	const server_conf_t *conf = conn->conf;
 	server_conf_t *mconf = (server_conf_t *)conf;
 	int options = 0;
 
@@ -222,25 +223,25 @@ init_ssl_ctx( const server_conf_t *conf )
 	SSL_CTX_set_options( mconf->SSLContext, options );
 
 	if (conf->cert_file && !SSL_CTX_load_verify_locations( mconf->SSLContext, conf->cert_file, 0 )) {
-		error( "Error while loading certificate file '%s': %s\n",
-		       conf->cert_file, ERR_error_string( ERR_get_error(), 0 ) );
+		sock_print( PRN_ERROR, "Cannot load certificate file '%s': %s\n",
+		            conf->cert_file, ERR_error_string( ERR_get_error(), 0 ) );
 		return 0;
 	}
 	mconf->trusted_certs = (_STACK *)sk_X509_OBJECT_dup( X509_STORE_get0_objects( SSL_CTX_get_cert_store( mconf->SSLContext ) ) );
 	if (mconf->system_certs && !SSL_CTX_set_default_verify_paths( mconf->SSLContext ))
-		warn( "Warning: Unable to load default certificate files: %s\n",
-		      ERR_error_string( ERR_get_error(), 0 ) );
+		sock_print( PRN_WARN, "Cannot load default certificate files: %s\n",
+		            ERR_error_string( ERR_get_error(), 0 ) );
 
 	SSL_CTX_set_verify( mconf->SSLContext, SSL_VERIFY_NONE, NULL );
 
 	if (conf->client_certfile && !SSL_CTX_use_certificate_chain_file( mconf->SSLContext, conf->client_certfile)) {
-		error( "Error while loading client certificate file '%s': %s\n",
-		       conf->client_certfile, ERR_error_string( ERR_get_error(), 0 ) );
+		sock_print( PRN_ERROR, "Cannot load client certificate file '%s': %s\n",
+		            conf->client_certfile, ERR_error_string( ERR_get_error(), 0 ) );
 		return 0;
 	}
 	if (conf->client_keyfile && !SSL_CTX_use_PrivateKey_file( mconf->SSLContext, conf->client_keyfile, SSL_FILETYPE_PEM)) {
-		error( "Error while loading client private key '%s': %s\n",
-		       conf->client_keyfile, ERR_error_string( ERR_get_error(), 0 ) );
+		sock_print( PRN_ERROR, "Cannot load client private key '%s': %s\n",
+		            conf->client_keyfile, ERR_error_string( ERR_get_error(), 0 ) );
 		return 0;
 	}
 
@@ -265,7 +266,7 @@ socket_start_tls( conn_t *conn, void (*cb)( int ok, void *aux ) )
 		ssl_inited = 1;
 	}
 
-	if (!init_ssl_ctx( conn->conf )) {
+	if (!init_ssl_ctx( conn )) {
 		start_tls_p3( conn, 0 );
 		return;
 	}
@@ -286,7 +287,7 @@ start_tls_p2( conn_t *conn )
 		if (verify_cert_host( conn->conf, conn )) {
 			start_tls_p3( conn, 0 );
 		} else {
-			info( "Connection is now encrypted\n" );
+			sock_print( PRN_INFO, "Connection is now encrypted\n" );
 			start_tls_p3( conn, 1 );
 		}
 	}
@@ -379,7 +380,7 @@ socket_connect( conn_t *sock, void (*cb)( int ok, void *aux ) )
 		int a[2];
 
 		nfasprintf( &sock->name, "tunnel '%s'", conf->tunnel );
-		infon( "Starting %s... ", sock->name );
+		sock_print( PRN_INFO | PRN_NONL, "Starting %s... ", sock->name );
 
 		if (socketpair( PF_UNIX, SOCK_STREAM, 0, a )) {
 			perror( "socketpair" );
@@ -398,9 +399,10 @@ socket_connect( conn_t *sock, void (*cb)( int ok, void *aux ) )
 		close( a[0] );
 		socket_open_internal( sock, a[1] );
 
-		info( "\vok\n" );
+		sock_print( PRN_INFO | PRN_CONT, "ok\n" );
 		socket_connected( sock );
 	} else {
+		sock_print( PRN_INFO | PRN_NONL, "Resolving %s... ", conf->host );
 #ifdef HAVE_IPV6
 		int gaierr;
 		struct addrinfo hints;
@@ -409,29 +411,26 @@ socket_connect( conn_t *sock, void (*cb)( int ok, void *aux ) )
 		hints.ai_family = AF_UNSPEC;
 		hints.ai_socktype = SOCK_STREAM;
 		hints.ai_flags = AI_ADDRCONFIG;
-		infon( "Resolving %s... ", conf->host );
 		if ((gaierr = getaddrinfo( conf->host, NULL, &hints, &sock->addrs ))) {
-			error( "Error: Cannot resolve server '%s': %s\n", conf->host, gai_strerror( gaierr ) );
+			sock_print( PRN_ERROR, "Cannot resolve server '%s': %s\n", conf->host, gai_strerror( gaierr ) );
 			socket_connect_bail( sock );
 			return;
 		}
-		info( "\vok\n" );
 
 		sock->curr_addr = sock->addrs;
 #else
 		struct hostent *he;
 
-		infon( "Resolving %s... ", conf->host );
 		he = gethostbyname( conf->host );
 		if (!he) {
-			error( "Error: Cannot resolve server '%s': %s\n", conf->host, hstrerror( h_errno ) );
+			sock_print( PRN_ERROR, "Cannot resolve server '%s': %s\n", conf->host, hstrerror( h_errno ) );
 			socket_connect_bail( sock );
 			return;
 		}
-		info( "\vok\n" );
 
 		sock->curr_addr = he->h_addr_list;
 #endif
+		sock_print( PRN_INFO | PRN_CONT, "ok\n" );
 		socket_connect_one( sock );
 	}
 }
@@ -453,7 +452,7 @@ socket_connect_one( conn_t *sock )
 #else
 	if (!*sock->curr_addr) {
 #endif
-		error( "No working address found for %s\n", sock->conf->host );
+		sock_print( PRN_ERROR, "No working address found for %s\n", sock->conf->host );
 		socket_connect_bail( sock );
 		return;
 	}
@@ -490,7 +489,7 @@ socket_connect_one( conn_t *sock )
 	}
 	socket_open_internal( sock, s );
 
-	infon( "Connecting to %s... ", sock->name );
+	sock_print( PRN_INFO | PRN_NONL, "Connecting to %s... ", sock->name );
 #ifdef HAVE_IPV6
 	if (connect( s, ai->ai_addr, ai->ai_addrlen )) {
 #else
@@ -503,17 +502,17 @@ socket_connect_one( conn_t *sock )
 		conf_notifier( &sock->notify, 0, POLLOUT );
 		socket_expect_read( sock, 1 );
 		sock->state = SCK_CONNECTING;
-		info( "\v\n" );
+		sock_print( PRN_INFO | PRN_CONT, "\n" );
 		return;
 	}
-	info( "\vok\n" );
+	sock_print( PRN_INFO | PRN_CONT, "ok\n" );
 	socket_connected( sock );
 }
 
 static void
 socket_connect_failed( conn_t *conn )
 {
-	sys_error( "Cannot connect to %s", conn->name );
+	sock_print( PRN_ERROR, "Cannot connect to %s: %m\n", conn->name );
 	socket_close_internal( conn );
 	free( conn->name );
 	conn->name = 0;
@@ -595,7 +594,7 @@ prepare_read( conn_t *sock, char **buf, int *len )
 {
 	int n = sock->offset + sock->bytes;
 	if (!(*len = sizeof(sock->buf) - n)) {
-		error( "Socket error: receive buffer full. Probably protocol error.\n" );
+		sock_print( PRN_ERROR, "Socket receive buffer full. Probably protocol error.\n" );
 		socket_fail( sock );
 		return -1;
 	}
@@ -622,7 +621,7 @@ do_read( conn_t *sock, char *buf, int len )
 #endif
 	{
 		if ((n = read( sock->fd, buf, len )) < 0) {
-			sys_error( "Socket error: read from %s", sock->name );
+			sock_print( PRN_ERROR, "Read from %s failed", sock->name );
 			socket_fail( sock );
 		} else if (!n) {
 			/* EOF. Callers take the short path out, so signal higher layers from here. */
@@ -649,7 +648,7 @@ socket_fill_z( conn_t *sock )
 
 	ret = inflate( sock->in_z, Z_SYNC_FLUSH );
 	if (ret != Z_OK && ret != Z_STREAM_END) {
-		error( "Error decompressing data from %s: %s\n", sock->name, sock->in_z->msg );
+		sock_print( PRN_ERROR, "Cannot decompress data from %s: %s\n", sock->name, sock->in_z->msg );
 		socket_fail( sock );
 		return;
 	}
@@ -758,7 +757,7 @@ do_write( conn_t *sock, char *buf, int len )
 	n = write( sock->fd, buf, len );
 	if (n < 0) {
 		if (errno != EAGAIN && errno != EWOULDBLOCK) {
-			sys_error( "Socket error: write to %s", sock->name );
+			sock_print( PRN_ERROR, "Write to %s failed: %m\n", sock->name );
 			socket_fail( sock );
 		} else {
 			n = 0;
@@ -967,7 +966,7 @@ socket_fd_cb( int events, void *aux )
 				socket_connected( conn );
 			return;
 		}
-		sys_error( "Socket error from %s", conn->name );
+		sock_print( PRN_ERROR, "Unexpected event on %s: %m\n", conn->name );
 		socket_fail( conn );
 		return;
 	}
@@ -1015,7 +1014,7 @@ socket_timeout_cb( void *aux )
 		errno = ETIMEDOUT;
 		socket_connect_failed( conn );
 	} else {
-		error( "Socket error on %s: timeout.\n", conn->name );
+		sock_print( PRN_ERROR, "Timeout on %s\n", conn->name );
 		socket_fail( conn );
 	}
 }

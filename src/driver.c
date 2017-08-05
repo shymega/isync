@@ -56,14 +56,15 @@ parse_generic_store( store_conf_t *store, conffile_t *cfg )
 		const char *p;
 		for (p = cfg->val; *p; p++) {
 			if (*p == '/') {
-				error( "%s:%d: flattened hierarchy delimiter cannot contain the canonical delimiter '/'\n", cfg->file, cfg->line );
+				glbl_print( PRN_ERROR, "%s:%d: flattened hierarchy delimiter cannot contain the canonical delimiter '/'\n",
+				            cfg->file, cfg->line );
 				cfg->err = 1;
 				return;
 			}
 		}
 		store->flat_delim = nfstrdup( cfg->val );
 	} else {
-		error( "%s:%d: unknown keyword '%s'\n", cfg->file, cfg->line, cfg->cmd );
+		glbl_print( PRN_ERROR, "%s:%d: unknown keyword '%s'\n", cfg->file, cfg->line, cfg->cmd );
 		cfg->err = 1;
 	}
 }

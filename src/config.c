@@ -51,7 +51,7 @@ get_arg( conffile_t *cfile, int required, int *comment )
 		if (comment)
 			*comment = (c == '#');
 		if (required) {
-			error( "%s:%d: parameter missing\n", cfile->file, cfile->line );
+			glbl_print( PRN_ERROR, "%s:%d: parameter missing\n", cfile->file, cfile->line );
 			cfile->err = 1;
 		}
 		ret = 0;
@@ -72,12 +72,12 @@ get_arg( conffile_t *cfile, int required, int *comment )
 		}
 		*t = 0;
 		if (escaped) {
-			error( "%s:%d: unterminated escape sequence\n", cfile->file, cfile->line );
+			glbl_print( PRN_ERROR, "%s:%d: unterminated escape sequence\n", cfile->file, cfile->line );
 			cfile->err = 1;
 			ret = 0;
 		}
 		if (quoted) {
-			error( "%s:%d: missing closing quote\n", cfile->file, cfile->line );
+			glbl_print( PRN_ERROR, "%s:%d: missing closing quote\n", cfile->file, cfile->line );
 			cfile->err = 1;
 			ret = 0;
 		}
@@ -98,8 +98,8 @@ parse_bool( conffile_t *cfile )
 	    strcasecmp( cfile->val, "false" ) &&
 	    strcasecmp( cfile->val, "off" ) &&
 	    strcmp( cfile->val, "0" )) {
-		error( "%s:%d: invalid boolean value '%s'\n",
-		       cfile->file, cfile->line, cfile->val );
+		glbl_print( PRN_ERROR, "%s:%d: invalid boolean value '%s'\n",
+		            cfile->file, cfile->line, cfile->val );
 		cfile->err = 1;
 	}
 	return 0;
@@ -113,8 +113,8 @@ parse_int( conffile_t *cfile )
 
 	ret = strtol( cfile->val, &p, 10 );
 	if (*p) {
-		error( "%s:%d: invalid integer value '%s'\n",
-		       cfile->file, cfile->line, cfile->val );
+		glbl_print( PRN_ERROR, "%s:%d: invalid integer value '%s'\n",
+		            cfile->file, cfile->line, cfile->val );
 		cfile->err = 1;
 		return 0;
 	}
@@ -192,8 +192,8 @@ getopt_helper( conffile_t *cfile, int *cops, channel_conf_t *conf )
 			else if (!strcasecmp( "All", arg ) || !strcasecmp( "Full", arg ))
 				*cops |= XOP_PULL|XOP_PUSH;
 			else if (strcasecmp( "None", arg ) && strcasecmp( "Noop", arg )) {
-				error( "%s:%d: invalid Sync arg '%s'\n",
-				       cfile->file, cfile->line, arg );
+				glbl_print( PRN_ERROR, "%s:%d: invalid Sync arg '%s'\n",
+				            cfile->file, cfile->line, arg );
 				cfile->err = 1;
 			}
 		while ((arg = get_arg( cfile, ARG_OPTIONAL, 0 )));
@@ -219,8 +219,8 @@ getopt_helper( conffile_t *cfile, int *cops, channel_conf_t *conf )
 					} else if (!strcasecmp( "Slave", arg )) {
 						conf->ops[S] |= op;
 					} else if (strcasecmp( "None", arg )) {
-						error( "%s:%d: invalid %s arg '%s'\n",
-						       cfile->file, cfile->line, boxOps[i].name, arg );
+						glbl_print( PRN_ERROR, "%s:%d: invalid %s arg '%s'\n",
+						            cfile->file, cfile->line, boxOps[i].name, arg );
 						cfile->err = 1;
 					}
 				} while ((arg = get_arg( cfile, ARG_OPTIONAL, 0 )));
@@ -240,7 +240,7 @@ getcline( conffile_t *cfile )
 	int comment;
 
 	if (cfile->rest && (arg = get_arg( cfile, ARG_OPTIONAL, 0 ))) {
-		error( "%s:%d: excess token '%s'\n", cfile->file, cfile->line, arg );
+		glbl_print( PRN_ERROR, "%s:%d: excess token '%s'\n", cfile->file, cfile->line, arg );
 		cfile->err = 1;
 	}
 	while (fgets( cfile->buf, cfile->bufl, cfile->fp )) {
@@ -270,7 +270,7 @@ merge_ops( int cops, int ops[] )
 		if (aops & OP_MASK_TYPE) {
 			if (aops & cops & OP_MASK_TYPE) {
 			  cfl:
-				error( "Conflicting Sync args specified.\n" );
+				glbl_print( PRN_ERROR, "Conflicting Sync args specified.\n" );
 				return 1;
 			}
 			ops[M] |= cops & OP_MASK_TYPE;
@@ -300,7 +300,7 @@ merge_ops( int cops, int ops[] )
 		op = boxOps[i].op;
 		if (ops[M] & (op * (XOP_HAVE_EXPUNGE / OP_EXPUNGE))) {
 			if (aops & cops & op) {
-				error( "Conflicting %s args specified.\n", boxOps[i].name );
+				glbl_print( PRN_ERROR, "Conflicting %s args specified.\n", boxOps[i].name );
 				return 1;
 			}
 			ops[M] |= cops & op;
@@ -334,7 +334,7 @@ load_config( const char *where, int pseudo )
 		info( "Reading configuration file %s\n", cfile.file );
 
 	if (!(cfile.fp = fopen( cfile.file, "r" ))) {
-		sys_error( "Cannot open config file '%s'", cfile.file );
+		glbl_print( PRN_ERROR, "Cannot open config file '%s': %m\n", cfile.file );
 		return 1;
 	}
 	buf[sizeof(buf) - 1] = 0;
@@ -388,8 +388,8 @@ load_config( const char *where, int pseudo )
 					ms = S;
 				  linkst:
 					if (*cfile.val != ':' || !(p = strchr( cfile.val + 1, ':' ))) {
-						error( "%s:%d: malformed mailbox spec\n",
-						       cfile.file, cfile.line );
+						glbl_print( PRN_ERROR, "%s:%d: malformed mailbox spec\n",
+						            cfile.file, cfile.line );
 						cfile.err = 1;
 						continue;
 					}
@@ -399,23 +399,24 @@ load_config( const char *where, int pseudo )
 							channel->stores[ms] = store;
 							goto stpcom;
 						}
-					error( "%s:%d: unknown store '%s'\n",
-					       cfile.file, cfile.line, cfile.val + 1 );
+					glbl_print( PRN_ERROR, "%s:%d: unknown store '%s'\n",
+					            cfile.file, cfile.line, cfile.val + 1 );
 					cfile.err = 1;
 					continue;
 				  stpcom:
 					if (*++p)
 						channel->boxes[ms] = nfstrdup( p );
 				} else if (!getopt_helper( &cfile, &cops, channel )) {
-					error( "%s:%d: unknown keyword '%s'\n", cfile.file, cfile.line, cfile.cmd );
+					glbl_print( PRN_ERROR, "%s:%d: unknown keyword '%s'\n",
+					            cfile.file, cfile.line, cfile.cmd );
 					cfile.err = 1;
 				}
 			}
 			if (!channel->stores[M]) {
-				error( "channel '%s' refers to no master store\n", channel->name );
+				glbl_print( PRN_ERROR, "Channel '%s' refers to no master store\n", channel->name );
 				cfile.err = 1;
 			} else if (!channel->stores[S]) {
-				error( "channel '%s' refers to no slave store\n", channel->name );
+				glbl_print( PRN_ERROR, "Channel '%s' refers to no slave store\n", channel->name );
 				cfile.err = 1;
 			} else if (merge_ops( cops, channel->ops ))
 				cfile.err = 1;
@@ -458,8 +459,8 @@ load_config( const char *where, int pseudo )
 				}
 				else
 				{
-					error( "%s:%d: unknown keyword '%s'\n",
-					       cfile.file, cfile.line, cfile.cmd );
+					glbl_print( PRN_ERROR, "%s:%d: unknown keyword '%s'\n",
+					            cfile.file, cfile.line, cfile.cmd );
 					cfile.err = 1;
 				}
 			}
@@ -472,12 +473,14 @@ load_config( const char *where, int pseudo )
 		else if (!strcasecmp( "FieldDelimiter", cfile.cmd ))
 		{
 			if (strlen( cfile.val ) != 1) {
-				error( "%s:%d: Field delimiter must be exactly one character long\n", cfile.file, cfile.line );
+				glbl_print( PRN_ERROR, "%s:%d: field delimiter must be exactly one character long\n",
+				            cfile.file, cfile.line );
 				cfile.err = 1;
 			} else {
 				FieldDelimiter = cfile.val[0];
 				if (!ispunct( FieldDelimiter )) {
-					error( "%s:%d: Field delimiter must be a punctuation character\n", cfile.file, cfile.line );
+					glbl_print( PRN_ERROR, "%s:%d: field delimiter must be a punctuation character\n",
+					            cfile.file, cfile.line );
 					cfile.err = 1;
 				}
 			}
@@ -486,14 +489,15 @@ load_config( const char *where, int pseudo )
 		{
 			BufferLimit = parse_size( &cfile );
 			if (BufferLimit <= 0) {
-				error( "%s:%d: BufferLimit must be positive\n", cfile.file, cfile.line );
+				glbl_print( PRN_ERROR, "%s:%d: BufferLimit must be positive\n",
+				            cfile.file, cfile.line );
 				cfile.err = 1;
 			}
 		}
 		else if (!getopt_helper( &cfile, &gcops, &global_conf ))
 		{
-			error( "%s:%d: unknown section keyword '%s'\n",
-			       cfile.file, cfile.line, cfile.cmd );
+			glbl_print( PRN_ERROR, "%s:%d: unknown section keyword '%s'\n",
+			            cfile.file, cfile.line, cfile.cmd );
 			cfile.err = 1;
 			while (getcline( &cfile ))
 				if (!cfile.cmd)

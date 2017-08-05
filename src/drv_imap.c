@@ -440,76 +440,9 @@ submit_imap_cmd( imap_store_t *ctx, imap_cmd_t *cmd )
 static char *
 imap_vprintf( const char *fmt, va_list ap )
 {
-	const char *s;
-	char *d, *ed;
-	int maxlen;
-	char c;
 	char buf[1024]; /* Minimal supported command buffer size per IMAP spec. */
 
-	d = buf;
-	ed = d + sizeof(buf);
-	s = fmt;
-	for (;;) {
-		c = *fmt;
-		if (!c || c == '%') {
-			int l = fmt - s;
-			if (d + l > ed)
-				oob();
-			memcpy( d, s, l );
-			d += l;
-			if (!c)
-				return nfstrndup( buf, d - buf );
-			maxlen = INT_MAX;
-			c = *++fmt;
-			if (c == '\\') {
-				c = *++fmt;
-				if (c != 's') {
-					fputs( "Fatal: unsupported escaped format specifier. Please report a bug.\n", stderr );
-					abort();
-				}
-				s = va_arg( ap, const char * );
-				while ((c = *s++)) {
-					if (d + 2 > ed)
-						oob();
-					if (c == '\\' || c == '"')
-						*d++ = '\\';
-					*d++ = c;
-				}
-			} else { /* \\ cannot be combined with anything else. */
-				if (c == '.') {
-					c = *++fmt;
-					if (c != '*') {
-						fputs( "Fatal: unsupported string length specification. Please report a bug.\n", stderr );
-						abort();
-					}
-					maxlen = va_arg( ap , int );
-					c = *++fmt;
-				}
-				if (c == 'c') {
-					if (d + 1 > ed)
-						oob();
-					*d++ = (char)va_arg( ap , int );
-				} else if (c == 's') {
-					s = va_arg( ap, const char * );
-					l = strnlen( s, maxlen );
-					if (d + l > ed)
-						oob();
-					memcpy( d, s, l );
-					d += l;
-				} else if (c == 'd') {
-					d += nfsnprintf( d, ed - d, "%d", va_arg( ap , int ) );
-				} else if (c == 'u') {
-					d += nfsnprintf( d, ed - d, "%u", va_arg( ap , uint ) );
-				} else {
-					fputs( "Fatal: unsupported format specifier. Please report a bug.\n", stderr );
-					abort();
-				}
-			}
-			s = ++fmt;
-		} else {
-			fmt++;
-		}
-	}
+	return nfstrndup( buf, nfevprintf( buf, buf + sizeof(buf), fmt, ap ) - buf );
 }
 
 static void
@@ -788,7 +721,7 @@ parse_imap_list( imap_store_t *ctx, char **sp, parse_list_state_t *sts )
 			n = socket_read( &ctx->conn, s, bytes );
 			if (n < 0) {
 			  badeof:
-				error( "IMAP error: unexpected EOF from %s\n", ctx->conn.name );
+				drv_print( PRN_ERROR, "Unexpected EOF from %s\n", ctx->conn.name );
 				goto bail;
 			}
 			bytes -= n;
@@ -911,7 +844,7 @@ parse_namespace_check( list_t *list )
 	}
 	return 0;
   bad:
-	error( "IMAP error: malformed NAMESPACE response\n" );
+	drv_print( PRN_ERROR, "Malformed IMAP NAMESPACE response\n" );
 	return -1;
 }
 
@@ -970,7 +903,7 @@ parse_fetch_rsp( imap_store_t *ctx, list_t *list, char *s ATTR_UNUSED )
 	time_t date = 0;
 
 	if (!is_list( list )) {
-		error( "IMAP error: bogus FETCH response\n" );
+		drv_print( PRN_ERROR, "Malformed IMAP FETCH response\n" );
 		free_list( list );
 		return LIST_BAD;
 	}
@@ -980,7 +913,7 @@ parse_fetch_rsp( imap_store_t *ctx, list_t *list, char *s ATTR_UNUSED )
 			if (!strcmp( "UID", tmp->val )) {
 				tmp = tmp->next;
 				if (!is_atom( tmp ) || (uid = strtoul( tmp->val, &ep, 10 ), *ep))
-					error( "IMAP error: unable to parse UID\n" );
+					drv_print( PRN_ERROR, "Malformed UID in IMAP FETCH response\n" );
 			} else if (!strcmp( "FLAGS", tmp->val )) {
 				tmp = tmp->next;
 				if (is_list( tmp )) {
@@ -998,26 +931,26 @@ parse_fetch_rsp( imap_store_t *ctx, list_t *list, char *s ATTR_UNUSED )
 									}
 								if (flags->val[1] == 'X' && flags->val[2] == '-')
 									goto flagok; /* ignore system flag extensions */
-								error( "IMAP warning: unknown system flag %s\n", flags->val );
+								drv_print( PRN_WARN, "Unknown system flag %s in IMAP FETCH response\n", flags->val );
 							}
 						  flagok: ;
 						} else
-							error( "IMAP error: unable to parse FLAGS list\n" );
+							drv_print( PRN_ERROR, "Malformed FLAGS in IMAP FETCH response\n" );
 					}
 					status |= M_FLAGS;
 				} else
-					error( "IMAP error: unable to parse FLAGS\n" );
+					drv_print( PRN_ERROR, "Malformed FLAGS in IMAP FETCH response\n" );
 			} else if (!strcmp( "INTERNALDATE", tmp->val )) {
 				tmp = tmp->next;
 				if (is_atom( tmp )) {
 					if ((date = parse_date( tmp->val )) == -1)
-						error( "IMAP error: unable to parse INTERNALDATE format\n" );
+						drv_print( PRN_ERROR, "Unable to parse IMAP INTERNALDATE format\n" );
 				} else
-					error( "IMAP error: unable to parse INTERNALDATE\n" );
+					drv_print( PRN_ERROR, "Malformed INTERNALDATE in IMAP FETCH response\n" );
 			} else if (!strcmp( "RFC822.SIZE", tmp->val )) {
 				tmp = tmp->next;
 				if (!is_atom( tmp ) || (size = strtoul( tmp->val, &ep, 10 ), *ep))
-					error( "IMAP error: unable to parse RFC822.SIZE\n" );
+					drv_print( PRN_ERROR, "Malformed RFC822.SIZE in IMAP FETCH response\n" );
 			} else if (!strcmp( "BODY[]", tmp->val )) {
 				tmp = tmp->next;
 				if (is_atom( tmp )) {
@@ -1025,7 +958,7 @@ parse_fetch_rsp( imap_store_t *ctx, list_t *list, char *s ATTR_UNUSED )
 					tmp->val = 0;       /* don't free together with list */
 					size = tmp->len;
 				} else
-					error( "IMAP error: unable to parse BODY[]\n" );
+					drv_print( PRN_ERROR, "Malformed BODY[] in IMAP FETCH response\n" );
 			} else if (!strcmp( "BODY[HEADER.FIELDS", tmp->val )) {
 				tmp = tmp->next;
 				if (is_list( tmp )) {
@@ -1073,7 +1006,7 @@ parse_fetch_rsp( imap_store_t *ctx, list_t *list, char *s ATTR_UNUSED )
 					}
 				} else {
 				  bfail:
-					error( "IMAP error: unable to parse BODY[HEADER.FIELDS ...]\n" );
+					drv_print( PRN_ERROR, "Malformed BODY[HEADER.FIELDS ...] in IMAP FETCH response\n" );
 				}
 			}
 		}
@@ -1091,7 +1024,7 @@ parse_fetch_rsp( imap_store_t *ctx, list_t *list, char *s ATTR_UNUSED )
 		for (cmdp = ctx->in_progress; cmdp; cmdp = cmdp->next)
 			if (cmdp->param.uid == uid)
 				goto gotuid;
-		error( "IMAP error: unexpected FETCH response (UID %u)\n", uid );
+		drv_print( PRN_ERROR, "Unexpected IMAP FETCH response (UID %u)\n", uid );
 		free_list( list );
 		return LIST_BAD;
 	  gotuid:
@@ -1156,7 +1089,7 @@ parse_response_code( imap_store_t *ctx, imap_cmd_t *cmd, char *s )
 	s++;
 	if (!(p = strchr( s, ']' ))) {
 	  bad_resp:
-		error( "IMAP error: malformed response code\n" );
+		drv_print( PRN_ERROR, "Malformed IMAP response code\n" );
 		return RESP_CANCEL;
 	}
 	*p++ = 0;
@@ -1166,14 +1099,14 @@ parse_response_code( imap_store_t *ctx, imap_cmd_t *cmd, char *s )
 		if (!(arg = next_arg( &s )) ||
 		    (ctx->uidvalidity = strtoul( arg, &earg, 10 ), *earg))
 		{
-			error( "IMAP error: malformed UIDVALIDITY status\n" );
+			drv_print( PRN_ERROR, "Malformed IMAP UIDVALIDITY status\n" );
 			return RESP_CANCEL;
 		}
 	} else if (!strcmp( "UIDNEXT", arg )) {
 		if (!(arg = next_arg( &s )) ||
 		    (ctx->uidnext = strtoul( arg, &earg, 10 ), *earg))
 		{
-			error( "IMAP error: malformed NEXTUID status\n" );
+			drv_print( PRN_ERROR, "Malformed IMAP NEXTUID status\n" );
 			return RESP_CANCEL;
 		}
 	} else if (!strcmp( "CAPABILITY", arg )) {
@@ -1183,14 +1116,14 @@ parse_response_code( imap_store_t *ctx, imap_cmd_t *cmd, char *s )
 		 * to the user
 		 */
 		for (; isspace( (uchar)*p ); p++);
-		error( "*** IMAP ALERT *** %s\n", p );
+		drv_print( PRN_ERROR, "*** IMAP ALERT: %s\n", p );
 	} else if (cmd && !strcmp( "APPENDUID", arg )) {
 		if (!(arg = next_arg( &s )) ||
 		    (ctx->uidvalidity = strtoul( arg, &earg, 10 ), *earg) ||
 		    !(arg = next_arg( &s )) ||
 		    (((imap_cmd_out_uid_t *)cmd)->out_uid = strtoul( arg, &earg, 10 ), *earg))
 		{
-			error( "IMAP error: malformed APPENDUID status\n" );
+			drv_print( PRN_ERROR, "Malformed IMAP APPENDUID status\n" );
 			return RESP_CANCEL;
 		}
 	}
@@ -1208,7 +1141,7 @@ parse_list_rsp( imap_store_t *ctx, list_t *list, char *cmd )
 	if (!is_list( list )) {
 		free_list( list );
 	  bad_list:
-		error( "IMAP error: malformed LIST response\n" );
+		drv_print( PRN_ERROR, "Malformed IMAP LIST response\n" );
 		return LIST_BAD;
 	}
 	for (lp = list->child; lp; lp = lp->next)
@@ -1242,7 +1175,7 @@ parse_list_rsp_p2( imap_store_t *ctx, list_t *list, char *cmd ATTR_UNUSED )
 	int argl, l;
 
 	if (!is_atom( list )) {
-		error( "IMAP error: malformed LIST response\n" );
+		drv_print( PRN_ERROR, "Malformed IMAP LIST response\n" );
 		free_list( list );
 		return LIST_BAD;
 	}
@@ -1254,7 +1187,7 @@ parse_list_rsp_p2( imap_store_t *ctx, list_t *list, char *cmd ATTR_UNUSED )
 			argl -= l;
 			if (is_inbox( ctx, arg, argl )) {
 				if (!arg[5])
-					warn( "IMAP warning: ignoring INBOX in %s\n", ctx->prefix );
+					drv_print( PRN_WARN, "Ignoring nested INBOX in %s\n", ctx->prefix );
 				goto skip;
 			}
 		} else if (!is_inbox( ctx, arg, argl )) {
@@ -1264,7 +1197,7 @@ parse_list_rsp_p2( imap_store_t *ctx, list_t *list, char *cmd ATTR_UNUSED )
 	if (argl >= 5 && !memcmp( arg + argl - 5, ".lock", 5 )) /* workaround broken servers */
 		goto skip;
 	if (map_name( arg, (char **)&narg, offsetof(string_list_t, string), ctx->delimiter, "/") < 0) {
-		warn( "IMAP warning: ignoring mailbox %s (reserved character '/' in name)\n", arg );
+		drv_print( PRN_WARN, "Ignoring mailbox %s (reserved character '/' in name)\n", arg );
 		goto skip;
 	}
 	narg->next = ctx->boxes;
@@ -1281,10 +1214,10 @@ prepare_name( char **buf, const imap_store_t *ctx, const char *prefix, const cha
 
 	switch (map_name( name, buf, pl, "/", ctx->delimiter )) {
 	case -1:
-		error( "IMAP error: mailbox name %s contains server's hierarchy delimiter\n", name );
+		drv_print( PRN_ERROR, "Mailbox name %s contains server's hierarchy delimiter\n", name );
 		return -1;
 	case -2:
-		error( "IMAP error: server's hierarchy delimiter not known\n" );
+		drv_print( PRN_ERROR, "Server's hierarchy delimiter is not known\n" );
 		return -1;
 	default:
 		memcpy( *buf, prefix, pl );
@@ -1338,7 +1271,7 @@ imap_socket_read( void *aux )
 			return;
 		if (cmd == (void *)~0) {
 			if (!ctx->expectEOF)
-				error( "IMAP error: unexpected EOF from %s\n", ctx->conn.name );
+				drv_print( PRN_ERROR, "Unexpected EOF from %s\n", ctx->conn.name );
 			/* A clean shutdown sequence ends with bad_callback as well (see imap_cleanup()). */
 			break;
 		}
@@ -1349,13 +1282,13 @@ imap_socket_read( void *aux )
 
 		arg = next_arg( &cmd );
 		if (!arg) {
-			error( "IMAP error: empty response\n" );
+			drv_print( PRN_ERROR, "Empty IMAP response\n" );
 			break;
 		}
 		if (*arg == '*') {
 			arg = next_arg( &cmd );
 			if (!arg) {
-				error( "IMAP error: malformed untagged response\n" );
+				drv_print( PRN_ERROR, "Malformed untagged IMAP response\n" );
 				break;
 			}
 
@@ -1376,19 +1309,19 @@ imap_socket_read( void *aux )
 			} else if (!strcmp( "BYE", arg )) {
 				if (!ctx->expectBYE) {
 					ctx->greeting = GreetingBad;
-					error( "IMAP error: unexpected BYE response: %s\n", cmd );
+					drv_print( PRN_ERROR, "Unexpected IMAP BYE response: %s\n", cmd );
 					/* We just wait for the server to close the connection now. */
 					ctx->expectEOF = 1;
 				} else {
 					/* We still need to wait for the LOGOUT's tagged OK. */
 				}
 			} else if (ctx->greeting == GreetingPending) {
-				error( "IMAP error: bogus greeting response %s\n", arg );
+				drv_print( PRN_ERROR, "Unexpected IMAP greeting response %s\n", arg );
 				break;
 			} else if (!strcmp( "NO", arg )) {
-				warn( "Warning from IMAP server: %s\n", cmd );
+				drv_print( PRN_WARN, "Message from server: %s\n", cmd );
 			} else if (!strcmp( "BAD", arg )) {
-				error( "Error from IMAP server: %s\n", cmd );
+				drv_print( PRN_ERROR, "Message from server: %s\n", cmd );
 			} else if (!strcmp( "CAPABILITY", arg )) {
 				parse_capability( ctx, cmd );
 			} else if (!strcmp( "LIST", arg )) {
@@ -1407,12 +1340,12 @@ imap_socket_read( void *aux )
 					goto listret;
 				}
 			} else {
-				error( "IMAP error: unrecognized untagged response '%s'\n", arg );
+				drv_print( PRN_ERROR, "Unrecognized untagged IMAP response '%s'\n", arg );
 				break; /* this may mean anything, so prefer not to spam the log */
 			}
 			continue;
 		} else if (!ctx->in_progress) {
-			error( "IMAP error: unexpected reply: %s %s\n", arg, cmd ? cmd : "" );
+			drv_print( PRN_ERROR, "Unexpected IMAP reply: %s %s\n", arg, cmd ? cmd : "" );
 			break; /* this may mean anything, so prefer not to spam the log */
 		} else if (*arg == '+') {
 			socket_expect_read( &ctx->conn, 0 );
@@ -1442,7 +1375,7 @@ imap_socket_read( void *aux )
 				if (cmdp->param.cont( ctx, cmdp, cmd ))
 					return;
 			} else {
-				error( "IMAP error: unexpected command continuation request\n" );
+				drv_print( PRN_ERROR, "Unexpected IMAP command continuation request\n" );
 				break;
 			}
 			socket_expect_read( &ctx->conn, 1 );
@@ -1451,7 +1384,7 @@ imap_socket_read( void *aux )
 			for (pcmdp = &ctx->in_progress; (cmdp = *pcmdp); pcmdp = &cmdp->next)
 				if (cmdp->tag == tag)
 					goto gottag;
-			error( "IMAP error: unexpected tag %s\n", arg );
+			drv_print( PRN_ERROR, "Unexpected tag '%s' in IMAP response\n", arg );
 			break;
 		  gottag:
 			if (!(*pcmdp = cmdp->next))
@@ -1460,7 +1393,7 @@ imap_socket_read( void *aux )
 				socket_expect_read( &ctx->conn, 0 );
 			arg = next_arg( &cmd );
 			if (!arg) {
-				error( "IMAP error: malformed tagged response\n" );
+				drv_print( PRN_ERROR, "Malformed tagged IMAP response\n" );
 				break;
 			}
 			if (!strcmp( "OK", arg )) {
@@ -1484,7 +1417,7 @@ imap_socket_read( void *aux )
 						goto doresp;
 				} else /*if (!strcmp( "BAD", arg ))*/
 					resp = RESP_CANCEL;
-				error( "IMAP command '%s' returned an error: %s %s\n",
+				drv_print( PRN_ERROR, "IMAP command '%s' returned an error: %s %s\n",
 				       starts_with( cmdp->cmd, -1, "LOGIN", 5 ) ?
 				           "LOGIN <user> <pass>" :
 				           starts_with( cmdp->cmd, -1, "AUTHENTICATE PLAIN", 18 ) ?
@@ -1799,7 +1732,7 @@ imap_open_store_authenticate( imap_store_t *ctx )
 				imap_exec( ctx, 0, imap_open_store_authenticate_p2, "STARTTLS" );
 				return;
 			} else {
-				error( "IMAP error: SSL support not available\n" );
+				drv_print( PRN_ERROR, "IMAP server does not support STARTTLS\n" );
 				imap_open_store_bail( ctx, FAIL_FINAL );
 				return;
 			}
@@ -1809,7 +1742,7 @@ imap_open_store_authenticate( imap_store_t *ctx )
 	} else {
 #ifdef HAVE_LIBSSL
 		if (srvc->ssl_type == SSL_STARTTLS) {
-			error( "IMAP error: SSL support not available\n" );
+			drv_print( PRN_ERROR, "STARTTLS cannot be used with preauthenticated IMAP connection\n" );
 			imap_open_store_bail( ctx, FAIL_FINAL );
 			return;
 		}
@@ -1853,7 +1786,7 @@ static const char *
 ensure_user( imap_server_conf_t *srvc )
 {
 	if (!srvc->user) {
-		error( "Skipping account %s, no user\n", srvc->name );
+		glbl_print( PRN_ERROR, "Skipping IMAP account %s, no user\n", srvc->name );
 		return 0;
 	}
 	return srvc->user;
@@ -1875,7 +1808,7 @@ ensure_password( imap_server_conf_t *srvc )
 		}
 		if (!(fp = popen( cmd, "r" ))) {
 		  pipeerr:
-			sys_error( "Skipping account %s, password command failed", srvc->name );
+			glbl_print( PRN_ERROR, "Skipping IMAP account %s, password command failed: %m\n", srvc->name );
 			return 0;
 		}
 		if (!fgets( buffer, sizeof(buffer), fp ))
@@ -1884,13 +1817,13 @@ ensure_password( imap_server_conf_t *srvc )
 			goto pipeerr;
 		if (ret) {
 			if (WIFSIGNALED( ret ))
-				error( "Skipping account %s, password command crashed\n", srvc->name );
+				glbl_print( PRN_ERROR, "Skipping IMAP account %s, password command crashed\n", srvc->name );
 			else
-				error( "Skipping account %s, password command exited with status %d\n", srvc->name, WEXITSTATUS( ret ) );
+				glbl_print( PRN_ERROR, "Skipping IMAP account %s, password command exited with status %d\n", srvc->name, WEXITSTATUS( ret ) );
 			return 0;
 		}
 		if (!buffer[0]) {
-			error( "Skipping account %s, password command produced no output\n", srvc->name );
+			glbl_print( PRN_ERROR, "Skipping IMAP account %s, password command produced no output\n", srvc->name );
 			return 0;
 		}
 		buffer[strcspn( buffer, "\n" )] = 0; /* Strip trailing newline */
@@ -1907,7 +1840,7 @@ ensure_password( imap_server_conf_t *srvc )
 			exit( 1 );
 		}
 		if (!*pass) {
-			error( "Skipping account %s, no password\n", srvc->name );
+			glbl_print( PRN_ERROR, "Skipping IMAP account %s, no password\n", srvc->name );
 			return 0;
 		}
 		/* getpass() returns a pointer to a static buffer. Make a copy for long term storage. */
@@ -1942,7 +1875,7 @@ process_sasl_interact( sasl_interact_t *interact, imap_server_conf_t *srvc )
 			val = ensure_password( srvc );
 			break;
 		default:
-			error( "Error: Unknown SASL interaction ID\n" );
+			drv_print( PRN_ERROR, "Unknown SASL interaction ID\n" );
 			return -1;
 		}
 		if (!val)
@@ -1968,7 +1901,7 @@ process_sasl_step( imap_store_t *ctx, int rc, const char *in, uint in_len,
 	} else if (rc == SASL_OK) {
 		ctx->sasl_cont = 0;
 	} else {
-		error( "Error: %s\n", sasl_errdetail( ctx->sasl ) );
+		drv_print( PRN_ERROR, "%s\n", sasl_errdetail( ctx->sasl ) );
 		return -1;
 	}
 	return 0;
@@ -1985,7 +1918,7 @@ decode_sasl_data( const char *prompt, char **in, uint *in_len )
 		rc = sasl_decode64( prompt, prompt_len, *in, prompt_len, in_len );
 		if (rc != SASL_OK) {
 			free( *in );
-			error( "Error: SASL(%d): %s\n", rc, sasl_errstring( rc, NULL, NULL ) );
+			drv_print( PRN_ERROR, "SASL: %s (error %d)\n", sasl_errstring( rc, NULL, NULL ), rc );
 			return -1;
 		}
 	} else {
@@ -2004,7 +1937,7 @@ encode_sasl_data( const char *out, uint out_len, char **enc, uint *enc_len )
 	rc = sasl_encode64( out, out_len, *enc, enc_len_max, enc_len );
 	if (rc != SASL_OK) {
 		free( *enc );
-		error( "Error: SASL(%d): %s\n", rc, sasl_errstring( rc, NULL, NULL ) );
+		drv_print( PRN_ERROR, "SASL: %s (error %d)\n", sasl_errstring( rc, NULL, NULL ), rc );
 		return -1;
 	}
 	return 0;
@@ -2021,7 +1954,7 @@ do_sasl_auth( imap_store_t *ctx, imap_cmd_t *cmdp ATTR_UNUSED, const char *promp
 	conn_iovec_t iov[2];
 
 	if (!ctx->sasl_cont) {
-		error( "Error: IMAP wants more steps despite successful SASL authentication.\n" );
+		drv_print( PRN_ERROR, "Server wants more steps despite successful SASL authentication\n" );
 		goto bail;
 	}
 	if (decode_sasl_data( prompt, &in, &in_len ) < 0)
@@ -2072,9 +2005,9 @@ done_sasl_auth( imap_store_t *ctx, imap_cmd_t *cmd ATTR_UNUSED, int response )
 		uint out_len;
 		int rc = sasl_client_step( ctx->sasl, NULL, 0, &interact, &out, &out_len );
 		if (process_sasl_step( ctx, rc, NULL, 0, interact, &out, &out_len ) < 0)
-			warn( "Warning: SASL reported failure despite successful IMAP authentication. Ignoring...\n" );
+			drv_print( PRN_WARN, "SASL reported failure despite successful IMAP authentication. Ignoring...\n" );
 		else if (out)
-			warn( "Warning: SASL wants more steps despite successful IMAP authentication. Ignoring...\n" );
+			drv_print( PRN_WARN, "SASL wants more steps despite successful IMAP authentication. Ignoring...\n" );
 	}
 
 	imap_open_store_authenticate2_p2( ctx, NULL, response );
@@ -2095,7 +2028,7 @@ imap_open_store_authenticate2( imap_store_t *ctx )
 	char saslmechs[1024], *saslend = saslmechs;
 #endif
 
-	info( "Logging in...\n" );
+	drv_print( PRN_INFO, "Logging in...\n" );
 	for (mech = srvc->auth_mechs; mech; mech = mech->next) {
 		int any = !strcmp( mech->string, "*" );
 		for (cmech = ctx->auth_mechs; cmech; cmech = cmech->next) {
@@ -2136,7 +2069,7 @@ imap_open_store_authenticate2( imap_store_t *ctx )
 			rc = sasl_client_init( sasl_callbacks );
 			if (rc != SASL_OK) {
 			  saslbail:
-				error( "Error: SASL(%d): %s\n", rc, sasl_errstring( rc, NULL, NULL ) );
+				drv_print( PRN_ERROR, "SASL: %s (error %d)\n", sasl_errstring( rc, NULL, NULL ), rc );
 				goto bail;
 			}
 			sasl_inited = 1;
@@ -2148,7 +2081,7 @@ imap_open_store_authenticate2( imap_store_t *ctx )
 				goto notsasl;
 			if (!ctx->sasl)
 				goto saslbail;
-			error( "Error: %s\n", sasl_errdetail( ctx->sasl ) );
+			drv_print( PRN_ERROR, "%s\n", sasl_errdetail( ctx->sasl ) );
 			goto bail;
 		}
 
@@ -2156,7 +2089,7 @@ imap_open_store_authenticate2( imap_store_t *ctx )
 		if (rc == SASL_NOMECH)
 			goto notsasl;
 		if (gotmech)
-			info( "Authenticating with SASL mechanism %s...\n", gotmech );
+			drv_print( PRN_INFO, "Authenticating with SASL mechanism %s...\n", gotmech );
 		/* Technically, we are supposed to loop over sasl_client_start(),
 		 * but it just calls sasl_client_step() anyway. */
 		if (process_sasl_step( ctx, rc, NULL, 0, interact, CAP(SASLIR) ? &out : NULL, &out_len ) < 0)
@@ -2177,11 +2110,11 @@ imap_open_store_authenticate2( imap_store_t *ctx )
 		if (!ctx->sasl || sasl_listmech( ctx->sasl, NULL, "", "", "", &saslavail, NULL, NULL ) != SASL_OK)
 			saslavail = "(none)";  /* EXTERNAL is always there anyway. */
 		if (!auth_login) {
-			error( "IMAP error: selected SASL mechanism(s) not available;\n"
+			drv_print( PRN_ERROR, "Selected SASL mechanism(s) not available;\n"
 			       "   selected:%s\n   available: %s\n", saslmechs, saslavail );
 			goto skipnote;
 		}
-		info( "NOT using available SASL mechanism(s): %s\n", saslavail );
+		drv_print( PRN_INFO, "NOT using available SASL mechanism(s): %s\n", saslavail );
 		sasl_dispose( &ctx->sasl );
 	}
 #endif
@@ -2191,17 +2124,17 @@ imap_open_store_authenticate2( imap_store_t *ctx )
 #ifdef HAVE_LIBSSL
 		if (!ctx->conn.ssl)
 #endif
-			warn( "*** IMAP Warning *** Password is being sent in the clear\n" );
+			drv_print( PRN_WARN, "*** IMAP Password is being sent unencrypted\n" );
 		imap_exec( ctx, 0, imap_open_store_authenticate2_p2,
 		           "LOGIN \"%\\s\" \"%\\s\"", srvc->user, srvc->pass );
 		return;
 	}
-	error( "IMAP error: server supports no acceptable authentication mechanism\n" );
+	drv_print( PRN_ERROR, "Server supports no acceptable authentication mechanism\n" );
 #ifdef HAVE_LIBSASL
   skipnote:
 #endif
 	if (skipped_login)
-		error( "Note: not using LOGIN because connection is not encrypted;\n"
+		drv_print( PRN_ERROR, "Note: not using LOGIN because connection is not encrypted;\n"
 		       "      use 'AuthMechs LOGIN' explicitly to force it.\n" );
 
   bail:
@@ -3138,7 +3071,7 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep )
 			server->sconf.timeout = parse_int( cfg );
 		else if (!strcasecmp( "PipelineDepth", cfg->cmd )) {
 			if ((server->max_in_progress = parse_int( cfg )) < 1) {
-				error( "%s:%d: PipelineDepth must be at least 1\n", cfg->file, cfg->line );
+				glbl_print( PRN_ERROR, "%s:%d: PipelineDepth must be at least 1\n", cfg->file, cfg->line );
 				cfg->err = 1;
 			}
 		} else if (!strcasecmp( "DisableExtension", cfg->cmd ) ||
@@ -3151,7 +3084,7 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep )
 						goto gotcap;
 					}
 				}
-				error( "%s:%d: Unrecognized IMAP extension '%s'\n", cfg->file, cfg->line, arg );
+				glbl_print( PRN_ERROR, "%s:%d: Unrecognized IMAP extension '%s'\n", cfg->file, cfg->line, arg );
 				cfg->err = 1;
 			  gotcap: ;
 			} while ((arg = get_arg( cfg, ARG_OPTIONAL, 0 )));
@@ -3160,8 +3093,8 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep )
 		else if (!strcasecmp( "CertificateFile", cfg->cmd )) {
 			server->sconf.cert_file = expand_strdup( cfg->val );
 			if (access( server->sconf.cert_file, R_OK )) {
-				sys_error( "%s:%d: CertificateFile '%s'",
-				           cfg->file, cfg->line, server->sconf.cert_file );
+				glbl_print( PRN_ERROR, "%s:%d: CertificateFile '%s': %m\n",
+				            cfg->file, cfg->line, server->sconf.cert_file );
 				cfg->err = 1;
 			}
 		} else if (!strcasecmp( "SystemCertificates", cfg->cmd )) {
@@ -3169,15 +3102,15 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep )
 		} else if (!strcasecmp( "ClientCertificate", cfg->cmd )) {
 			server->sconf.client_certfile = expand_strdup( cfg->val );
 			if (access( server->sconf.client_certfile, R_OK )) {
-				sys_error( "%s:%d: ClientCertificate '%s'",
-				           cfg->file, cfg->line, server->sconf.client_certfile );
+				glbl_print( PRN_ERROR, "%s:%d: ClientCertificate '%s': %m\n",
+				            cfg->file, cfg->line, server->sconf.client_certfile );
 				cfg->err = 1;
 			}
 		} else if (!strcasecmp( "ClientKey", cfg->cmd )) {
 			server->sconf.client_keyfile = expand_strdup( cfg->val );
 			if (access( server->sconf.client_keyfile, R_OK )) {
-				sys_error( "%s:%d: ClientKey '%s'",
-				           cfg->file, cfg->line, server->sconf.client_keyfile );
+				glbl_print( PRN_ERROR, "%s:%d: ClientKey '%s': %m\n",
+				            cfg->file, cfg->line, server->sconf.client_keyfile );
 				cfg->err = 1;
 			}
 		} else if (!strcasecmp( "SSLType", cfg->cmd )) {
@@ -3188,7 +3121,7 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep )
 			} else if (!strcasecmp( "IMAPS", cfg->val )) {
 				server->ssl_type = SSL_IMAPS;
 			} else {
-				error( "%s:%d: Invalid SSL type\n", cfg->file, cfg->line );
+				glbl_print( PRN_ERROR, "%s:%d: Invalid SSL type\n", cfg->file, cfg->line );
 				cfg->err = 1;
 			}
 		} else if (!strcasecmp( "SSLVersion", cfg->cmd ) ||
@@ -3207,7 +3140,7 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep )
 				} else if (!strcasecmp( "TLSv1.2", arg )) {
 					server->sconf.ssl_versions |= TLSv1_2;
 				} else {
-					error( "%s:%d: Unrecognized SSL version\n", cfg->file, cfg->line );
+					glbl_print( PRN_ERROR, "%s:%d: Unrecognized SSL version\n", cfg->file, cfg->line );
 					cfg->err = 1;
 				}
 			} while ((arg = get_arg( cfg, ARG_OPTIONAL, 0 )));
@@ -3241,7 +3174,7 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep )
 				for (srv = servers; srv; srv = srv->next)
 					if (srv->name && !strcmp( srv->name, cfg->val ))
 						goto gotsrv;
-				error( "%s:%d: unknown IMAP account '%s'\n", cfg->file, cfg->line, cfg->val );
+				glbl_print( PRN_ERROR, "%s:%d: unknown IMAP account '%s'\n", cfg->file, cfg->line, cfg->val );
 				cfg->err = 1;
 				continue;
 			  gotsrv:
@@ -3252,7 +3185,7 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep )
 				store->gen.path = nfstrdup( cfg->val );
 			else if (!strcasecmp( "PathDelimiter", cfg->cmd )) {
 				if (strlen( cfg->val ) != 1) {
-					error( "%s:%d: Path delimiter must be exactly one character long\n", cfg->file, cfg->line );
+					glbl_print( PRN_ERROR, "%s:%d: Path delimiter must be exactly one character long\n", cfg->file, cfg->line );
 					cfg->err = 1;
 					continue;
 				}
@@ -3261,7 +3194,7 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep )
 				parse_generic_store( &store->gen, cfg );
 			continue;
 		} else {
-			error( "%s:%d: unknown/misplaced keyword '%s'\n", cfg->file, cfg->line, cfg->cmd );
+			glbl_print( PRN_ERROR, "%s:%d: unknown/misplaced keyword '%s'\n", cfg->file, cfg->line, cfg->cmd );
 			cfg->err = 1;
 			continue;
 		}
@@ -3273,19 +3206,19 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep )
 		type = "IMAP account", name = server->name;
 	if (!store || !store->server) {
 		if (!server->sconf.tunnel && !server->sconf.host) {
-			error( "%s '%s' has neither Tunnel nor Host\n", type, name );
+			glbl_print( PRN_ERROR, "%s '%s' has neither Tunnel nor Host\n", type, name );
 			cfg->err = 1;
 			return 1;
 		}
 		if (server->pass && server->pass_cmd) {
-			error( "%s '%s' has both Pass and PassCmd\n", type, name );
+			glbl_print( PRN_ERROR, "%s '%s' has both Pass and PassCmd\n", type, name );
 			cfg->err = 1;
 			return 1;
 		}
 #ifdef HAVE_LIBSSL
 		if ((use_sslv2 & use_sslv3 & use_tlsv1 & use_tlsv11 & use_tlsv12) != -1 || use_imaps >= 0 || require_ssl >= 0) {
 			if (server->ssl_type >= 0 || server->sconf.ssl_versions >= 0) {
-				error( "%s '%s': The deprecated UseSSL*, UseTLS*, UseIMAPS, and RequireSSL options are mutually exlusive with SSLType and SSLVersions.\n", type, name );
+				glbl_print( PRN_ERROR, "%s '%s': The deprecated UseSSL*, UseTLS*, UseIMAPS, and RequireSSL options are mutually exlusive with SSLType and SSLVersions.\n", type, name );
 				cfg->err = 1;
 				return 1;
 			}
@@ -3303,11 +3236,11 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep )
 			} else if (!server->sconf.ssl_versions) {
 				server->ssl_type = SSL_None;
 			} else {
-				warn( "Notice: %s '%s': 'RequireSSL no' is being ignored\n", type, name );
+				glbl_print( PRN_NOTICE, "%s '%s': 'RequireSSL no' is being ignored\n", type, name );
 				server->ssl_type = SSL_STARTTLS;
 			}
 			if (server->ssl_type != SSL_None && !server->sconf.ssl_versions) {
-				error( "%s '%s' requires SSL but no SSL versions enabled\n", type, name );
+				glbl_print( PRN_ERROR, "%s '%s' requires SSL but no SSL versions enabled\n", type, name );
 				cfg->err = 1;
 				return 1;
 			}
@@ -3320,11 +3253,11 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep )
 #endif
 		if (require_cram >= 0) {
 			if (server->auth_mechs) {
-				error( "%s '%s': The deprecated RequireCRAM option is mutually exlusive with AuthMech.\n", type, name );
+				glbl_print( PRN_ERROR, "%s '%s': The deprecated RequireCRAM option is mutually exlusive with AuthMech.\n", type, name );
 				cfg->err = 1;
 				return 1;
 			}
-			warn( "Notice: %s '%s': RequireCRAM is deprecated. Use AuthMech instead.\n", type, name );
+			glbl_print( PRN_NOTICE, "%s '%s': RequireCRAM is deprecated. Use AuthMech instead.\n", type, name );
 			if (require_cram)
 				add_string_list(&server->auth_mechs, "CRAM-MD5");
 		}
@@ -3343,7 +3276,7 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep )
 			memcpy( store->server, &sserver, sizeof(sserver) );
 			store->server->name = store->gen.name;
 		} else if (acc_opt) {
-			error( "%s '%s' has both Account and account-specific options\n", type, name );
+			glbl_print( PRN_ERROR, "%s '%s' has both Account and account-specific options\n", type, name );
 			cfg->err = 1;
 		}
 	}
