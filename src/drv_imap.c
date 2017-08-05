@@ -55,6 +55,7 @@ typedef union imap_store_conf {
 		char delimiter;
 		char use_namespace;
 		char use_lsub;
+		char ignore_keyword_warnings;
 	};
 } imap_store_conf_t;
 
@@ -1790,7 +1791,8 @@ imap_socket_read( void *aux )
 				error( "IMAP error: bogus greeting response %s\n", arg );
 				break;
 			} else if (equals( arg, argl, "NO", 2 )) {
-				warn( "Warning from IMAP server: %s\n", cmd );
+				if (!ctx->conf->ignore_keyword_warnings || strcmp( cmd, "Keywords are not supported" ))
+					warn( "Warning from IMAP server: %s\n", cmd );
 			} else if (equals( arg, argl, "BAD", 3 )) {
 				error( "Error from IMAP server: %s\n", cmd );
 			} else if (equals( arg, argl, "CAPABILITY", 10 )) {
@@ -3913,6 +3915,8 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep )
 				store->use_namespace = parse_bool( cfg );
 			} else if (!strcasecmp( "SubscribedOnly", cfg->cmd )) {
 				store->use_lsub = parse_bool( cfg );
+			} else if (!strcasecmp( "IgnoreKeywordWarnings", cfg->cmd )) {
+				store->ignore_keyword_warnings = parse_bool( cfg );
 			} else if (!strcasecmp( "Path", cfg->cmd )) {
 				store->path = nfstrdup( cfg->val );
 			} else if (!strcasecmp( "PathDelimiter", cfg->cmd )) {
