@@ -63,6 +63,7 @@ typedef struct channel_conf {
 	uint max_line_len;
 	char cut_lines;
 	char skip_binary_content; /* for master only */
+	char delete_nonempty;
 } channel_conf_t;
 
 typedef struct group_conf {

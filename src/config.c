@@ -265,6 +265,8 @@ getopt_helper( conffile_t *cfile, int *cops, channel_conf_t *conf )
 		conf->cut_lines = parse_bool( cfile );
 	} else if (!strcasecmp( "SkipBinaryContent", cfile->cmd )) {
 		conf->skip_binary_content = parse_bool( cfile );
+	} else if (!strcasecmp( "DeleteNonEmpty", cfile->cmd )) {
+		conf->delete_nonempty = parse_bool( cfile );
 	} else if (!strcasecmp( "MaxMessages", cfile->cmd )) {
 		conf->max_messages = parse_int( cfile );
 	} else if (!strcasecmp( "ExpireSide", cfile->cmd )) {
