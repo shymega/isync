@@ -106,6 +106,18 @@ copy_msg_convert( int in_cr, int out_cr, copy_vars_t *vars )
 				leftLen -= curLineLen;
 			}
 		}
+		if (global_conf.skip_binary_content) {
+			while (idx < in_len) {
+				uchar c = in_buf[idx++];
+				if (c < 0x20 && c != '\r' && c != '\n' && c != '\t') {
+					/* binary content, skip */
+					debug( "Incorrect byte %u at offset %u/%u\n", c, idx, in_len );
+					free( in_buf );
+					return "contains raw binary";
+				}
+			}
+			idx = 0;
+		}
 		for (;;) {
 			uint start = idx;
 			uint line_cr = 0;
