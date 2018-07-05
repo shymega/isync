@@ -1114,9 +1114,12 @@ box_confirmed2( sync_vars_t *svars, int t )
 					goto bail;
 				}
 				if (svars->drv[1-t]->confirm_box_empty( svars->ctx[1-t] ) != DRV_OK) {
-					warn( "Warning: channel %s: %s %s cannot be opened and %s %s not empty.\n",
+                                  /* TODO modify this code so that it warns about "deleting resursively" 
+                                     and attempts to delete only if in gmail label compatibility mode; otherwise,
+                                     we should still goto done; */
+					warn( "Warning: channel %s: %s %s cannot be opened and %s %s not empty. Attempting to delete recursively...\n",
 					      svars->chan->name, str_ms[t], svars->orig_name[t], str_ms[1-t], svars->orig_name[1-t] );
-					goto done;
+                                        /* goto done; */
 				}
 				info( "Deleting %s %s...\n", str_ms[1-t], svars->orig_name[1-t] );
 				svars->drv[1-t]->delete_box( svars->ctx[1-t], box_deleted, INV_AUX );

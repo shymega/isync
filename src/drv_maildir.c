@@ -36,6 +36,7 @@
 #include <errno.h>
 #include <time.h>
 #include <utime.h>
+#include <ftw.h>
 
 #if !defined(_POSIX_SYNCHRONIZED_IO) || _POSIX_SYNCHRONIZED_IO <= 0
 # define fdatasync fsync
@@ -60,6 +61,7 @@ typedef struct {
 	char sub_style;
 	char failed;
 	char *info_prefix, *info_stop; /* precalculated from info_delimiter */
+        char gmail_label_compatibility;
 } maildir_store_conf_t;
 
 typedef struct {
@@ -1351,10 +1353,79 @@ maildir_confirm_box_empty( store_t *gctx )
 }
 
 static void
+rmtree(const char path[])
+{
+    size_t path_len;
+    char *full_path;
+    DIR *dir;
+    struct stat stat_path, stat_entry;
+    struct dirent *entry;
+
+    // stat for the path
+    stat(path, &stat_path);
+
+    // if path does not exists or is not dir - exit with status -1
+    if (S_ISDIR(stat_path.st_mode) == 0) {
+        fprintf(stderr, "%s: %s\n", "Is not directory", path);
+        exit(-1);
+    }
+
+    // if not possible to read the directory for this user
+    if ((dir = opendir(path)) == NULL) {
+        fprintf(stderr, "%s: %s\n", "Can`t open directory", path);
+        exit(-1);
+    }
+
+    // the length of the path
+    path_len = strlen(path);
+
+    // iteration through entries in the directory
+    while ((entry = readdir(dir)) != NULL) {
+
+        // skip entries "." and ".."
+        if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, ".."))
+            continue;
+
+        // determinate a full path of an entry
+        full_path = calloc(path_len + strlen(entry->d_name) + 2, sizeof(char));
+        strcpy(full_path, path);
+        strcat(full_path, "/");
+        strcat(full_path, entry->d_name);
+
+        // stat for the entry
+        stat(full_path, &stat_entry);
+
+        // recursively remove a nested directory
+        if (S_ISDIR(stat_entry.st_mode) != 0) {
+            rmtree(full_path);
+            free(full_path);
+            continue;
+        }
+
+        // remove a file object
+        if (unlink(full_path) == 0)
+            printf("Removed a file: %s\n", full_path);
+        else
+            printf("Can`t remove a file: %s\n", full_path);
+
+        free(full_path);
+    }
+
+    // remove the devastated directory and close the object of it
+    if (rmdir(path) == 0)
+        printf("Removed a directory: %s\n", path);
+    else
+        printf("Can`t remove a directory: %s\n", path);
+
+    closedir(dir);
+}
+
+static void
 maildir_delete_box( store_t *gctx,
                     void (*cb)( int sts, void *aux ), void *aux )
 {
 	maildir_store_t *ctx = (maildir_store_t *)gctx;
+        maildir_store_conf_t* conf = (maildir_store_conf_t*) ctx->gen.conf;
 	int i, bl, ret = DRV_OK;
 	struct stat st;
 	char buf[_POSIX_PATH_MAX];
@@ -1381,7 +1452,17 @@ maildir_delete_box( store_t *gctx,
 		 * That way an interrupted operation can be resumed. */
 		for (i = 3; --i >= 0; ) {
 			memcpy( buf + bl, subdirs[i], 4 );
-			if (rmdir( buf ) && errno != ENOENT) {
+                        /* If dealing with GMail labels-as-folders, we may end up in a situation
+                           when the contents of maildir subfolders are not empty when the delete request
+                           arrives; ordinarily, rmdir() would fail here, but in GMail label compatibility mode,
+                           we'll recursively delete the contents of the maildir subfolders.*/
+                        if(conf->gmail_label_compatibility) {
+                          info("Deleting tree per GMail label compatibility policy.\n");
+                          rmtree(buf);
+                        } else {
+                          rmdir(buf);
+                        }
+			if (errno != ENOENT) {
 			  badrm:
 				sys_error( "Maildir error: cannot remove '%s'", buf );
 				ret = DRV_BOX_BAD;
@@ -1878,6 +1959,8 @@ maildir_parse_store( conffile_t *cfg, store_conf_t **storep )
 		else if (!strcasecmp( "AltMap", cfg->cmd ))
 			store->alt_map = parse_bool( cfg );
 #endif /* USE_DB */
+                else if (!strcasecmp("GMailLabelCompatibility", cfg->cmd ))
+                        store->gmail_label_compatibility = 1;
 		else if (!strcasecmp( "InfoDelimiter", cfg->cmd )) {
 			if (strlen( cfg->val ) != 1) {
 				error( "%s:%d: Info delimiter must be exactly one character long\n", cfg->file, cfg->line );
