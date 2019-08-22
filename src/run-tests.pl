@@ -714,7 +714,7 @@ sub test_impl($$$$)
 
 	my $nj = readfile("near/.mbsyncstate.journal");
 	my ($jxc, $jret) = runsync($async, "-0 --no-expunge", "2-replay.log");
-	if ($jxc || ckstate("near/.mbsyncstate", $$tx[2])) {
+	if ($jxc || ckchan("near/.mbsyncstate", $tx)) {
 		print "Journal replay failed.\n";
 		print "Options:\n";
 		print " [ ".join(", ", map('"'.qm($_).'"', @$sfx))." ], [ \"-0\", \"--no-expunge\" ]\n";
