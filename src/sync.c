@@ -276,6 +276,7 @@ static void
 msg_fetched( int sts, void *aux )
 {
 	copy_vars_t *vars = (copy_vars_t *)aux;
+	sync_rec_t *srec = vars->srec;
 	DECL_SVARS;
 	int scr, tcr;
 
@@ -292,14 +293,14 @@ msg_fetched( int sts, void *aux )
 
 		scr = svars->can_crlf[t^1];
 		tcr = svars->can_crlf[t];
-		if (vars->srec || scr != tcr) {
+		if (srec || scr != tcr) {
 			if (!copy_msg_convert( scr, tcr, vars, t )) {
 				vars->cb( SYNC_NOGOOD, 0, vars );
 				return;
 			}
 		}
 
-		svars->drv[t]->store_msg( svars->ctx[t], &vars->data, !vars->srec, msg_stored, vars );
+		svars->drv[t]->store_msg( svars->ctx[t], &vars->data, !srec, msg_stored, vars );
 		break;
 	case DRV_CANCELED:
 		vars->cb( SYNC_CANCELED, 0, vars );
