@@ -75,6 +75,7 @@ typedef struct {
 	list_t *head, **stack[MAX_LIST_DEPTH];
 	int (*callback)( imap_store_t *ctx, list_t *list );
 	int level, need_bytes;
+	const char *err;
 } parse_list_state_t;
 
 typedef struct imap_cmd imap_cmd_t;
@@ -109,6 +110,7 @@ union imap_store {
 		uint caps;  // CAPABILITY results
 		string_list_t *auth_mechs;
 		parse_list_state_t parse_list_sts;
+		const char *parse_list_what;
 		char *parse_list_cmd;
 		// Command queue
 		imap_cmd_t *pending, **pending_append;
@@ -819,8 +821,10 @@ parse_imap_list( imap_store_t *ctx, char **sp, parse_list_state_t *sts )
 		goto getbytes;
 	}
 
-	if (!s)
+	if (!s) {
+		sts->err = "missing value";
 		return LIST_BAD;
+	}
 	for (;;) {
 		while (isspace( (uchar)*s ))
 			s++;
@@ -836,7 +840,7 @@ parse_imap_list( imap_store_t *ctx, char **sp, parse_list_state_t *sts )
 		if (*s == '(') {
 			/* sublist */
 			if (sts->level == MAX_LIST_DEPTH)
-				goto bail;
+				goto toodeep;
 			s++;
 			cur->val = LIST;
 			sts->stack[sts->level++] = curp;
@@ -846,11 +850,12 @@ parse_imap_list( imap_store_t *ctx, char **sp, parse_list_state_t *sts )
 		} else if (ctx && *s == '{') {
 			/* literal */
 			bytes = (int)(cur->len = strtoul( s + 1, &s, 10 ));
-			if (*s != '}' || *++s)
+			if (*s != '}' || *++s) {
+				sts->err = "malformed literal";
 				goto bail;
+			}
 			if ((uint)bytes >= INT_MAX) {
-				error( "IMAP error: excessively large literal from %s "
-				       "- THIS MIGHT BE AN ATTEMPT TO HACK YOU!\n", ctx->conn.name );
+				sts->err = "excessively large literal - THIS MIGHT BE AN ATTEMPT TO HACK YOU!";
 				goto bail;
 			}
 
@@ -861,7 +866,7 @@ parse_imap_list( imap_store_t *ctx, char **sp, parse_list_state_t *sts )
 			n = socket_read( &ctx->conn, s, (uint)bytes );
 			if (n < 0) {
 			  badeof:
-				error( "IMAP error: unexpected EOF from %s\n", ctx->conn.name );
+				sts->err = "unexpected EOF";
 				goto bail;
 			}
 			bytes -= n;
@@ -891,8 +896,10 @@ parse_imap_list( imap_store_t *ctx, char **sp, parse_list_state_t *sts )
 			while ((c = *s++) != '"') {
 				if (c == '\\')
 					c = *s++;
-				if (!c)
+				if (!c) {
+					sts->err = "unterminated quoted string";
 					goto bail;
+				}
 				*d++ = c;
 			}
 			cur->len = (uint)(d - p);
@@ -914,8 +921,10 @@ parse_imap_list( imap_store_t *ctx, char **sp, parse_list_state_t *sts )
 		if (!sts->level)
 			break;
 	  next2:
-		if (!*s)
+		if (!*s) {
+			sts->err = "unterminated list";
 			goto bail;
+		}
 	}
 	*sp = s;
 	return LIST_OK;
@@ -926,6 +935,8 @@ parse_imap_list( imap_store_t *ctx, char **sp, parse_list_state_t *sts )
 		sts->need_bytes = bytes;
 		return LIST_PARTIAL;
 	}
+  toodeep:
+	sts->err = "too deeply nested lists";
   bail:
 	free_list( sts->head );
 	sts->level = 0;
@@ -937,6 +948,7 @@ parse_list_init( parse_list_state_t *sts )
 {
 	sts->need_bytes = -1;
 	sts->level = 1;
+	sts->err = NULL;
 	sts->head = NULL;
 	sts->stack[0] = &sts->head;
 }
@@ -964,10 +976,21 @@ parse_next_list( imap_store_t *ctx, int (*cb)( imap_store_t *ctx, list_t *list )
 }
 
 static int
-parse_list( imap_store_t *ctx, char *s, int (*cb)( imap_store_t *ctx, list_t *list ) )
+parse_list( imap_store_t *ctx, char *s, int (*cb)( imap_store_t *ctx, list_t *list ), const char *what )
 {
 	ctx->parse_list_cmd = s;
+	ctx->parse_list_what = what;
 	return parse_next_list( ctx, cb );
+}
+
+static int
+parse_list_perror( imap_store_t *ctx )
+{
+	if (!ctx->parse_list_sts.err)
+		ctx->parse_list_sts.err = "unexpected value";
+	error( "IMAP error: malformed %s response from %s: %s\n",
+	       ctx->parse_list_what, ctx->conn.name, ctx->parse_list_sts.err );
+	return LIST_BAD;
 }
 
 static int parse_namespace_rsp_p2( imap_store_t *, list_t * );
@@ -981,8 +1004,7 @@ parse_namespace_rsp( imap_store_t *ctx, list_t *list )
 
 	if (!list) {
 	  bad:
-		error( "IMAP error: malformed NAMESPACE response\n" );
-		return LIST_BAD;
+		return parse_list_perror( ctx );
 	}
 	if (list->val != NIL) {
 		if (list->val != LIST)
@@ -1121,10 +1143,8 @@ parse_fetch_rsp( imap_store_t *ctx, list_t *list )
 	uint uid = 0, size = 0, msgid_len = 0;
 	time_t date = 0;
 
-	if (!is_list( list )) {
-		error( "IMAP error: bogus FETCH response\n" );
-		return LIST_BAD;
-	}
+	if (!is_list( list ))
+		return parse_list_perror( ctx );
 
 	for (tmp = list->child; tmp; tmp = tmp->next) {
 		if (!is_atom( tmp )) {
@@ -1354,10 +1374,8 @@ parse_list_rsp( imap_store_t *ctx, list_t *list )
 {
 	list_t *lp;
 
-	if (!is_list( list )) {
-		error( "IMAP error: malformed LIST response\n" );
-		return LIST_BAD;
-	}
+	if (!is_list( list ))
+		return parse_list_perror( ctx );
 	for (lp = list->child; lp; lp = lp->next)
 		if (is_atom( lp ) && !strcasecmp( lp->val, "\\NoSelect" ))
 			return LIST_OK;
@@ -1367,10 +1385,8 @@ parse_list_rsp( imap_store_t *ctx, list_t *list )
 static int
 parse_list_rsp_p1( imap_store_t *ctx, list_t *list )
 {
-	if (!is_opt_atom( list )) {
-		error( "IMAP error: malformed LIST response\n" );
-		return LIST_BAD;
-	}
+	if (!is_opt_atom( list ))
+		return parse_list_perror( ctx );
 	if (!ctx->delimiter[0] && is_atom( list ))
 		ctx->delimiter[0] = list->val[0];
 	return parse_next_list( ctx, parse_list_rsp_p2 );
@@ -1413,10 +1429,8 @@ parse_list_rsp_p2( imap_store_t *ctx, list_t *list )
 	int argl;
 	uint l;
 
-	if (!is_atom( list )) {
-		error( "IMAP error: malformed LIST response\n" );
-		return LIST_BAD;
-	}
+	if (!is_atom( list ))
+		return parse_list_perror( ctx );
 	arg = list->val;
 	argl = (int)list->len;
 	if (argl > 1000) {
@@ -1623,10 +1637,10 @@ imap_socket_read( void *aux )
 			} else if (!strcmp( "CAPABILITY", arg )) {
 				parse_capability( ctx, cmd );
 			} else if (!strcmp( "LIST", arg ) || !strcmp( "LSUB", arg )) {
-				resp = parse_list( ctx, cmd, parse_list_rsp );
+				resp = parse_list( ctx, cmd, parse_list_rsp, "LIST" );
 				goto listret;
 			} else if (!strcmp( "NAMESPACE", arg )) {
-				resp = parse_list( ctx, cmd, parse_namespace_rsp );
+				resp = parse_list( ctx, cmd, parse_namespace_rsp, "NAMESPACE" );
 				goto listret;
 			} else if ((arg1 = next_arg( &cmd ))) {
 				if (!strcmp( "EXISTS", arg1 )) {
@@ -1645,7 +1659,7 @@ imap_socket_read( void *aux )
 					if (!(seq = strtoul( arg, &arg1, 10 )) || *arg1)
 						goto badseq;
 					ctx->fetch_seq = seq;
-					resp = parse_list( ctx, cmd, parse_fetch_rsp );
+					resp = parse_list( ctx, cmd, parse_fetch_rsp, "FETCH" );
 					goto listret;
 				}
 			} else {
