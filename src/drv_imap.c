@@ -225,7 +225,8 @@ typedef union {
 #define CAP(cap) (ctx->caps & (1 << (cap)))
 
 enum CAPABILITY {
-	NOLOGIN = 0,
+	IMAP4REV1,
+	NOLOGIN,
 #ifdef HAVE_LIBSASL
 	SASLIR,
 #endif
@@ -244,6 +245,7 @@ static const struct {
 	const char *str;
 	uint len;
 } cap_list[] = {
+	{ "IMAP4REV1", 9 },
 	{ "LOGINDISABLED", 13 },
 #ifdef HAVE_LIBSASL
 	{ "SASL-IR", 7 },
@@ -2087,6 +2089,12 @@ imap_open_store_authenticate( imap_store_t *ctx )
 #ifdef HAVE_LIBSSL
 	imap_server_conf_t *srvc = ctx->conf->server;
 #endif
+
+	if (!CAP(IMAP4REV1)) {
+		error( "IMAP error: Server does not support IMAP4rev1\n" );
+		imap_open_store_bail( ctx, FAIL_FINAL );
+		return;
+	}
 
 	if (ctx->greeting != GreetingPreauth) {
 #ifdef HAVE_LIBSSL
