@@ -234,6 +234,7 @@ enum CAPABILITY {
 #endif
 	UIDPLUS,
 	LITERALPLUS,
+	LITERALMINUS,
 	MOVE,
 	NAMESPACE,
 	COMPRESS_DEFLATE
@@ -249,6 +250,7 @@ static const char *cap_list[] = {
 #endif
 	"UIDPLUS",
 	"LITERAL+",
+	"LITERAL-",
 	"MOVE",
 	"NAMESPACE",
 	"COMPRESS=DEFLATE"
@@ -315,7 +317,8 @@ send_imap_cmd( imap_store_t *ctx, imap_cmd_t *cmd )
 	if (cmd->param.data) {
 		assert( cmdl > 2 && !memcmp( cmd->cmd + cmdl - 2, "+}", 2 ) );
 		if ((!cmd->param.to_trash || ctx->trashnc != TrashUnknown) &&
-		    CAP(LITERALPLUS) && cmd->param.data_len <= 100*1024) {
+		    ((CAP(LITERALPLUS) && cmd->param.data_len <= 100*1024) ||
+		     (CAP(LITERALMINUS) && cmd->param.data_len <= 4*1024))) {
 			litplus = 1;
 		} else {
 			cmd->cmd[cmdl - 2] = '}';
