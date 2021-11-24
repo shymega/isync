@@ -1028,15 +1028,20 @@ parse_namespace_rsp( imap_store_t *ctx, list_t *list )
 	return parse_next_list( ctx, parse_namespace_rsp_p2 );
 }
 
+// Note that parse_list_rsp() below refers to these as well.
 static int
-parse_namespace_rsp_p2( imap_store_t *ctx, list_t *list ATTR_UNUSED )
+parse_namespace_rsp_p2( imap_store_t *ctx, list_t *list )
 {
+	if (!list)
+		return parse_list_perror( ctx );
 	return parse_next_list( ctx, parse_namespace_rsp_p3 );
 }
 
 static int
-parse_namespace_rsp_p3( imap_store_t *ctx ATTR_UNUSED, list_t *list ATTR_UNUSED )
+parse_namespace_rsp_p3( imap_store_t *ctx, list_t *list )
 {
+	if (!list)
+		return parse_list_perror( ctx );
 	return LIST_OK;
 }
 
@@ -1378,7 +1383,7 @@ parse_list_rsp( imap_store_t *ctx, list_t *list )
 		return parse_list_perror( ctx );
 	for (lp = list->child; lp; lp = lp->next)
 		if (is_atom( lp ) && !strcasecmp( lp->val, "\\NoSelect" ))
-			return LIST_OK;
+			return parse_next_list( ctx, parse_namespace_rsp_p2 );  // (sic!)
 	return parse_next_list( ctx, parse_list_rsp_p1 );
 }
 
