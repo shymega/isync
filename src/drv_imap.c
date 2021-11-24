@@ -73,7 +73,7 @@ typedef union imap_store imap_store_t;
 
 typedef struct {
 	list_t *head, **stack[MAX_LIST_DEPTH];
-	int (*callback)( imap_store_t *ctx, list_t *list, char *cmd );
+	int (*callback)( imap_store_t *ctx, list_t *list );
 	int level, need_bytes;
 } parse_list_state_t;
 
@@ -109,6 +109,7 @@ union imap_store {
 		uint caps;  // CAPABILITY results
 		string_list_t *auth_mechs;
 		parse_list_state_t parse_list_sts;
+		char *parse_list_cmd;
 		// Command queue
 		imap_cmd_t *pending, **pending_append;
 		imap_cmd_t *in_progress, **in_progress_append;
@@ -941,32 +942,39 @@ parse_list_init( parse_list_state_t *sts )
 }
 
 static int
-parse_list_continue( imap_store_t *ctx, char *s )
+parse_list_continue( imap_store_t *ctx )
 {
 	list_t *list;
 	int resp;
-	if ((resp = parse_imap_list( ctx, &s, &ctx->parse_list_sts )) != LIST_PARTIAL) {
+	if ((resp = parse_imap_list( ctx, &ctx->parse_list_cmd, &ctx->parse_list_sts )) != LIST_PARTIAL) {
 		list = (resp == LIST_BAD) ? NULL : ctx->parse_list_sts.head;
 		ctx->parse_list_sts.head = NULL;
-		resp = ctx->parse_list_sts.callback( ctx, list, s );
+		resp = ctx->parse_list_sts.callback( ctx, list );
 		free_list( list );
 	}
 	return resp;
 }
 
 static int
-parse_list( imap_store_t *ctx, char *s, int (*cb)( imap_store_t *ctx, list_t *list, char *s ) )
+parse_next_list( imap_store_t *ctx, int (*cb)( imap_store_t *ctx, list_t *list ) )
 {
 	parse_list_init( &ctx->parse_list_sts );
 	ctx->parse_list_sts.callback = cb;
-	return parse_list_continue( ctx, s );
+	return parse_list_continue( ctx );
 }
 
-static int parse_namespace_rsp_p2( imap_store_t *, list_t *, char * );
-static int parse_namespace_rsp_p3( imap_store_t *, list_t *, char * );
+static int
+parse_list( imap_store_t *ctx, char *s, int (*cb)( imap_store_t *ctx, list_t *list ) )
+{
+	ctx->parse_list_cmd = s;
+	return parse_next_list( ctx, cb );
+}
+
+static int parse_namespace_rsp_p2( imap_store_t *, list_t * );
+static int parse_namespace_rsp_p3( imap_store_t *, list_t * );
 
 static int
-parse_namespace_rsp( imap_store_t *ctx, list_t *list, char *s )
+parse_namespace_rsp( imap_store_t *ctx, list_t *list )
 {
 	// We use only the 1st personal namespace. Making this configurable
 	// would not add value over just specifying Path.
@@ -995,17 +1003,17 @@ parse_namespace_rsp( imap_store_t *ctx, list_t *list, char *s )
 		// Namespace response extensions may follow here; we don't care.
 	}
 
-	return parse_list( ctx, s, parse_namespace_rsp_p2 );
+	return parse_next_list( ctx, parse_namespace_rsp_p2 );
 }
 
 static int
-parse_namespace_rsp_p2( imap_store_t *ctx, list_t *list ATTR_UNUSED, char *s )
+parse_namespace_rsp_p2( imap_store_t *ctx, list_t *list ATTR_UNUSED )
 {
-	return parse_list( ctx, s, parse_namespace_rsp_p3 );
+	return parse_next_list( ctx, parse_namespace_rsp_p3 );
 }
 
 static int
-parse_namespace_rsp_p3( imap_store_t *ctx ATTR_UNUSED, list_t *list ATTR_UNUSED, char *s ATTR_UNUSED )
+parse_namespace_rsp_p3( imap_store_t *ctx ATTR_UNUSED, list_t *list ATTR_UNUSED )
 {
 	return LIST_OK;
 }
@@ -1102,7 +1110,7 @@ parse_fetched_header( char *val, uint uid, char **tuid, char **msgid, uint *msgi
 }
 
 static int
-parse_fetch_rsp( imap_store_t *ctx, list_t *list, char *s ATTR_UNUSED )
+parse_fetch_rsp( imap_store_t *ctx, list_t *list )
 {
 	list_t *body = NULL, *tmp;
 	char *tuid = NULL, *msgid = NULL, *ep;
@@ -1338,11 +1346,11 @@ parse_response_code( imap_store_t *ctx, imap_cmd_t *cmd, char *s )
 	return RESP_OK;
 }
 
-static int parse_list_rsp_p1( imap_store_t *, list_t *, char * );
-static int parse_list_rsp_p2( imap_store_t *, list_t *, char * );
+static int parse_list_rsp_p1( imap_store_t *, list_t * );
+static int parse_list_rsp_p2( imap_store_t *, list_t * );
 
 static int
-parse_list_rsp( imap_store_t *ctx, list_t *list, char *cmd )
+parse_list_rsp( imap_store_t *ctx, list_t *list )
 {
 	list_t *lp;
 
@@ -1353,11 +1361,11 @@ parse_list_rsp( imap_store_t *ctx, list_t *list, char *cmd )
 	for (lp = list->child; lp; lp = lp->next)
 		if (is_atom( lp ) && !strcasecmp( lp->val, "\\NoSelect" ))
 			return LIST_OK;
-	return parse_list( ctx, cmd, parse_list_rsp_p1 );
+	return parse_next_list( ctx, parse_list_rsp_p1 );
 }
 
 static int
-parse_list_rsp_p1( imap_store_t *ctx, list_t *list, char *cmd ATTR_UNUSED )
+parse_list_rsp_p1( imap_store_t *ctx, list_t *list )
 {
 	if (!is_opt_atom( list )) {
 		error( "IMAP error: malformed LIST response\n" );
@@ -1365,7 +1373,7 @@ parse_list_rsp_p1( imap_store_t *ctx, list_t *list, char *cmd ATTR_UNUSED )
 	}
 	if (!ctx->delimiter[0] && is_atom( list ))
 		ctx->delimiter[0] = list->val[0];
-	return parse_list( ctx, cmd, parse_list_rsp_p2 );
+	return parse_next_list( ctx, parse_list_rsp_p2 );
 }
 
 // Use this to check whether a full path refers to the actual IMAP INBOX.
@@ -1398,7 +1406,7 @@ normalize_INBOX( imap_store_t *ctx, char *arg, int argl )
 }
 
 static int
-parse_list_rsp_p2( imap_store_t *ctx, list_t *list, char *cmd ATTR_UNUSED )
+parse_list_rsp_p2( imap_store_t *ctx, list_t *list )
 {
 	string_list_t *narg;
 	char *arg, c;
@@ -1548,7 +1556,7 @@ imap_socket_read( void *aux )
 
 	for (;;) {
 		if (ctx->parse_list_sts.level) {
-			resp = parse_list_continue( ctx, NULL );
+			resp = parse_list_continue( ctx );
 		  listret:
 			if (resp == LIST_PARTIAL)
 				return;
