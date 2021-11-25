@@ -292,6 +292,15 @@ starts_with( const char *str, int strl, const char *cmp, uint cmpl )
 	return ((uint)strl >= cmpl) && !memcmp( str, cmp, cmpl );
 }
 
+static int
+equals_upper_impl( const char *str, const char *cmp, uint cmpl )
+{
+	for (uint i = 0; i < cmpl; i++)
+		if (toupper( str[i] ) != cmp[i])
+			return 0;
+	return 1;
+}
+
 int
 starts_with_upper( const char *str, int strl, const char *cmp, uint cmpl )
 {
@@ -299,10 +308,7 @@ starts_with_upper( const char *str, int strl, const char *cmp, uint cmpl )
 		strl = strnlen( str, cmpl + 1 );
 	if ((uint)strl < cmpl)
 		return 0;
-	for (uint i = 0; i < cmpl; i++)
-		if (toupper( str[i] ) != cmp[i])
-			return 0;
-	return 1;
+	return equals_upper_impl( str, cmp, cmpl );
 }
 
 int
@@ -311,6 +317,16 @@ equals( const char *str, int strl, const char *cmp, uint cmpl )
 	if (strl < 0)
 		strl = strnlen( str, cmpl + 1 );
 	return ((uint)strl == cmpl) && !memcmp( str, cmp, cmpl );
+}
+
+int
+equals_upper( const char *str, int strl, const char *cmp, uint cmpl )
+{
+	if (strl < 0)
+		strl = strnlen( str, cmpl + 1 );
+	if ((uint)strl != cmpl)
+		return 0;
+	return equals_upper_impl( str, cmp, cmpl );
 }
 
 #ifndef HAVE_TIMEGM

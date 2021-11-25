@@ -240,20 +240,23 @@ enum CAPABILITY {
 	COMPRESS_DEFLATE
 };
 
-static const char *cap_list[] = {
-	"LOGINDISABLED",
+static const struct {
+	const char *str;
+	uint len;
+} cap_list[] = {
+	{ "LOGINDISABLED", 13 },
 #ifdef HAVE_LIBSASL
-	"SASL-IR",
+	{ "SASL-IR", 7 },
 #endif
 #ifdef HAVE_LIBSSL
-	"STARTTLS",
+	{ "STARTTLS", 8 },
 #endif
-	"UIDPLUS",
-	"LITERAL+",
-	"LITERAL-",
-	"MOVE",
-	"NAMESPACE",
-	"COMPRESS=DEFLATE"
+	{ "UIDPLUS", 7 },
+	{ "LITERAL+", 8 },
+	{ "LITERAL-", 8 },
+	{ "MOVE", 4 },
+	{ "NAMESPACE", 9 },
+	{ "COMPRESS=DEFLATE", 16 },
 };
 
 #define RESP_OK       0
@@ -719,7 +722,7 @@ imap_strchr( const char *s, char tc )
 }
 
 static char *
-next_arg( char **ps )
+next_arg( char **ps, uint *len )
 {
 	char *ret, *s, *d;
 	char c;
@@ -747,19 +750,26 @@ next_arg( char **ps )
 			*d++ = c;
 		}
 		*d = 0;
+		*len = (uint)(d - ret);
+		if (!*s)
+			s = NULL;
 	} else {
 		ret = s;
 		while ((c = *s)) {
 			if (isspace( (uchar)c )) {
+				*len = (uint)(s - ret);
 				*s++ = 0;
-				break;
+				if (!*s)
+					s = NULL;
+				goto out;
 			}
 			s++;
 		}
-	}
-	if (!*s)
+		*len = (uint)(s - ret);
 		s = NULL;
+	}
 
+  out:
 	*ps = s;
 	return ret;
 }
@@ -1076,7 +1086,7 @@ parse_fetched_flags( list_t *list, uchar *flags, uchar *status )
 		}
 		if (list->val[0] != '\\' && list->val[0] != '$')
 			continue;
-		if (!strcmp( "\\Recent", list->val )) {
+		if (equals( list->val, list->len, "\\Recent", 7 )) {
 			*status |= M_RECENT;
 			goto flagok;
 		}
@@ -1160,13 +1170,14 @@ parse_fetch_rsp( imap_store_t *ctx, list_t *list )
 			return LIST_BAD;
 		}
 		const char *name = tmp->val;
+		uint namel = tmp->len;
 		tmp = tmp->next;
-		if (!strcmp( "UID", name )) {
+		if (equals( name, namel, "UID", 3 )) {
 			if (!is_atom( tmp ) || (uid = strtoul( tmp->val, &ep, 10 ), *ep)) {
 				error( "IMAP error: unable to parse UID\n" );
 				return LIST_BAD;
 			}
-		} else if (!strcmp( "FLAGS", name )) {
+		} else if (equals( name, namel, "FLAGS", 5 )) {
 			if (!is_list( tmp )) {
 				error( "IMAP error: unable to parse FLAGS\n" );
 				return LIST_BAD;
@@ -1174,7 +1185,7 @@ parse_fetch_rsp( imap_store_t *ctx, list_t *list )
 			if (!parse_fetched_flags( tmp->child, &mask, &status ))
 				return LIST_BAD;
 			status |= M_FLAGS;
-		} else if (!strcmp( "INTERNALDATE", name )) {
+		} else if (equals( name, namel, "INTERNALDATE", 12 )) {
 			if (!is_atom( tmp )) {
 				error( "IMAP error: unable to parse INTERNALDATE\n" );
 				return LIST_BAD;
@@ -1184,27 +1195,27 @@ parse_fetch_rsp( imap_store_t *ctx, list_t *list )
 				return LIST_BAD;
 			}
 			status |= M_DATE;
-		} else if (!strcmp( "RFC822.SIZE", name )) {
+		} else if (equals( name, namel, "RFC822.SIZE", 11 )) {
 			if (!is_atom( tmp ) || (size = strtoul( tmp->val, &ep, 10 ), *ep)) {
 				error( "IMAP error: unable to parse RFC822.SIZE\n" );
 				return LIST_BAD;
 			}
 			status |= M_SIZE;
-		} else if (!strcmp( "BODY[]", name ) || !strcmp( "BODY[HEADER]", name )) {
+		} else if (equals( name, namel, "BODY[]", 6 ) || equals( name, namel, "BODY[HEADER]", 12 )) {
 			if (!is_atom( tmp )) {
 				error( "IMAP error: unable to parse BODY[]\n" );
 				return LIST_BAD;
 			}
 			body = tmp;
 			status |= M_BODY;
-		} else if (!strcmp( "BODY[HEADER.FIELDS", name )) {
+		} else if (equals( name, namel, "BODY[HEADER.FIELDS", 18 )) {
 			if (!is_list( tmp )) {
 			  bfail:
 				error( "IMAP error: unable to parse BODY[HEADER.FIELDS ...]\n" );
 				return LIST_BAD;
 			}
 			tmp = tmp->next;
-			if (!is_atom( tmp ) || strcmp( tmp->val, "]" ))
+			if (!is_atom( tmp ) || !equals( tmp->val, tmp->len, "]", 1 ))
 				goto bfail;
 			tmp = tmp->next;
 			if (!is_atom( tmp ))
@@ -1265,52 +1276,53 @@ static void
 parse_capability( imap_store_t *ctx, char *cmd )
 {
 	char *arg;
-	uint i;
+	uint i, argl;
 
 	free_string_list( ctx->auth_mechs );
 	ctx->auth_mechs = NULL;
 	ctx->caps = 0x80000000;
-	while ((arg = next_arg( &cmd ))) {
-		if (starts_with( arg, -1, "AUTH=", 5 )) {
-			add_string_list( &ctx->auth_mechs, arg + 5 );
+	while ((arg = next_arg( &cmd, &argl ))) {
+		if (starts_with( arg, argl, "AUTH=", 5 )) {
+			add_string_list_n( &ctx->auth_mechs, arg + 5, argl - 5 );
 		} else {
 			for (i = 0; i < as(cap_list); i++)
-				if (!strcmp( cap_list[i], arg ))
+				if (equals( arg, argl, cap_list[i].str, cap_list[i].len ))
 					ctx->caps |= 1 << i;
 		}
 	}
 	ctx->caps &= ~ctx->conf->server->cap_mask;
 	if (!CAP(NOLOGIN))
-		add_string_list( &ctx->auth_mechs, "LOGIN" );
+		add_string_list_n( &ctx->auth_mechs, "LOGIN", 5 );
 }
 
 static int
 parse_response_code( imap_store_t *ctx, imap_cmd_t *cmd, char *s )
 {
 	char *arg, *earg, *p;
+	uint argl;
 
 	if (!s || *s != '[')
 		return RESP_OK;		/* no response code */
 	s++;
-	if (!(arg = next_arg( &s ))) {
+	if (!(arg = next_arg( &s, &argl ))) {
 		error( "IMAP error: malformed response code\n" );
 		return RESP_CANCEL;
 	}
-	if (!strcmp( "UIDVALIDITY", arg )) {
-		if (!(arg = next_arg( &s )) ||
+	if (equals( arg, argl, "UIDVALIDITY", 11 )) {
+		if (!(arg = next_arg( &s, &argl )) ||
 		    (ctx->uidvalidity = strtoul( arg, &earg, 10 ), *earg != ']'))
 		{
 			error( "IMAP error: malformed UIDVALIDITY status\n" );
 			return RESP_CANCEL;
 		}
-	} else if (!strcmp( "UIDNEXT", arg )) {
-		if (!(arg = next_arg( &s )) ||
+	} else if (equals( arg, argl, "UIDNEXT", 7 )) {
+		if (!(arg = next_arg( &s, &argl )) ||
 		    (ctx->uidnext = strtoul( arg, &earg, 10 ), *earg != ']'))
 		{
 			error( "IMAP error: malformed UIDNEXT status\n" );
 			return RESP_CANCEL;
 		}
-	} else if (!strcmp( "CAPABILITY", arg )) {
+	} else if (equals( arg, argl, "CAPABILITY", 10 )) {
 		if (!s || !(p = strchr( s, ']' ))) {
 			error( "IMAP error: malformed CAPABILITY status\n" );
 			return RESP_CANCEL;
@@ -1319,7 +1331,7 @@ parse_response_code( imap_store_t *ctx, imap_cmd_t *cmd, char *s )
 		parse_capability( ctx, s );
 		if (strstr( p + 1, "mac.com IMAP4 service (Oracle Communications Messaging Server" ))
 			ctx->capability_hack = 1;
-	} else if (!strcmp( "ALERT]", arg )) {
+	} else if (equals( arg, argl, "ALERT]", 6 )) {
 		/* RFC2060 says that these messages MUST be displayed
 		 * to the user
 		 */
@@ -1329,7 +1341,7 @@ parse_response_code( imap_store_t *ctx, imap_cmd_t *cmd, char *s )
 		}
 		for (; isspace( (uchar)*s ); s++);
 		error( "*** IMAP ALERT *** %s\n", s );
-	} else if (!strcmp( "APPENDUID", arg )) {
+	} else if (equals( arg, argl, "APPENDUID", 9 )) {
 		// The checks ensure that:
 		// - cmd => this is the final tagged response of a command, at which
 		//   point cmd was already removed from ctx->in_progress, so param.uid
@@ -1341,15 +1353,15 @@ parse_response_code( imap_store_t *ctx, imap_cmd_t *cmd, char *s )
 			error( "IMAP error: unexpected APPENDUID status\n" );
 			return RESP_CANCEL;
 		}
-		if (!(arg = next_arg( &s )) ||
+		if (!(arg = next_arg( &s, &argl )) ||
 		    (ctx->uidvalidity = strtoul( arg, &earg, 10 ), *earg) ||
-		    !(arg = next_arg( &s )) ||
+		    !(arg = next_arg( &s, &argl )) ||
 		    (cmd->param.uid = strtoul( arg, &earg, 10 ), *earg != ']'))
 		{
 			error( "IMAP error: malformed APPENDUID status\n" );
 			return RESP_CANCEL;
 		}
-	} else if (!strcmp( "PERMANENTFLAGS", arg )) {
+	} else if (equals( arg, argl, "PERMANENTFLAGS", 14 )) {
 		parse_list_init( &ctx->parse_list_sts );
 		if (parse_imap_list( NULL, &s, &ctx->parse_list_sts ) != LIST_OK || *s != ']') {
 			error( "IMAP error: malformed PERMANENTFLAGS status\n" );
@@ -1362,7 +1374,7 @@ parse_response_code( imap_store_t *ctx, imap_cmd_t *cmd, char *s )
 				ret = RESP_CANCEL;
 				break;
 			}
-			if (!strcmp( tmp->val, "\\*" ) || !strcmp( tmp->val, "$Forwarded" )) {
+			if (equals( tmp->val, tmp->len, "\\*", 2 ) || equals( tmp->val, tmp->len, "$Forwarded", 10 )) {
 				ctx->has_forwarded = 1;
 				break;
 			}
@@ -1385,7 +1397,7 @@ parse_list_rsp( imap_store_t *ctx, list_t *list )
 	if (!is_list( list ))
 		return parse_list_perror( ctx );
 	for (lp = list->child; lp; lp = lp->next)
-		if (is_atom( lp ) && !strcasecmp( lp->val, "\\NoSelect" ))
+		if (is_atom( lp ) && equals_upper( lp->val, lp->len, "\\NOSELECT", 9 ))
 			return parse_next_list( ctx, parse_namespace_rsp_p2 );  // (sic!)
 	return parse_next_list( ctx, parse_list_rsp_p1 );
 }
@@ -1573,7 +1585,7 @@ imap_socket_read( void *aux )
 	imap_cmd_t *cmdp, **pcmdp;
 	char *cmd, *arg, *arg1, *p;
 	int resp, resp2, tag;
-	uint seq;
+	uint seq, argl, argl1;
 	conn_iovec_t iov[2];
 
 	for (;;) {
@@ -1599,19 +1611,17 @@ imap_socket_read( void *aux )
 			fflush( stdout );
 		}
 
-		arg = next_arg( &cmd );
-		if (!arg) {
+		if (!(arg = next_arg( &cmd, &argl ))) {
 			error( "IMAP error: empty response\n" );
 			break;
 		}
 		if (*arg == '*') {
-			arg = next_arg( &cmd );
-			if (!arg) {
+			if (!(arg = next_arg( &cmd, &argl ))) {
 				error( "IMAP error: malformed untagged response\n" );
 				break;
 			}
 
-			if (ctx->greeting == GreetingPending && !strcmp( "PREAUTH", arg )) {
+			if (ctx->greeting == GreetingPending && equals( arg, argl, "PREAUTH", 7 )) {
 				parse_response_code( ctx, NULL, cmd );
 				ctx->greeting = GreetingPreauth;
 			  dogreet:
@@ -1619,13 +1629,13 @@ imap_socket_read( void *aux )
 				imap_open_store_greeted( ctx );
 				if (imap_deref( ctx ))
 					return;
-			} else if (!strcmp( "OK", arg )) {
+			} else if (equals( arg, argl, "OK", 2 )) {
 				parse_response_code( ctx, NULL, cmd );
 				if (ctx->greeting == GreetingPending) {
 					ctx->greeting = GreetingOk;
 					goto dogreet;
 				}
-			} else if (!strcmp( "BYE", arg )) {
+			} else if (equals( arg, argl, "BYE", 3 )) {
 				if (!ctx->expectBYE) {
 					ctx->greeting = GreetingBad;
 					error( "IMAP error: unexpected BYE response: %s\n", cmd );
@@ -1638,22 +1648,22 @@ imap_socket_read( void *aux )
 			} else if (ctx->greeting == GreetingPending) {
 				error( "IMAP error: bogus greeting response %s\n", arg );
 				break;
-			} else if (!strcmp( "NO", arg )) {
+			} else if (equals( arg, argl, "NO", 2 )) {
 				warn( "Warning from IMAP server: %s\n", cmd );
-			} else if (!strcmp( "BAD", arg )) {
+			} else if (equals( arg, argl, "BAD", 3 )) {
 				error( "Error from IMAP server: %s\n", cmd );
-			} else if (!strcmp( "CAPABILITY", arg )) {
+			} else if (equals( arg, argl, "CAPABILITY", 10 )) {
 				parse_capability( ctx, cmd );
-			} else if (!strcmp( "LIST", arg ) || !strcmp( "LSUB", arg )) {
+			} else if (equals( arg, argl, "LIST", 4 ) || equals( arg, argl, "LSUB", 4 )) {
 				resp = parse_list( ctx, cmd, parse_list_rsp, "LIST" );
 				goto listret;
-			} else if (!strcmp( "NAMESPACE", arg )) {
+			} else if (equals( arg, argl, "NAMESPACE", 9 )) {
 				resp = parse_list( ctx, cmd, parse_namespace_rsp, "NAMESPACE" );
 				goto listret;
-			} else if ((arg1 = next_arg( &cmd ))) {
-				if (!strcmp( "EXISTS", arg1 )) {
+			} else if ((arg1 = next_arg( &cmd, &argl1 ))) {
+				if (equals( arg1, argl1, "EXISTS", 6 )) {
 					ctx->total_msgs = atoi( arg );
-				} else if (!strcmp( "EXPUNGE", arg1 )) {
+				} else if (equals( arg1, argl1, "EXPUNGE", 7 )) {
 					if (!(seq = strtoul( arg, &arg1, 10 )) || *arg1) {
 					  badseq:
 						error( "IMAP error: malformed sequence number '%s'\n", arg );
@@ -1661,9 +1671,9 @@ imap_socket_read( void *aux )
 					}
 					record_expunge( ctx, seq );
 					ctx->total_msgs--;
-				} else if (!strcmp( "RECENT", arg1 )) {
+				} else if (equals( arg1, argl1, "RECENT", 6 )) {
 					ctx->recent_msgs = atoi( arg );
-				} else if (!strcmp( "FETCH", arg1 )) {
+				} else if (equals( arg1, argl1, "FETCH", 5 )) {
 					if (!(seq = strtoul( arg, &arg1, 10 )) || *arg1)
 						goto badseq;
 					ctx->fetch_seq = seq;
@@ -1722,17 +1732,16 @@ imap_socket_read( void *aux )
 				ctx->in_progress_append = pcmdp;
 			if (!--ctx->num_in_progress)
 				socket_expect_activity( &ctx->conn, 0 );
-			arg = next_arg( &cmd );
-			if (!arg) {
+			if (!(arg = next_arg( &cmd, &argl ))) {
 				error( "IMAP error: malformed tagged response\n" );
 				break;
 			}
-			if (!strcmp( "OK", arg )) {
+			if (equals( arg, argl, "OK", 2 )) {
 				if (cmdp->param.to_trash)
 					ctx->trashnc = TrashKnown; /* Can't get NO [TRYCREATE] any more. */
 				resp = RESP_OK;
 			} else {
-				if (!strcmp( "NO", arg )) {
+				if (equals( arg, argl, "NO", 2 )) {
 					if (cmdp->param.create && cmd && starts_with( cmd, -1, "[TRYCREATE]", 11 )) { /* APPEND or UID COPY */
 						imap_cmd_trycreate_t *cmd2 =
 							(imap_cmd_trycreate_t *)new_imap_cmd( sizeof(*cmd2) );
@@ -1746,7 +1755,7 @@ imap_socket_read( void *aux )
 					resp = RESP_NO;
 					if (cmdp->param.failok)  // SELECT
 						goto doresp;
-				} else /*if (!strcmp( "BAD", arg ))*/ {
+				} else /*if (equals( arg, argl, "BAD", 3 ))*/ {
 					if (cmdp->param.failok == 2 && cmd && starts_with_upper( cmd, -1, "[TOOBIG]", 8 )) {  // APPEND
 						resp = RESP_NO;
 						// Fall through - we still complain
@@ -2416,7 +2425,7 @@ imap_open_store_authenticate2( imap_store_t *ctx )
 
 	info( "Logging in...\n" );
 	for (mech = srvc->auth_mechs; mech; mech = mech->next) {
-		int any = !strcmp( mech->string, "*" );
+		int any = equals( mech->string, -1, "*", 1 );
 		for (cmech = ctx->auth_mechs; cmech; cmech = cmech->next) {
 			if (any || !strcasecmp( mech->string, cmech->string )) {
 				if (!strcasecmp( cmech->string, "LOGIN" )) {
@@ -3616,7 +3625,7 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep )
 			arg = cfg->val;
 			do {
 				for (u = 0; u < as(cap_list); u++) {
-					if (!strcasecmp( cap_list[u], arg )) {
+					if (equals_upper( arg, -1, cap_list[u].str, cap_list[u].len )) {
 						server->cap_mask |= 1 << u;
 						goto gotcap;
 					}

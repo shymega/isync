@@ -192,6 +192,7 @@ size_t strnlen( const char *str, size_t maxlen );
 int starts_with( const char *str, int strl, const char *cmp, uint cmpl );
 int starts_with_upper( const char *str, int strl, const char *cmp, uint cmpl );
 int equals( const char *str, int strl, const char *cmp, uint cmpl );
+int equals_upper( const char *str, int strl, const char *cmp, uint cmpl );
 
 #ifndef HAVE_TIMEGM
 time_t timegm( struct tm *tm );
