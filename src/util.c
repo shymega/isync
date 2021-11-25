@@ -300,7 +300,7 @@ starts_with_upper( const char *str, int strl, const char *cmp, uint cmpl )
 	if ((uint)strl < cmpl)
 		return 0;
 	for (uint i = 0; i < cmpl; i++)
-		if (str[i] != cmp[i] && toupper( str[i] ) != cmp[i])
+		if (toupper( str[i] ) != cmp[i])
 			return 0;
 	return 1;
 }
