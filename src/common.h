@@ -189,6 +189,8 @@ void *memrchr( const void *s, int c, size_t n );
 size_t strnlen( const char *str, size_t maxlen );
 #endif
 
+void to_upper( char *str, uint len );
+
 int starts_with( const char *str, int strl, const char *cmp, uint cmpl );
 int starts_with_upper( const char *str, int strl, const char *cmp, uint cmpl );
 int equals( const char *str, int strl, const char *cmp, uint cmpl );

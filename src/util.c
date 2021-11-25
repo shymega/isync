@@ -284,6 +284,13 @@ strnlen( const char *str, size_t maxlen )
 
 #endif
 
+void
+to_upper( char *str, uint len )
+{
+	for (uint i = 0; i < len; i++)
+		str[i] = toupper( str[i] );
+}
+
 int
 starts_with( const char *str, int strl, const char *cmp, uint cmpl )
 {

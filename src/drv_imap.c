@@ -924,7 +924,7 @@ parse_imap_list( imap_store_t *ctx, char **sp, parse_list_state_t *sts )
 				if (sts->level && *s == ')')
 					break;
 			cur->len = (uint)(s - p);
-			if (equals( p, (int)cur->len, "NIL", 3 ))
+			if (equals_upper( p, (int)cur->len, "NIL", 3 ))
 				cur->val = NIL;
 			else
 				cur->val = nfstrndup( p, cur->len );
@@ -1086,12 +1086,13 @@ parse_fetched_flags( list_t *list, uchar *flags, uchar *status )
 		}
 		if (list->val[0] != '\\' && list->val[0] != '$')
 			continue;
-		if (equals( list->val, list->len, "\\Recent", 7 )) {
+		to_upper( list->val, list->len );
+		if (equals( list->val, list->len, "\\RECENT", 7 )) {
 			*status |= M_RECENT;
 			goto flagok;
 		}
 		for (uint i = 0; i < as(Flags); i++) {
-			if (!strcmp( Flags[i], list->val )) {
+			if (!strcasecmp( Flags[i], list->val )) {
 				*flags |= 1 << i;
 				goto flagok;
 			}
@@ -1169,9 +1170,10 @@ parse_fetch_rsp( imap_store_t *ctx, list_t *list )
 			error( "IMAP error: bogus item name in FETCH response\n" );
 			return LIST_BAD;
 		}
-		const char *name = tmp->val;
+		char *name = tmp->val;
 		uint namel = tmp->len;
 		tmp = tmp->next;
+		to_upper( name, namel );
 		if (equals( name, namel, "UID", 3 )) {
 			if (!is_atom( tmp ) || (uid = strtoul( tmp->val, &ep, 10 ), *ep)) {
 				error( "IMAP error: unable to parse UID\n" );
@@ -1282,6 +1284,7 @@ parse_capability( imap_store_t *ctx, char *cmd )
 	ctx->auth_mechs = NULL;
 	ctx->caps = 0x80000000;
 	while ((arg = next_arg( &cmd, &argl ))) {
+		to_upper( arg, argl );
 		if (starts_with( arg, argl, "AUTH=", 5 )) {
 			add_string_list_n( &ctx->auth_mechs, arg + 5, argl - 5 );
 		} else {
@@ -1308,6 +1311,7 @@ parse_response_code( imap_store_t *ctx, imap_cmd_t *cmd, char *s )
 		error( "IMAP error: malformed response code\n" );
 		return RESP_CANCEL;
 	}
+	to_upper( arg, argl );
 	if (equals( arg, argl, "UIDVALIDITY", 11 )) {
 		if (!(arg = next_arg( &s, &argl )) ||
 		    (ctx->uidvalidity = strtoul( arg, &earg, 10 ), *earg != ']'))
@@ -1374,7 +1378,7 @@ parse_response_code( imap_store_t *ctx, imap_cmd_t *cmd, char *s )
 				ret = RESP_CANCEL;
 				break;
 			}
-			if (equals( tmp->val, tmp->len, "\\*", 2 ) || equals( tmp->val, tmp->len, "$Forwarded", 10 )) {
+			if (equals( tmp->val, tmp->len, "\\*", 2 ) || equals_upper( tmp->val, tmp->len, "$FORWARDED", 10 )) {
 				ctx->has_forwarded = 1;
 				break;
 			}
@@ -1621,6 +1625,7 @@ imap_socket_read( void *aux )
 				break;
 			}
 
+			to_upper( arg, argl );
 			if (ctx->greeting == GreetingPending && equals( arg, argl, "PREAUTH", 7 )) {
 				parse_response_code( ctx, NULL, cmd );
 				ctx->greeting = GreetingPreauth;
@@ -1661,6 +1666,7 @@ imap_socket_read( void *aux )
 				resp = parse_list( ctx, cmd, parse_namespace_rsp, "NAMESPACE" );
 				goto listret;
 			} else if ((arg1 = next_arg( &cmd, &argl1 ))) {
+				to_upper( arg1, argl1 );
 				if (equals( arg1, argl1, "EXISTS", 6 )) {
 					ctx->total_msgs = atoi( arg );
 				} else if (equals( arg1, argl1, "EXPUNGE", 7 )) {
@@ -1736,13 +1742,14 @@ imap_socket_read( void *aux )
 				error( "IMAP error: malformed tagged response\n" );
 				break;
 			}
+			to_upper( arg, argl );
 			if (equals( arg, argl, "OK", 2 )) {
 				if (cmdp->param.to_trash)
 					ctx->trashnc = TrashKnown; /* Can't get NO [TRYCREATE] any more. */
 				resp = RESP_OK;
 			} else {
 				if (equals( arg, argl, "NO", 2 )) {
-					if (cmdp->param.create && cmd && starts_with( cmd, -1, "[TRYCREATE]", 11 )) { /* APPEND or UID COPY */
+					if (cmdp->param.create && cmd && starts_with_upper( cmd, -1, "[TRYCREATE]", 11 )) { /* APPEND or UID COPY */
 						imap_cmd_trycreate_t *cmd2 =
 							(imap_cmd_trycreate_t *)new_imap_cmd( sizeof(*cmd2) );
 						cmd2->orig_cmd = cmdp;
