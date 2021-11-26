@@ -291,8 +291,8 @@ msg_fetched( int sts, void *aux )
 
 		vars->msg->flags = vars->data.flags = sanitize_flags( vars->data.flags, svars, t );
 
-		scr = (svars->drv[t^1]->get_caps( svars->ctx[t^1] ) / DRV_CRLF) & 1;
-		tcr = (svars->drv[t]->get_caps( svars->ctx[t] ) / DRV_CRLF) & 1;
+		scr = svars->can_crlf[t^1];
+		tcr = svars->can_crlf[t];
 		if (vars->srec || scr != tcr) {
 			if (!copy_msg_convert( scr, tcr, vars, t )) {
 				vars->cb( SYNC_NOGOOD, 0, vars );
@@ -475,6 +475,7 @@ sync_boxes( store_t *ctx[], const char * const names[], int present[], channel_c
 		}
 		svars->drv[t] = ctx[t]->driver;
 		svars->drv[t]->set_bad_callback( ctx[t], store_bad, AUX );
+		svars->can_crlf[t] = (svars->drv[t]->get_caps( svars->ctx[t] ) / DRV_CRLF) & 1;
 	}
 	/* Both boxes must be fully set up at this point, so that error exit paths
 	 * don't run into uninitialized variables. */
