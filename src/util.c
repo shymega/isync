@@ -531,19 +531,21 @@ cur_user( void )
 
 /* Return value: 0 = ok, -1 = out found in arg, -2 = in found in arg but no out specified */
 int
-map_name( const char *arg, char **result, uint reserve, const char *in, const char *out )
+map_name( const char *arg, int l, char **result, uint reserve, const char *in, const char *out )
 {
 	char *p;
-	uint i, l, ll, num, inl, outl;
+	int i, ll, num, inl, outl;
 
 	assert( arg );
-	l = strlen( arg );
+	if (l < 0)
+		l = strlen( arg );
 	assert( in );
 	inl = strlen( in );
 	if (!inl) {
 	  copy:
 		*result = nfmalloc( reserve + l + 1 );
-		memcpy( *result + reserve, arg, l + 1 );
+		memcpy( *result + reserve, arg, l );
+		(*result)[reserve + l] = 0;
 		return 0;
 	}
 	assert( out );
@@ -551,6 +553,8 @@ map_name( const char *arg, char **result, uint reserve, const char *in, const ch
 	if (equals( in, (int)inl, out, outl ))
 		goto copy;
 	for (num = 0, i = 0; i < l; ) {
+		if (i + inl > l)
+			goto fout;
 		for (ll = 0; ll < inl; ll++)
 			if (arg[i + ll] != in[ll])
 				goto fout;
@@ -559,6 +563,8 @@ map_name( const char *arg, char **result, uint reserve, const char *in, const ch
 		continue;
 	  fout:
 		if (outl) {
+			if (i + outl > l)
+				goto fnexti;
 			for (ll = 0; ll < outl; ll++)
 				if (arg[i + ll] != out[ll])
 					goto fnexti;
@@ -574,6 +580,8 @@ map_name( const char *arg, char **result, uint reserve, const char *in, const ch
 	*result = nfmalloc( reserve + l + num * (outl - inl) + 1 );
 	p = *result + reserve;
 	for (i = 0; i < l; ) {
+		if (i + inl > l)
+			goto rnexti;
 		for (ll = 0; ll < inl; ll++)
 			if (arg[i + ll] != in[ll])
 				goto rnexti;

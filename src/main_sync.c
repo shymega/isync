@@ -527,7 +527,7 @@ store_listed( int sts, string_list_t *boxes, void *aux )
 		for (string_list_t *box = boxes; box; box = box->next) {
 			if (mvars->ctx[t]->conf->flat_delim[0]) {
 				string_list_t *nbox;
-				if (map_name( box->string, (char **)&nbox, offsetof(string_list_t, string), mvars->ctx[t]->conf->flat_delim, "/" ) < 0) {
+				if (map_name( box->string, -1, (char **)&nbox, offsetof(string_list_t, string), mvars->ctx[t]->conf->flat_delim, "/" ) < 0) {
 					error( "Error: flattened mailbox name '%s' contains canonical hierarchy delimiter\n", box->string );
 					fail = 1;
 				} else {

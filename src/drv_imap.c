@@ -1491,8 +1491,8 @@ parse_list_rsp_p2( imap_store_t *ctx, list_t *list )
 	}
 	if (argl >= 5 && !memcmp( arg + argl - 5, ".lock", 5 )) /* workaround broken servers */
 		return LIST_OK;
-	if (map_name( arg, (char **)&narg, offsetof(string_list_t, string), ctx->delimiter, "/") < 0) {
-		warn( "IMAP warning: ignoring mailbox %s (reserved character '/' in name)\n", arg );
+	if (map_name( arg, argl, (char **)&narg, offsetof(string_list_t, string), ctx->delimiter, "/") < 0) {
+		warn( "IMAP warning: ignoring mailbox %.*s (reserved character '/' in name)\n", argl, arg );
 		return LIST_OK;
 	}
 	// Validate the normalized name. Technically speaking, we could tolerate
@@ -1533,7 +1533,7 @@ prepare_name( char **buf, const imap_store_t *ctx, const char *prefix, const cha
 {
 	uint pl = strlen( prefix );
 
-	switch (map_name( name, buf, pl, "/", ctx->delimiter )) {
+	switch (map_name( name, -1, buf, pl, "/", ctx->delimiter )) {
 	case -1:
 		error( "IMAP error: mailbox name %s contains server's hierarchy delimiter\n", name );
 		return -1;

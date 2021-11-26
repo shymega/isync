@@ -242,7 +242,7 @@ int ATTR_PRINTFLIKE(3, 4) nfsnprintf( char *buf, int blen, const char *fmt, ... 
 void ATTR_NORETURN oob( void );
 void ATTR_NORETURN oom( void );
 
-int map_name( const char *arg, char **result, uint reserve, const char *in, const char *out );
+int map_name( const char *arg, int argl, char **result, uint reserve, const char *in, const char *out );
 
 int mkdir_p( char *path, int len );
 
