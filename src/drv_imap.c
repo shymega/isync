@@ -269,13 +269,17 @@ static int imap_deref( imap_store_t *ctx );
 static void imap_invoke_bad_callback( imap_store_t *ctx );
 
 // Keep the MESSAGE_FLAGS in sync (grep that)!
-static const char *Flags[] = {
-	"\\Draft",	/* 'D' */
-	"\\Flagged",	/* 'F' */
-	"$Forwarded",	/* 'P' */
-	"\\Answered",	/* 'R' */
-	"\\Seen",	/* 'S' */
-	"\\Deleted",	/* 'T' */
+static const struct {
+	const char *str;
+	const char *ustr;
+	uint len;
+} Flags[] = {
+	{ "\\Draft", "\\DRAFT", 6 },         // 'D'
+	{ "\\Flagged", "\\FLAGGED", 8 },     // 'F'
+	{ "$Forwarded", "$FORWARDED", 10 },  // 'P'
+	{ "\\Answered", "\\ANSWERED", 9 },   // 'R'
+	{ "\\Seen", "\\SEEN", 5 },           // 'S'
+	{ "\\Deleted", "\\DELETED", 8 },     // 'T'
 };
 
 static imap_cmd_t *
@@ -1092,7 +1096,7 @@ parse_fetched_flags( list_t *list, uchar *flags, uchar *status )
 			goto flagok;
 		}
 		for (uint i = 0; i < as(Flags); i++) {
-			if (!strcasecmp( Flags[i], list->val )) {
+			if (equals( list->val, list->len, Flags[i].ustr, Flags[i].len )) {
 				*flags |= 1 << i;
 				goto flagok;
 			}
@@ -3060,7 +3064,7 @@ imap_make_flags( int flags, char *buf )
 	for (i = d = 0; i < as(Flags); i++) {
 		if (flags & (1 << i)) {
 			buf[d++] = ' ';
-			for (s = Flags[i]; *s; s++)
+			for (s = Flags[i].str; *s; s++)
 				buf[d++] = *s;
 		}
 	}
