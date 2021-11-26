@@ -696,6 +696,11 @@ main( int argc, char **argv )
 
 	if (DFlags & DEBUG_ANY) {
 		Verbosity = VERBOSE;
+
+		fputs( PACKAGE " " VERSION " called with:", stdout );
+		for (op = 1; op < argc; op++)
+			printf( " '%s'", argv[op] );
+		puts( "" );
 	} else if (Verbosity >= TERSE && isatty( 1 )) {
 		DFlags |= PROGRESS;
 	}
