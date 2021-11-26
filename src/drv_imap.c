@@ -824,7 +824,8 @@ parse_imap_list( imap_store_t *ctx, char **sp, parse_list_state_t *sts )
 {
 	list_t *cur, **curp;
 	char *s = *sp, *d, *p;
-	int n, bytes;
+	int bytes;
+	uint n;
 	char c;
 
 	assert( sts );
@@ -882,12 +883,14 @@ parse_imap_list( imap_store_t *ctx, char **sp, parse_list_state_t *sts )
 			s[cur->len] = 0;
 
 		  getbytes:
-			n = socket_read( &ctx->conn, s, (uint)bytes );
-			if (n < 0) {
+			if (!(p = socket_read( &ctx->conn, 1, (uint)bytes, &n )))
+				goto postpone;
+			if (p == (void *)~0) {
 			  badeof:
 				sts->err = "unexpected EOF";
 				goto bail;
 			}
+			memcpy( s, p, n );
 			bytes -= n;
 			if (bytes > 0)
 				goto postpone;

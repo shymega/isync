@@ -799,20 +799,30 @@ socket_expect_eof( conn_t *sock )
 #endif
 }
 
-int
-socket_read( conn_t *conn, char *buf, uint len )
+char *
+socket_read( conn_t *conn, uint min_len, uint max_len, uint *out_len )
 {
-	uint n = conn->bytes;
-	if (!n && conn->state == SCK_EOF)
-		return -1;
-	if (n > len)
-		n = len;
-	memcpy( buf, conn->buf + conn->offset, n );
-	if (!(conn->bytes -= n))
-		conn->offset = 0;
-	else
-		conn->offset += n;
-	return (int)n;
+	assert( min_len > 0 );
+	assert( min_len <= sizeof(conn->buf) );
+	assert( min_len <= max_len );
+
+	uint off = conn->offset;
+	uint cnt = conn->bytes;
+	if (cnt < min_len) {
+		if (conn->state == SCK_EOF)
+			return (void *)~0;
+		if (off + min_len > sizeof(conn->buf)) {
+			memmove( conn->buf, conn->buf + off, cnt );
+			conn->offset = 0;
+		}
+		return NULL;
+	}
+	uint n = (cnt < max_len) ? cnt : max_len;
+	cnt -= n;
+	conn->offset = cnt ? off + n : 0;
+	conn->bytes = cnt;
+	*out_len = n;
+	return conn->buf + off;
 }
 
 char *

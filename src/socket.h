@@ -128,8 +128,9 @@ void socket_start_deflate( conn_t *conn );
 void socket_close( conn_t *sock );
 void socket_expect_activity( conn_t *sock, int expect );
 void socket_expect_eof( conn_t *sock );
-int socket_read( conn_t *sock, char *buf, uint len ); /* never waits */
-char *socket_read_line( conn_t *sock ); /* don't free return value; never waits */
+// Don't free return values. These functions never wait.
+char *socket_read( conn_t *conn, uint min_len, uint max_len, uint *out_len );
+char *socket_read_line( conn_t *conn );
 typedef enum { KeepOwn = 0, GiveOwn } ownership_t;
 typedef struct {
 	char *buf;
