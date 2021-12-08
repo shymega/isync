@@ -1570,7 +1570,7 @@ msgs_flags_set( sync_vars_t *svars, int t )
 				debug( "is expired\n" );
 				continue;
 			}
-			if (only_new && !(srec->status & (S_PENDING | S_SKIPPED))) {
+			if (only_new && !(srec->status & (S_PENDING | S_DUMMY(t^1) | S_SKIPPED))) {
 				debug( "is not new\n" );
 				continue;
 			}
