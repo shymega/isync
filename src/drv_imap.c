@@ -135,7 +135,7 @@ union imap_store {
 		enum { GreetingPending = 0, GreetingBad, GreetingOk, GreetingPreauth } greeting;
 		int expectBYE;  // LOGOUT is in progress
 		int expectEOF;  // received LOGOUT's OK or unsolicited BYE
-		int canceling;  // imap_cancel() is in progress
+		int canceling;  // imap_cancel_cmds() is in progress
 		union {
 			void (*imap_open)( int sts, void *aux );
 			void (*imap_cancel)( void *aux );
@@ -1712,7 +1712,7 @@ imap_socket_read( void *aux )
 						continue;
 					}
 					resp = RESP_NO;
-					if (cmdp->param.failok)
+					if (cmdp->param.failok)  // SELECT
 						goto doresp;
 				} else /*if (!strcmp( "BAD", arg ))*/
 					resp = RESP_CANCEL;
@@ -3164,6 +3164,7 @@ imap_close_box( store_t *gctx,
 	} else {
 		/* This is inherently racy: it may cause messages which other clients
 		 * marked as deleted to be expunged without being trashed. */
+		// Note that, to save bandwidth, we don't use EXPUNGE.
 		imap_cmd_simple_t *cmd;
 		INIT_IMAP_CMD(imap_cmd_simple_t, cmd, cb, aux)
 		imap_exec( ctx, &cmd->gen, imap_done_simple_box, "CLOSE" );
@@ -3289,7 +3290,7 @@ imap_find_new_msgs( store_t *gctx, uint newuid,
 	INIT_IMAP_CMD(imap_cmd_find_new_t, cmd, cb, aux)
 	cmd->out_msgs = ctx->msgapp;
 	cmd->uid = newuid;
-	// Some servers fail to enumerate recently STOREd messages without syncing first.
+	// Some servers fail to enumerate recently APPENDed messages without syncing first.
 	imap_exec( ctx, &cmd->gen, imap_find_new_msgs_p2, "CHECK" );
 }
 

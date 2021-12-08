@@ -573,7 +573,7 @@ msg_fetched( int sts, void *aux )
 	case DRV_MSG_BAD:
 		vars->cb( SYNC_NOGOOD, 0, vars );
 		break;
-	default:
+	default:  // DRV_BOX_BAD
 		vars->cb( SYNC_FAIL, 0, vars );
 		break;
 	}
@@ -599,7 +599,7 @@ msg_stored( int sts, uint uid, void *aux )
 		      str_fn[t], vars->msg->uid, str_fn[1-t] );
 		vars->cb( SYNC_NOGOOD, 0, vars );
 		break;
-	default:
+	default:  // DRV_BOX_BAD
 		vars->cb( SYNC_FAIL, 0, vars );
 		break;
 	}
@@ -1094,7 +1094,7 @@ load_state( sync_vars_t *svars )
 					case '*':
 						debug( "flags now %u\n", t3 );
 						srec->flags = (uchar)t3;
-						srec->aflags[F] = srec->aflags[N] = 0;
+						srec->aflags[F] = srec->aflags[N] = 0;  // Clear F_DELETED from purge
 						srec->wstate &= ~W_PURGE;
 						break;
 					case '~':
@@ -1413,6 +1413,11 @@ box_opened2( sync_vars_t *svars, int t )
 				opts[t] |= OPEN_NEW|OPEN_FLAGS;
 		}
 	}
+	// While only new messages can cause expiration due to displacement,
+	// updating flags can cause expiration of already overdue messages.
+	// The latter would also apply when the expired box is the source,
+	// but it's more natural to treat it as read-only in that case.
+	// OP_RENEW makes sense only for legacy S_SKIPPED entries.
 	if ((chan->ops[N] & (OP_NEW|OP_RENEW|OP_FLAGS)) && chan->max_messages)
 		opts[N] |= OPEN_OLD|OPEN_NEW|OPEN_FLAGS;
 	if (svars->replayed)
@@ -1769,7 +1774,7 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 					any_new[t] = 1;
 				}
 			}
-			srec = nsrec;
+			srec = nsrec;  // Minor optimization: skip freshly created placeholder entry.
 		}
 	}
 
@@ -1987,7 +1992,8 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 			} else {
 				/* The trigger is an expiration transaction being ongoing ... */
 				if ((t == N) && ((shifted_bit(srec->status, S_EXPIRE, S_EXPIRED) ^ srec->status) & S_EXPIRED)) {
-					/* ... but the actual action derives from the wanted state. */
+					// ... but the actual action derives from the wanted state -
+					// so that canceled transactions are rolled back as well.
 					if (srec->wstate & W_NEXPIRE)
 						aflags |= F_DELETED;
 					else
@@ -2377,7 +2383,7 @@ box_closed_p2( sync_vars_t *svars, int t )
 	for (t = 0; t < 2; t++) {
 		// Committing maxuid is delayed until all messages were propagated, to
 		// ensure that all pending messages are still loaded next time in case
-		// of interruption - in particular skipping big messages would otherwise
+		// of interruption - in particular skipping messages would otherwise
 		// up the limit too early.
 		if (svars->maxuid[t] != svars->oldmaxuid[t])
 			JLOG( "N %d %u", (t, svars->maxuid[t]), "up maxuid of %s", str_fn[t] );

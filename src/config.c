@@ -258,12 +258,14 @@ merge_ops( int cops, int ops[] )
 
 	aops = ops[F] | ops[N];
 	if (ops[F] & XOP_HAVE_TYPE) {
-		if (aops & OP_MASK_TYPE) {
-			if (aops & cops & OP_MASK_TYPE) {
+		if (aops & OP_MASK_TYPE) {  // PullNew, etc.
+			if (aops & cops & OP_MASK_TYPE) {  // Overlapping New, etc.
 			  cfl:
 				error( "Conflicting Sync args specified.\n" );
 				return 1;
 			}
+			// Mix in non-overlapping Push/Pull or New, etc.
+			// Do the ops first, so e.g. PullNew Push Flags will error out.
 			ops[F] |= cops & OP_MASK_TYPE;
 			ops[N] |= cops & OP_MASK_TYPE;
 			if (cops & XOP_PULL) {
@@ -276,7 +278,7 @@ merge_ops( int cops, int ops[] )
 					goto cfl;
 				ops[F] |= OP_MASK_TYPE;
 			}
-		} else if (cops & (OP_MASK_TYPE|XOP_MASK_DIR)) {
+		} else if (cops & (OP_MASK_TYPE | XOP_MASK_DIR)) {  // Pull New, etc.
 			if (!(cops & OP_MASK_TYPE))
 				cops |= OP_MASK_TYPE;
 			else if (!(cops & XOP_MASK_DIR))

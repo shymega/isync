@@ -24,7 +24,7 @@
 #define XOP_PUSH           (1<<8)
 #define XOP_PULL           (1<<9)
 #define  XOP_MASK_DIR      (XOP_PUSH|XOP_PULL)
-#define XOP_HAVE_TYPE      (1<<10)
+#define XOP_HAVE_TYPE      (1<<10)  // Aka mode; at least one of dir and type
 // The following must all have the same bit shift from the corresponding OP_* flags.
 #define XOP_HAVE_EXPUNGE   (1<<11)
 #define XOP_HAVE_CREATE    (1<<12)

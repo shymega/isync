@@ -107,7 +107,7 @@ typedef struct {
 #define DRV_BOX_BAD     2
 /* Failed to connect store. */
 #define DRV_STORE_BAD   3
-/* The command has been cancel()ed or cancel_store()d. */
+/* The command has been cancel_cmds()d or cancel_store()d. */
 #define DRV_CANCELED    4
 
 /* All memory belongs to the driver's user, unless stated otherwise. */
@@ -241,8 +241,8 @@ struct driver {
 
 	/* Add/remove the named flags to/from the given message. The message may be either
 	 * a pre-fetched one (in which case the in-memory representation is updated),
-	 * or it may be identifed by UID only. The operation may be delayed until commit()
-	 * is called. */
+	 * or it may be identifed by UID only.
+	 * The operation may be delayed until commit_cmds() is called. */
 	void (*set_msg_flags)( store_t *ctx, message_t *msg, uint uid, int add, int del,
 	                       void (*cb)( int sts, void *aux ), void *aux );
 
