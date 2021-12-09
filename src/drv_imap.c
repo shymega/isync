@@ -1906,6 +1906,7 @@ static void imap_open_store_authenticate_p3( imap_store_t *, imap_cmd_t *, int )
 #endif
 static void imap_open_store_authenticate2( imap_store_t * );
 static void imap_open_store_authenticate2_p2( imap_store_t *, imap_cmd_t *, int );
+static void imap_open_store_authenticate2_p3( imap_store_t *, imap_cmd_t *, int );
 static void imap_open_store_compress( imap_store_t * );
 #ifdef HAVE_LIBZ
 static void imap_open_store_compress_p2( imap_store_t *, imap_cmd_t *, int );
@@ -2472,6 +2473,7 @@ imap_open_store_authenticate2( imap_store_t *ctx )
 
 		cmd = new_imap_cmd( sizeof(*cmd) );
 		cmd->param.cont = do_sasl_auth;
+		ctx->caps = 0;
 		imap_exec( ctx, cmd, done_sasl_auth, enc ? "AUTHENTICATE %s %s" : "AUTHENTICATE %s", gotmech, enc );
 		free( enc );
 		return;
@@ -2494,6 +2496,7 @@ imap_open_store_authenticate2( imap_store_t *ctx )
 		if (!ctx->conn.ssl)
 #endif
 			warn( "*** IMAP Warning *** Password is being sent in the clear\n" );
+		ctx->caps = 0;
 		imap_exec( ctx, NULL, imap_open_store_authenticate2_p2,
 		           "LOGIN \"%\\s\" \"%\\s\"", srvc->user, srvc->pass );
 		return;
@@ -2512,6 +2515,19 @@ imap_open_store_authenticate2( imap_store_t *ctx )
 
 static void
 imap_open_store_authenticate2_p2( imap_store_t *ctx, imap_cmd_t *cmd ATTR_UNUSED, int response )
+{
+	if (response == RESP_NO) {
+		imap_open_store_bail( ctx, FAIL_FINAL );
+	} else if (response == RESP_OK) {
+		if (!ctx->caps)
+			imap_exec( ctx, NULL, imap_open_store_authenticate2_p3, "CAPABILITY" );
+		else
+			imap_open_store_compress( ctx );
+	}
+}
+
+static void
+imap_open_store_authenticate2_p3( imap_store_t *ctx, imap_cmd_t *cmd ATTR_UNUSED, int response )
 {
 	if (response == RESP_NO)
 		imap_open_store_bail( ctx, FAIL_FINAL );
