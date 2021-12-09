@@ -50,11 +50,11 @@ Read configuration from \fIfile\fR.
 By default, the configuration is read from ~/.mbsyncrc.
 .TP
 \fB-a\fR, \fB--all\fR
-Select all configured channels. Any channel/group specifications on the command
-line are ignored.
+Select all configured Channels. Any Channel/Group specifications on the
+command line are ignored.
 .TP
 \fB-l\fR, \fB--list\fR
-Don't synchronize anything, but list all mailboxes in the selected channels
+Don't synchronize anything, but list all mailboxes in the selected Channels
 and exit.
 .TP
 \fB-C\fR[\fBf\fR][\fBn\fR], \fB--create\fR[\fB-far\fR|\fB-near\fR]
@@ -144,8 +144,7 @@ Unix-like forward slashes.
 .SS All Stores
 These options can be used in all supported Store types.
 .br
-In this context, the term "remote" describes the second Store within a Channel,
-and not necessarily a remote server.
+The term "opposite Store" refers to the other Store within a Channel.
 .br
 The special mailbox \fBINBOX\fR exists in every Store; its physical location
 in the file system is Store type specific.
@@ -208,14 +207,15 @@ See \fBRECOMMENDATIONS\fR and \fBINHERENT PROBLEMS\fR below.
 .TP
 \fBTrashNewOnly\fR \fByes\fR|\fBno\fR
 When trashing, copy only not yet propagated messages. This makes sense if the
-remote Store has a \fBTrash\fR as well (with \fBTrashNewOnly\fR \fBno\fR).
+opposite Store has a \fBTrash\fR as well (with \fBTrashNewOnly\fR \fBno\fR).
 (Default: \fBno\fR)
 .
 .TP
 \fBTrashRemoteNew\fR \fByes\fR|\fBno\fR
-When expunging the remote Store, copy not yet propagated messages to this
-Store's \fBTrash\fR. When using this, the remote Store does not need an own
-\fBTrash\fR at all, yet all messages are archived.
+When expunging the opposite Store, copy not yet propagated messages to this
+Store's \fBTrash\fR.
+When using this, the opposite Store does not need an own \fBTrash\fR at all,
+yet all messages are archived.
 (Default: \fBno\fR)
 .
 .SS Maildir Stores
@@ -540,7 +540,7 @@ Note that \fBINBOX\fR is not matched by wildcards, unless it lives under
 \fBPath\fR.
 .br
 The mailbox list selected by \fBPatterns\fR can be overridden by a mailbox
-list in a channel reference (a \fBGroup\fR specification or the command line).
+list in a Channel reference (a \fBGroup\fR specification or the command line).
 .br
 Example: "\fBPatterns\fR\ \fI%\ !Trash\fR"
 .
@@ -560,7 +560,7 @@ the actual date of the message) will be deleted first.
 Messages that are flagged (marked as important) and (by default) unread
 messages will not be automatically deleted.
 If \fIcount\fR is 0, the maximum number of messages is \fBunlimited\fR
-(Default: \fI0\fR).
+(Global default: \fI0\fR).
 .
 .TP
 \fBExpireUnread\fR \fByes\fR|\fBno\fR
@@ -570,7 +570,7 @@ This ensures that you never miss new messages even after an extended absence.
 However, if your archive contains large amounts of unread messages by design,
 treating them as important would practically defeat \fBMaxMessages\fR. In this
 case you need to enable this option.
-(Default: \fBno\fR).
+(Global default: \fBno\fR).
 .
 .TP
 \fBSync\fR {\fBNone\fR|[\fBPull\fR] [\fBPush\fR] [\fBNew\fR] [\fBReNew\fR] [\fBDelete\fR] [\fBFlags\fR]|\fBAll\fR}
@@ -586,7 +586,7 @@ Select the synchronization operation(s) to perform:
 a configured \fBMaxSize\fR.
 .br
 \fBDelete\fR - propagate message deletions. This applies only to messages that
-are actually gone, i.e., were expunged. The affected messages in the remote
+are actually gone, i.e., were expunged. The affected messages in the opposite
 Store are marked as deleted only, i.e., they won't be really deleted until
 that Store is expunged.
 .br
@@ -622,6 +622,7 @@ row/column. For example,
 "\fBSync\fR\ \fBPullNew\fR\ \fBPullDelete\fR\ \fBPush\fR" will propagate
 message arrivals and deletions from the far side to the near side and any
 changes from the near side to the far side.
+.br
 Note that it is not allowed to assert a cell in two ways, e.g.
 "\fBSync\fR\ \fBPullNew\fR\ \fBPull\fR" and
 "\fBSync\fR\ \fBPullNew\fR\ \fBDelete\fR\ \fBPush\fR" induce error messages.
@@ -648,7 +649,8 @@ Note that for safety, non-empty mailboxes are never deleted.
 .
 .TP
 \fBExpunge\fR {\fBNone\fR|\fBFar\fR|\fBNear\fR|\fBBoth\fR}
-Permanently remove all messages [on the far/near side] marked for deletion.
+Permanently remove all messages [on the far/near side] which are marked
+for deletion.
 See \fBRECOMMENDATIONS\fR below.
 (Global default: \fBNone\fR)
 .
@@ -660,11 +662,11 @@ Enabling this makes sense in order to keep the time stamp based message
 sorting intact.
 Note that IMAP does not guarantee that the time stamp (termed \fBinternal
 date\fR) is actually the arrival time, but it is usually close enough.
-(Default: \fBno\fR)
+(Global default: \fBno\fR)
 .
 .P
 \fBSync\fR, \fBCreate\fR, \fBRemove\fR, \fBExpunge\fR,
-\fBMaxMessages\fR, and \fBCopyArrivalDate\fR
+\fBMaxMessages\fR, \fBExpireUnread\fR, and \fBCopyArrivalDate\fR
 can be used before any section for a global effect.
 The global settings are overridden by Channel-specific options,
 which in turn are overridden by command line switches.
@@ -677,7 +679,8 @@ in the near side mailbox itself; this has the advantage that you do not need
 to handle the state file separately if you delete the mailbox, but it works
 only with Maildir mailboxes, obviously.
 Otherwise this is interpreted as a string to prepend to the near side mailbox
-name to make up a complete path.
+name to make up a complete path. Note that you \fBmust\fR append a slash if
+you want to specify a directory.
 .br
 This option can be used outside any section for a global effect. In this case
 the appended string is made up according to the pattern
@@ -702,7 +705,7 @@ used as mailbox name separators as well.
 .
 .TP
 \fBChannel\fR[\fBs\fR] \fIchannel\fR[\fB:\fIbox\fR[\fB,\fR...]] ...
-Add the specified channels to the group. This option can be specified multiple
+Add the specified Channels to the Group. This option can be specified multiple
 times within a Group.
 .
 .SS Global Options
@@ -744,7 +747,7 @@ counters by default. The output will look like this:
 C: 1/2  B: 3/4  F: +13/13 *23/42 #0/0  N: +0/7 *0/0 #0/0
 .in -4
 .P
-This represents the cumulative progress over channels, boxes, and messages
+This represents the cumulative progress over Channels, boxes, and messages
 affected on the far and near side, respectively.
 The message counts represent added messages, messages with updated flags,
 and trashed messages, respectively.
@@ -757,14 +760,14 @@ slow, and semantically somewhat questionable. Specifically, Gmail needs to
 be configured not to do it.
 .P
 By default, \fBmbsync\fR will not delete any messages - deletions are
-propagated by marking the messages as deleted on the remote store.
+propagated by marking the messages as deleted in the opposite Store.
 Once you have verified that your setup works, you will typically want to
 set \fBExpunge\fR to \fBBoth\fR, so that deletions become effective.
 .P
 \fBmbsync\fR's built-in trash functionality relies on \fBmbsync\fR doing
 the expunging of deleted messages. This is the case when it propagates
 deletions of previously propagated messages, and the trash is on the target
-store (typically your IMAP server).
+Store (typically your IMAP server).
 .br
 However, when you intend \fBmbsync\fR to trash messages which were not
 propagated yet, the MUA must mark the messages as deleted without expunging
@@ -789,6 +792,10 @@ Mutt always does that, while mu4e needs to be configured to do it:
 .in +4
 (setq mu4e-change-filenames-when-moving t)
 .in -4
+.br
+The general expectation is that a completely new filename is generated
+as if the message was new, but stripping the \fB,U=\fIxxx\fR infix is
+sufficient as well.
 .
 .SH INHERENT PROBLEMS
 Changes done after \fBmbsync\fR has retrieved the message list will not be
@@ -804,7 +811,8 @@ There is no risk as long as the IMAP mailbox is accessed by only one client
 .SH FILES
 .TP
 .B ~/.mbsyncrc
-Default configuration file
+Default configuration file.
+See also the example file in the documentation directory.
 .TP
 .B ~/.mbsync/
 Directory containing synchronization state files

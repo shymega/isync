@@ -4,6 +4,10 @@
 Expunge None
 Create Both
 
+# More sections follow
+#
+# !!!! Note that empty lines delimit sections !!!!
+
 MaildirStore local
 Path ~/Mail/
 Trash Trash
@@ -32,7 +36,7 @@ Sync PullNew Push
 IMAPStore personal
 Host host.play.com
 Port 6789
-RequireSSL no
+SSLType None
 
 Channel personal
 Far :personal:
@@ -55,14 +59,14 @@ Channels work personal remote
 
 IMAPStore st1
 Host st1.domain.com
-RequireCRAM yes
+AuthMech CRAM-MD5
+# Omit if you want to use the system certificate store.
 CertificateFile ~/.st1-certificate.crt
 
 IMAPStore st2
 Host imap.another-domain.com
 Path non-standard/
-RequireSSL no
-UseTLSv1 no
+SSLVersions TLSv1.3
 
 Channel rst
 Far :st1:somebox
@@ -71,6 +75,7 @@ Near :st2:
 
 IMAPAccount server
 Host imaps:foo.bar.com
+# Omit if you want to use the system certificate store.
 CertificateFile ~/.server-certificate.crt
 
 IMAPStore server
