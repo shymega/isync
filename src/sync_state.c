@@ -255,6 +255,8 @@ load_state( sync_vars_t *svars )
 		svars->maxxfuid = minwuid - 1;
 	}
 
+	svars->newmaxuid[F] = svars->maxuid[F];
+	svars->newmaxuid[N] = svars->maxuid[N];
 	int line = 0;
 	if ((jfp = fopen( svars->jname, "r" ))) {
 		if (!lock_state( svars ))
@@ -319,7 +321,7 @@ load_state( sync_vars_t *svars )
 					goto jbail;
 				}
 				if (c == 'N') {
-					svars->maxuid[t1] = t2;
+					svars->maxuid[t1] = svars->newmaxuid[t1] = t2;
 					debug( "  maxuid of %s now %u\n", str_fn[t1], t2 );
 				} else if (c == 'F') {
 					svars->finduid[t1] = t2;
@@ -335,6 +337,10 @@ load_state( sync_vars_t *svars )
 					srec = nfzalloc( sizeof(*srec) );
 					srec->uid[F] = t1;
 					srec->uid[N] = t2;
+					if (svars->newmaxuid[F] < t1)
+						svars->newmaxuid[F] = t1;
+					if (svars->newmaxuid[N] < t2)
+						svars->newmaxuid[N] = t2;
 					debug( "  new entry(%u,%u)\n", t1, t2 );
 					srec->status = S_PENDING;
 					*svars->srecadd = srec;
@@ -508,8 +514,8 @@ void
 assign_uid( sync_vars_t *svars, sync_rec_t *srec, int t, uint uid )
 {
 	srec->uid[t] = uid;
-	if (uid == svars->maxuid[t] + 1)
-		svars->maxuid[t] = uid;
+	if (uid == svars->newmaxuid[t] + 1)
+		svars->newmaxuid[t] = uid;
 	srec->status &= ~(S_PENDING | S_UPGRADE);
 	srec->tuid[0] = 0;
 }

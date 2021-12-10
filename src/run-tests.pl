@@ -939,7 +939,9 @@ sub test($$$$)
 # Generic syncing tests
 
 my @x01 = (
-  I, 0, 0,
+  I, 0, I,
+  R, "*", "", "",  # Skipped/failed messages to prevent maxuid topping
+  S, "", "", "*",
   A, "*F", "*", "*",
   B, "*", "*", "*F",
   C, "*FS", "*", "*F",
@@ -999,7 +1001,7 @@ test("full + expunge near side", \@x01, \@X03, \@O03);
 
 my @O04 = ("", "", "Sync Pull\n");
 my @X04 = (
-  K, 0, 0,
+  K, 0, I,
   A, "", "+F", "+F",
   C, "", "+FS", "+S",
   E, "", "+T", "+T",
@@ -1011,7 +1013,7 @@ test("pull", \@x01, \@X04, \@O04);
 
 my @O05 = ("", "", "Sync Flags\n");
 my @X05 = (
-  I, 0, 0,
+  I, 0, I,
   A, "", "+F", "+F",
   B, "+F", "+F", "",
   C, "", "+FS", "+S",
@@ -1022,7 +1024,7 @@ test("flags", \@x01, \@X05, \@O05);
 
 my @O06 = ("", "", "Sync Delete\n");
 my @X06 = (
-  I, 0, 0,
+  I, 0, I,
   G, "+T", ">", "",
   I, "", "<", "+T",
 );
@@ -1038,7 +1040,7 @@ test("new", \@x01, \@X07, \@O07);
 
 my @O08 = ("", "", "Sync PushFlags PullDelete\n");
 my @X08 = (
-  I, 0, 0,
+  I, 0, I,
   B, "+F", "+F", "",
   C, "", "+F", "",
   I, "", "<", "+T",
@@ -1161,6 +1163,30 @@ my @X38 = (
   C, "", "/", "",
 );
 test("max messages + expunge", \@x38, \@X38, \@O38);
+
+# Test for legacy/tampered states with inaccurate maxuid tracking
+
+# Joined post-push & post-pull state to have just one test -
+# there is no way how this could have occurred naturally.
+my @x60 = (
+  0, C, 0,
+  A, "*S", "", "_",
+  B, "*FS", "*FS", "*FS",
+  C, "*S", "", "_",
+  D, "*", "*", "*",
+  E, "*", "*", "*",
+  F, "*", "", "",
+  G, "*", "", "",
+  H, "", "", "*",
+  I, "", "", "_",
+  J, "*", "*", "*",
+);
+
+my @O61 = ("", "", "Sync Flags\n");  # Need to fetch old messages
+my @X61 = (
+  E, C, E,
+);
+test("maxuid topping", \@x60, \@X61, \@O61);
 
 # Trashing
 

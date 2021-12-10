@@ -968,8 +968,8 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 		JLOG( "| %u %u", (svars->uidval[F], svars->uidval[N]), "new UIDVALIDITYs" );
 	}
 
-	svars->oldmaxuid[F] = svars->maxuid[F];
-	svars->oldmaxuid[N] = svars->maxuid[N];
+	svars->oldmaxuid[F] = svars->newmaxuid[F];
+	svars->oldmaxuid[N] = svars->newmaxuid[N];
 
 	info( "Synchronizing...\n" );
 	for (t = 0; t < 2; t++)
@@ -1100,16 +1100,22 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 
 	for (t = 0; t < 2; t++) {
 		debug( "synchronizing new messages on %s\n", str_fn[t^1] );
+		int topping = 1;
 		for (tmsg = svars->msgs[t^1]; tmsg; tmsg = tmsg->next) {
 			if (tmsg->status & M_DEAD)
 				continue;
 			srec = tmsg->srec;
 			if (srec) {
+				// This covers legacy (or somehow corrupted) state files which
+				// failed to track maxuid properly.
+				// Note that this doesn't work in the presence of skipped or
+				// failed messages. We could start keeping zombie entries, but
+				// this wouldn't help with legacy state files.
+				if (topping && svars->newmaxuid[t^1] < tmsg->uid)
+					svars->newmaxuid[t^1] = tmsg->uid;
+
 				if (srec->status & S_SKIPPED) {
 					// Pre-1.4 legacy only: The message was skipped due to being too big.
-					// We must have already seen the UID, but we might have been interrupted.
-					if (svars->maxuid[t^1] < tmsg->uid)
-						svars->maxuid[t^1] = tmsg->uid;
 					if (!(svars->chan->ops[t] & OP_RENEW))
 						continue;
 					srec->status = S_PENDING;
@@ -1124,27 +1130,18 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 				} else {
 					if (!(svars->chan->ops[t] & OP_NEW))
 						continue;
-					// This catches messages:
-					// - that are actually new
-					// - whose propagation got interrupted
-					// - whose propagation was completed, but not logged yet
-					// - that aren't actually new, but a result of syncing, and the instant
-					//   maxuid upping was prevented by the presence of actually new messages
-					if (svars->maxuid[t^1] < tmsg->uid)
-						svars->maxuid[t^1] = tmsg->uid;
 					if (!(srec->status & S_PENDING))
 						continue;  // Nothing to do - the message is paired or expired
 					// Propagation was scheduled, but we got interrupted
 					debug( "unpropagated old message %u\n", tmsg->uid );
 				}
-
-				if ((svars->chan->ops[t] & OP_EXPUNGE) && (tmsg->flags & F_DELETED)) {
-					JLOG( "- %u %u", (srec->uid[F], srec->uid[N]), "killing - would be expunged anyway" );
-					tmsg->srec = NULL;
-					srec->status = S_DEAD;
-					continue;
-				}
 			} else {
+				// The 1st unknown message which should be known marks the end
+				// of the synced range; more known messages may follow (from an
+				// unidirectional sync in the opposite direction).
+				if (t == F || tmsg->uid > svars->maxxfuid)
+					topping = 0;
+
 				if (!(svars->chan->ops[t] & OP_NEW))
 					continue;
 				if (tmsg->uid <= svars->maxuid[t^1]) {
@@ -1154,13 +1151,7 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 					// - ignored, as it would have been expunged anyway => ignore (even if undeleted)
 					continue;
 				}
-				svars->maxuid[t^1] = tmsg->uid;
 				debug( "new message %u\n", tmsg->uid );
-
-				if ((svars->chan->ops[t] & OP_EXPUNGE) && (tmsg->flags & F_DELETED)) {
-					debug( "-> ignoring - would be expunged anyway\n" );
-					continue;
-				}
 
 				srec = nfzalloc( sizeof(*srec) );
 				*svars->srecadd = srec;
@@ -1170,7 +1161,18 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 				srec->uid[t^1] = tmsg->uid;
 				srec->msg[t^1] = tmsg;
 				tmsg->srec = srec;
+				if (svars->newmaxuid[t^1] < tmsg->uid)
+					svars->newmaxuid[t^1] = tmsg->uid;
 				JLOG( "+ %u %u", (srec->uid[F], srec->uid[N]), "fresh" );
+			}
+			if ((svars->chan->ops[t] & OP_EXPUNGE) && (tmsg->flags & F_DELETED)) {
+				// Yes, we may nuke fresh entries, created only for newmaxuid tracking.
+				// It would be lighter on the journal to log a (compressed) skip, but
+				// this rare case does not justify additional complexity.
+				JLOG( "- %u %u", (srec->uid[F], srec->uid[N]), "killing - would be expunged anyway" );
+				tmsg->srec = NULL;
+				srec->status = S_DEAD;
+				continue;
 			}
 			if (!(tmsg->flags & F_FLAGGED) && tmsg->size > svars->chan->stores[t]->max_size &&
 			    !(srec->status & (S_DUMMY(F) | S_DUMMY(N) | S_UPGRADE))) {
@@ -1760,6 +1762,7 @@ box_closed_p2( sync_vars_t *svars, int t )
 		// ensure that all pending messages are still loaded next time in case
 		// of interruption - in particular skipping messages would otherwise
 		// up the limit too early.
+		svars->maxuid[t] = svars->newmaxuid[t];
 		if (svars->maxuid[t] != svars->oldmaxuid[t])
 			PC_JLOG( "N %d %u", (t, svars->maxuid[t]), "up maxuid of %s", str_fn[t] );
 	}

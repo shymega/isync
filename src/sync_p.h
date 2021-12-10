@@ -57,6 +57,7 @@ typedef struct {
 	uint new_pending[2], flags_pending[2], trash_pending[2];
 	uint maxuid[2];     // highest UID that was already propagated
 	uint oldmaxuid[2];  // highest UID that was already propagated before this run
+	uint newmaxuid[2];  // highest UID that is currently being propagated
 	uint uidval[2];     // UID validity value
 	uint newuidval[2];  // UID validity obtained from driver
 	uint finduid[2];    // TUID lookup makes sense only for UIDs >= this
