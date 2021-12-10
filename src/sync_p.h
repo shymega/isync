@@ -53,7 +53,7 @@ typedef struct {
 	const char *orig_name[2];
 	message_t *msgs[2], *new_msgs[2];
 	uint_array_alloc_t trashed_msgs[2];
-	int state[2], lfd, ret, existing, replayed;
+	int state[2], lfd, ret, existing, replayed, any_expiring;
 	uint ref_count, nsrecs, opts[2];
 	uint new_pending[2], flags_pending[2], trash_pending[2];
 	uint maxuid[2];     // highest UID that was already propagated

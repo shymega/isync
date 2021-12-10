@@ -714,6 +714,8 @@ box_opened2( sync_vars_t *svars, int t )
 				any_dummies[!srec->uid[F] ? F : N]++;
 			if (!svars->replayed)
 				continue;
+			if ((shifted_bit(srec->status, S_EXPIRE, S_EXPIRED) ^ srec->status) & S_EXPIRED)
+				svars->any_expiring = 1;
 			if (srec->status & S_PURGE) {
 				any_purges[srec->uid[F] ? F : N]++;
 			} else if (srec->status & S_PENDING) {
@@ -787,7 +789,10 @@ box_opened2( sync_vars_t *svars, int t )
 	// but it's more natural to treat it as read-only in that case.
 	// OP_RENEW makes sense only for legacy S_SKIPPED entries.
 	if ((chan->ops[N] & (OP_NEW|OP_RENEW|OP_FLAGS)) && chan->max_messages)
+		svars->any_expiring = 1;
+	if (svars->any_expiring) {
 		opts[N] |= OPEN_OLD | OPEN_FLAGS;
+	}
 	svars->opts[F] = svars->drv[F]->prepare_load_box( ctx[F], opts[F] );
 	svars->opts[N] = svars->drv[N]->prepare_load_box( ctx[N], opts[N] );
 
@@ -1228,7 +1233,7 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 		}
 	}
 
-	if ((svars->chan->ops[N] & (OP_NEW|OP_RENEW|OP_FLAGS)) && svars->chan->max_messages) {
+	if (svars->any_expiring) {
 		// Note: When this branch is entered, we have loaded all near side messages.
 		/* Expire excess messages. Important (flagged, unread, or unpropagated) messages
 		 * older than the first not expired message are not counted towards the total. */
@@ -1585,17 +1590,21 @@ flags_set_p2( sync_vars_t *svars, sync_rec_t *srec, int t )
 			srec->flags = nflags;
 		}
 		if (t == N) {
-			uchar nex = (srec->status / S_NEXPIRE) & 1;
-			if (nex != ((srec->status / S_EXPIRED) & 1)) {
-				if (nex && svars->maxxfuid < srec->uid[F])
-					svars->maxxfuid = srec->uid[F];
-				srec->status = (srec->status & ~S_EXPIRED) | (nex * S_EXPIRED);
-				JLOG( "~ %u %u %d", (srec->uid[F], srec->uid[N], srec->status & S_LOGGED),
-				      "expired %d - commit", nex );
-			} else if (nex != ((srec->status / S_EXPIRE) & 1)) {
-				srec->status = (srec->status & ~S_EXPIRE) | (nex * S_EXPIRE);
-				JLOG( "~ %u %u %d", (srec->uid[F], srec->uid[N], srec->status & S_LOGGED),
-				      "expire %d - cancel", nex );
+			uchar ex = (srec->status / S_EXPIRE) & 1;
+			uchar exd = (srec->status / S_EXPIRED) & 1;
+			if (ex != exd) {
+				uchar nex = (srec->status / S_NEXPIRE) & 1;
+				if (nex == ex) {
+					if (nex && svars->maxxfuid < srec->uid[F])
+						svars->maxxfuid = srec->uid[F];
+					srec->status = (srec->status & ~S_EXPIRED) | (nex * S_EXPIRED);
+					JLOG( "~ %u %u %d", (srec->uid[F], srec->uid[N], srec->status & S_LOGGED),
+					      "expired %d - commit", nex );
+				} else {
+					srec->status = (srec->status & ~S_EXPIRE) | (nex * S_EXPIRE);
+					JLOG( "~ %u %u %d", (srec->uid[F], srec->uid[N], srec->status & S_LOGGED),
+					      "expire %d - cancel", nex );
+				}
 			}
 		}
 	}
