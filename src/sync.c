@@ -932,7 +932,6 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 
 	svars->oldmaxuid[F] = svars->maxuid[F];
 	svars->oldmaxuid[N] = svars->maxuid[N];
-	svars->oldmaxxfuid = svars->maxxfuid;
 
 	info( "Synchronizing...\n" );
 	for (t = 0; t < 2; t++)
@@ -1201,8 +1200,6 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 					/* The message is excess or was already (being) expired. */
 					srec->status |= S_NEXPIRE;
 					debug( "  pair(%u,%u) expired\n", srec->uid[F], srec->uid[N] );
-					if (svars->maxxfuid < srec->uid[F])
-						svars->maxxfuid = srec->uid[F];
 					todel--;
 				}
 			}
@@ -1505,6 +1502,8 @@ flags_set_p2( sync_vars_t *svars, sync_rec_t *srec, int t )
 		if (t == N) {
 			uchar nex = (srec->status / S_NEXPIRE) & 1;
 			if (nex != ((srec->status / S_EXPIRED) & 1)) {
+				if (nex && svars->maxxfuid < srec->uid[F])
+					svars->maxxfuid = srec->uid[F];
 				srec->status = (srec->status & ~S_EXPIRED) | (nex * S_EXPIRED);
 				JLOG( "~ %u %u %d", (srec->uid[F], srec->uid[N], srec->status & S_LOGGED),
 				      "expired %d - commit", nex );
@@ -1727,12 +1726,6 @@ box_closed_p2( sync_vars_t *svars, int t )
 			}
 		}
 	}
-
-	// This is just an optimization, so it needs no journaling of intermediate states.
-	// However, doing it before the entry purge would require ensuring that the
-	// exception list includes all relevant messages.
-	if (svars->maxxfuid != svars->oldmaxxfuid)
-		JLOG( "! %u", svars->maxxfuid, "max expired UID on far side" );
 
 	save_state( svars );
 

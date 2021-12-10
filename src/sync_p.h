@@ -61,7 +61,6 @@ typedef struct {
 	uint newuidval[2];  // UID validity obtained from driver
 	uint finduid[2];    // TUID lookup makes sense only for UIDs >= this
 	uint maxxfuid;      // highest expired UID on far side
-	uint oldmaxxfuid;   // highest expired UID on far side before this run
 	uchar good_flags[2], bad_flags[2];
 } sync_vars_t;
 

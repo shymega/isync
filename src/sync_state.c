@@ -286,9 +286,6 @@ load_state( sync_vars_t *svars )
 					tn = 0;
 					bad = (sscanf( buf + 2, "%u %u %n", &t1, &t2, &tn ) < 2) || !tn || (ll - (uint)tn != TUIDL + 2);
 					break;
-				case '!':
-					bad = sscanf( buf + 2, "%u", &t1 ) != 1;
-					break;
 				case 'N':
 				case 'F':
 				case 'T':
@@ -324,8 +321,6 @@ load_state( sync_vars_t *svars )
 					svars->finduid[t1] = t2;
 				} else if (c == 'T') {
 					*uint_array_append( &svars->trashed_msgs[t1] ) = t2;
-				} else if (c == '!') {
-					svars->maxxfuid = t1;
 				} else if (c == '|') {
 					svars->uidval[F] = t1;
 					svars->uidval[N] = t2;
@@ -387,6 +382,8 @@ load_state( sync_vars_t *svars )
 						break;
 					case '~':
 						srec->status = (srec->status & ~S_LOGGED) | t3;
+						if ((srec->status & S_EXPIRED) && svars->maxxfuid < srec->uid[F])
+							svars->maxxfuid = srec->uid[F];
 						debug( "status now %#x\n", srec->status );
 						break;
 					case '_':
