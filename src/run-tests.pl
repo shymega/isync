@@ -765,7 +765,7 @@ sub test_impl($$$$)
 
 	mkchan($sx);
 
-	my ($xc, $ret) = runsync($async, "-Tj", "1-initial.log");
+	my ($xc, $ret) = runsync($async, "-Tj -TJ", "1-initial.log");
 	my $rtx = readchan($$sx{state}) if (!$xc);
 	if ($xc || cmpchan($rtx, $tx)) {
 		print "Input:\n";

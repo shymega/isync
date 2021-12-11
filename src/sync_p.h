@@ -72,17 +72,22 @@ void delete_state( sync_vars_t *svars );
 
 void ATTR_PRINTFLIKE(2, 3) jFprintf( sync_vars_t *svars, const char *msg, ... );
 
-#define JLOG_(log_fmt, log_args, dbg_fmt, ...) \
+#define JLOG_(pre_commit, log_fmt, log_args, dbg_fmt, ...) \
 	do { \
-		debug( "-> log: " log_fmt " (" dbg_fmt ")\n", __VA_ARGS__ ); \
-		jFprintf( svars, log_fmt "\n", deparen(log_args) ); \
+		if (pre_commit && !(DFlags & FORCEJOURNAL)) { \
+			debug( "-> (log: " log_fmt ") (" dbg_fmt ")\n", __VA_ARGS__ ); \
+		} else { \
+			debug( "-> log: " log_fmt " (" dbg_fmt ")\n", __VA_ARGS__ ); \
+			jFprintf( svars, log_fmt "\n", deparen(log_args) ); \
+		} \
 	} while (0)
-#define JLOG3(log_fmt, log_args, dbg_fmt) \
-	JLOG_(log_fmt, log_args, dbg_fmt, deparen(log_args))
-#define JLOG4(log_fmt, log_args, dbg_fmt, dbg_args) \
-	JLOG_(log_fmt, log_args, dbg_fmt, deparen(log_args), deparen(dbg_args))
+#define JLOG3(pre_commit, log_fmt, log_args, dbg_fmt) \
+	JLOG_(pre_commit, log_fmt, log_args, dbg_fmt, deparen(log_args))
+#define JLOG4(pre_commit, log_fmt, log_args, dbg_fmt, dbg_args) \
+	JLOG_(pre_commit, log_fmt, log_args, dbg_fmt, deparen(log_args), deparen(dbg_args))
 #define JLOG_SEL(_1, _2, _3, _4, x, ...) x
-#define JLOG(...) JLOG_SEL(__VA_ARGS__, JLOG4, JLOG3, NO_JLOG2, NO_JLOG1)(__VA_ARGS__)
+#define JLOG(...) JLOG_SEL(__VA_ARGS__, JLOG4, JLOG3, NO_JLOG2, NO_JLOG1)(0, __VA_ARGS__)
+#define PC_JLOG(...) JLOG_SEL(__VA_ARGS__, JLOG4, JLOG3, NO_JLOG2, NO_JLOG1)(1, __VA_ARGS__)
 
 void assign_uid( sync_vars_t *svars, sync_rec_t *srec, int t, uint uid );
 

@@ -1735,7 +1735,7 @@ box_closed_p2( sync_vars_t *svars, int t )
 		// of interruption - in particular skipping messages would otherwise
 		// up the limit too early.
 		if (svars->maxuid[t] != svars->oldmaxuid[t])
-			JLOG( "N %d %u", (t, svars->maxuid[t]), "up maxuid of %s", str_fn[t] );
+			PC_JLOG( "N %d %u", (t, svars->maxuid[t]), "up maxuid of %s", str_fn[t] );
 	}
 
 	if (((svars->state[F] | svars->state[N]) & ST_DID_EXPUNGE) || svars->chan->max_messages) {
@@ -1746,14 +1746,14 @@ box_closed_p2( sync_vars_t *svars, int t )
 			if (!srec->uid[N] || ((srec->status & S_DEL(N)) && (svars->state[N] & ST_DID_EXPUNGE))) {
 				if (!srec->uid[F] || ((srec->status & S_DEL(F)) && (svars->state[F] & ST_DID_EXPUNGE)) ||
 				    ((srec->status & S_EXPIRED) && svars->maxuid[F] >= srec->uid[F] && svars->maxxfuid >= srec->uid[F])) {
-					JLOG( "- %u %u", (srec->uid[F], srec->uid[N]), "killing" );
+					PC_JLOG( "- %u %u", (srec->uid[F], srec->uid[N]), "killing" );
 					srec->status = S_DEAD;
 				} else if (srec->uid[N]) {
-					JLOG( "> %u %u 0", (srec->uid[F], srec->uid[N]), "orphaning" );
+					PC_JLOG( "> %u %u 0", (srec->uid[F], srec->uid[N]), "orphaning" );
 					srec->uid[N] = 0;
 				}
 			} else if (srec->uid[F] && ((srec->status & S_DEL(F)) && (svars->state[F] & ST_DID_EXPUNGE))) {
-				JLOG( "< %u %u 0", (srec->uid[F], srec->uid[N]), "orphaning" );
+				PC_JLOG( "< %u %u 0", (srec->uid[F], srec->uid[N]), "orphaning" );
 				srec->uid[F] = 0;
 			}
 		}
