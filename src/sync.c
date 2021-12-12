@@ -1035,7 +1035,9 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 					srec->pflags = ((srec->msg[t]->flags & ~(F_SEEN|F_FLAGGED)) | srec->aflags[t]) & ~srec->dflags[t];
 					// Consequently, the srec's flags are committed right away as well.
 					srec->flags = (srec->flags | srec->aflags[t]) & ~srec->dflags[t];
-					JLOG( "^ %u %u %u %u", (srec->uid[F], srec->uid[N], srec->pflags, srec->flags), "upgrading placeholder" );
+					JLOG( "^ %u %u %u %u", (srec->uid[F], srec->uid[N], srec->pflags, srec->flags),
+					      "upgrading placeholder, dummy's flags %s, srec flags %s",
+					      (fmt_lone_flags( srec->pflags ).str, fmt_lone_flags( srec->flags ).str) );
 					nsrec = upgrade_srec( svars, srec );
 				}
 			}
@@ -1360,7 +1362,8 @@ msg_copied( int sts, uint uid, copy_vars_t *vars )
 	case SYNC_OK:
 		if (!(srec->status & S_UPGRADE) && vars->msg->flags != srec->flags) {
 			srec->flags = vars->msg->flags;
-			JLOG( "* %u %u %u", (srec->uid[F], srec->uid[N], srec->flags), "%sed with flags", str_hl[t] );
+			JLOG( "* %u %u %u", (srec->uid[F], srec->uid[N], srec->flags),
+			      "%sed with flags %s", (str_hl[t], fmt_lone_flags( srec->flags ).str) );
 		}
 		if (!uid)  // Stored to a non-UIDPLUS mailbox
 			svars->state[t] |= ST_FIND_NEW;
@@ -1494,7 +1497,8 @@ flags_set_p2( sync_vars_t *svars, sync_rec_t *srec, int t )
 	} else {
 		uchar nflags = (srec->flags | srec->aflags[t]) & ~srec->dflags[t];
 		if (srec->flags != nflags) {
-			JLOG( "* %u %u %u", (srec->uid[F], srec->uid[N], nflags), "%sed flags; were %u", (str_hl[t], srec->flags) );
+			JLOG( "* %u %u %u", (srec->uid[F], srec->uid[N], nflags), "%sed flags %s; were %s",
+			      (str_hl[t], fmt_lone_flags( nflags ).str, fmt_lone_flags( srec->flags ).str) );
 			srec->flags = nflags;
 		}
 		if (t == N) {

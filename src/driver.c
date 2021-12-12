@@ -41,6 +41,20 @@ fmt_flags( uchar flags )
 	return buf;
 }
 
+flag_str_t
+fmt_lone_flags( uchar flags )
+{
+	flag_str_t buf;
+
+	if (!flags) {
+		buf.str[0] = '-';
+		buf.str[1] = 0;
+	} else {
+		make_flags( flags, buf.str );
+	}
+	return buf;
+}
+
 uint
 count_generic_messages( message_t *msgs )
 {

@@ -208,7 +208,7 @@ load_state( sync_vars_t *svars )
 				srec->status = S_SKIPPED;
 			}
 			srec->flags = parse_flags( s );
-			debug( "  entry (%u,%u,%u,%s%s)\n", srec->uid[F], srec->uid[N], srec->flags,
+			debug( "  entry (%u,%u,%s,%s%s)\n", srec->uid[F], srec->uid[N], fmt_flags( srec->flags ).str,
 			       (srec->status & S_SKIPPED) ? "SKIP" : (srec->status & S_EXPIRED) ? "XPIRE" : "",
 			       (srec->status & S_DUMMY(F)) ? ",F-DUMMY" : (srec->status & S_DUMMY(N)) ? ",N-DUMMY" : "" );
 			*svars->srecadd = srec;
@@ -372,8 +372,8 @@ load_state( sync_vars_t *svars )
 						assign_uid( svars, srec, N, t3 );
 						break;
 					case '*':
-						debug( "flags now %u\n", t3 );
 						srec->flags = (uchar)t3;
+						debug( "flags now %s\n", fmt_lone_flags( t3 ).str );
 						break;
 					case 'P':
 						debug( "deleted dummy\n" );
@@ -391,9 +391,10 @@ load_state( sync_vars_t *svars )
 						srec->status = S_PENDING | (!srec->uid[F] ? S_DUMMY(F) : S_DUMMY(N));
 						break;
 					case '^':
-						debug( "is being upgraded, flags %u, srec flags %u\n", t3, t4 );
 						srec->pflags = (uchar)t3;
 						srec->flags = (uchar)t4;
+						debug( "is being upgraded, dummy's flags %s, srec flags %s\n",
+						       fmt_lone_flags( t3 ).str, fmt_lone_flags( t4 ).str );
 						srec = upgrade_srec( svars, srec );
 						break;
 					default:

@@ -48,6 +48,7 @@ BIT_ENUM(
 extern const char MsgFlags[F__NUM_BITS];
 typedef struct { char str[F__NUM_BITS + 1]; } flag_str_t;
 flag_str_t ATTR_OPTIMIZE /* force RVO */ fmt_flags( uchar flags );
+flag_str_t ATTR_OPTIMIZE /* force RVO */ fmt_lone_flags( uchar flags );
 
 /* For message->status */
 BIT_ENUM(
