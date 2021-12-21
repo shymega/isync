@@ -4,6 +4,8 @@
  * mbsync - mailbox synchronizer
  */
 
+#define DEBUG_FLAG DEBUG_DRV
+
 #include "driver.h"
 
 typedef struct gen_cmd gen_cmd_t;
@@ -24,26 +26,6 @@ typedef union proxy_store {
 		void *bad_callback_aux;
 	};
 } proxy_store_t;
-
-static void ATTR_PRINTFLIKE(1, 2)
-debug( const char *msg, ... )
-{
-	va_list va;
-
-	va_start( va, msg );
-	vdebug( DEBUG_DRV, msg, va );
-	va_end( va );
-}
-
-static void ATTR_PRINTFLIKE(1, 2)
-debugn( const char *msg, ... )
-{
-	va_list va;
-
-	va_start( va, msg );
-	vdebugn( DEBUG_DRV, msg, va );
-	va_end( va );
-}
 
 /* Keep the mailbox driver flag definitions in sync: */
 /* grep for MAILBOX_DRIVER_FLAG */

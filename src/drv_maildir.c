@@ -6,6 +6,8 @@
  * mbsync - mailbox synchronizer
  */
 
+#define DEBUG_FLAG DEBUG_MAILDIR
+
 #include "driver.h"
 
 #include <ctype.h>
@@ -84,16 +86,6 @@ static DBT key, value; /* no need to be reentrant, and this saves lots of memset
 static struct flock lck;
 
 static int MaildirCount;
-
-static void ATTR_PRINTFLIKE(1, 2)
-debug( const char *msg, ... )
-{
-	va_list va;
-
-	va_start( va, msg );
-	vdebug( DEBUG_MAILDIR, msg, va );
-	va_end( va );
-}
 
 /* Keep the mailbox driver flag definitions in sync: */
 /* grep for MAILBOX_DRIVER_FLAG */

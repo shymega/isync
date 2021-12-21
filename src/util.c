@@ -33,34 +33,38 @@ flushn( void )
 }
 
 static void ATTR_PRINTFLIKE(1, 0)
-printn( const char *msg, va_list va )
+vprint( const char *msg, va_list va )
 {
-	if (*msg == '\v')
-		msg++;
-	else
-		flushn();
 	vprintf( msg, va );
 	fflush( stdout );
+	need_nl = 0;
 }
 
 void
-vdebug( int cat, const char *msg, va_list va )
+print( const char *msg, ... )
 {
-	if (DFlags & cat) {
-		vprintf( msg, va );
-		fflush( stdout );
-		need_nl = 0;
-	}
+	va_list va;
+
+	va_start( va, msg );
+	vprint( msg, va );
+	va_end( va );
+}
+
+static void ATTR_PRINTFLIKE(1, 0)
+vprintn( const char *msg, va_list va )
+{
+	vprint( msg, va );
+	need_nl = 1;
 }
 
 void
-vdebugn( int cat, const char *msg, va_list va )
+printn( const char *msg, ... )
 {
-	if (DFlags & cat) {
-		vprintf( msg, va );
-		fflush( stdout );
-		need_nl = 1;
-	}
+	va_list va;
+
+	va_start( va, msg );
+	vprintn( msg, va );
+	va_end( va );
 }
 
 void
@@ -75,6 +79,16 @@ progress( const char *msg, ... )
 	need_nl = 1;
 }
 
+static void ATTR_PRINTFLIKE(1, 0)
+nvprint( const char *msg, va_list va )
+{
+	if (*msg == '\v')
+		msg++;
+	else
+		flushn();
+	vprint( msg, va );
+}
+
 void
 info( const char *msg, ... )
 {
@@ -82,9 +96,8 @@ info( const char *msg, ... )
 
 	if (DFlags & VERBOSE) {
 		va_start( va, msg );
-		printn( msg, va );
+		nvprint( msg, va );
 		va_end( va );
-		need_nl = 0;
 	}
 }
 
@@ -95,7 +108,7 @@ infon( const char *msg, ... )
 
 	if (DFlags & VERBOSE) {
 		va_start( va, msg );
-		printn( msg, va );
+		nvprint( msg, va );
 		va_end( va );
 		need_nl = 1;
 	}
@@ -108,9 +121,8 @@ notice( const char *msg, ... )
 
 	if (!(DFlags & QUIET)) {
 		va_start( va, msg );
-		printn( msg, va );
+		nvprint( msg, va );
 		va_end( va );
-		need_nl = 0;
 	}
 }
 

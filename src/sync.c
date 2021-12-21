@@ -5,6 +5,8 @@
  * mbsync - mailbox synchronizer
  */
 
+#define DEBUG_FLAG DEBUG_SYNC
+
 #include "sync.h"
 
 #include <fcntl.h>
@@ -29,26 +31,6 @@ int flags_total[2], flags_done[2];
 int trash_total[2], trash_done[2];
 
 const char *str_fn[] = { "far side", "near side" }, *str_hl[] = { "push", "pull" };
-
-static void ATTR_PRINTFLIKE(1, 2)
-debug( const char *msg, ... )
-{
-	va_list va;
-
-	va_start( va, msg );
-	vdebug( DEBUG_SYNC, msg, va );
-	va_end( va );
-}
-
-static void ATTR_PRINTFLIKE(1, 2)
-debugn( const char *msg, ... )
-{
-	va_list va;
-
-	va_start( va, msg );
-	vdebugn( DEBUG_SYNC, msg, va );
-	va_end( va );
-}
 
 static void
 Fclose( FILE *f, int safe )

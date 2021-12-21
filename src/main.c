@@ -5,6 +5,8 @@
  * mbsync - mailbox synchronizer
  */
 
+#define DEBUG_FLAG DEBUG_MAIN
+
 #include "sync.h"
 
 #include <fcntl.h>
@@ -85,16 +87,6 @@ PACKAGE " " VERSION " - mailbox synchronizer\n"
 #endif
 	, code ? stderr : stdout );
 	exit( code );
-}
-
-static void ATTR_PRINTFLIKE(1, 2)
-debug( const char *msg, ... )
-{
-	va_list va;
-
-	va_start( va, msg );
-	vdebug( DEBUG_MAIN, msg, va );
-	va_end( va );
 }
 
 #ifdef __linux__

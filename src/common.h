@@ -116,8 +116,21 @@ void stats( void );
 
 /* util.c */
 
-void ATTR_PRINTFLIKE(2, 0) vdebug( int, const char *, va_list va );
-void ATTR_PRINTFLIKE(2, 0) vdebugn( int, const char *, va_list va );
+#ifdef DEBUG_FLAG
+#  define debug(...) \
+	do { \
+		if (DFlags & DEBUG_FLAG) \
+			print( __VA_ARGS__ ); \
+	} while (0)
+#  define debugn(...) \
+	do { \
+		if (DFlags & DEBUG_FLAG) \
+			printn( __VA_ARGS__ ); \
+	} while (0)
+#endif
+
+void ATTR_PRINTFLIKE(1, 2) print( const char *, ... );
+void ATTR_PRINTFLIKE(1, 2) printn( const char *, ... );
 void ATTR_PRINTFLIKE(1, 2) info( const char *, ... );
 void ATTR_PRINTFLIKE(1, 2) infon( const char *, ... );
 void ATTR_PRINTFLIKE(1, 2) progress( const char *, ... );
