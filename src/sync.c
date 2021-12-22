@@ -1127,6 +1127,8 @@ load_state( sync_vars_t *svars )
 			}
 		}
 		fclose( jfp );
+		sort_uint_array( svars->trashed_msgs[F].array );
+		sort_uint_array( svars->trashed_msgs[N].array );
 	} else {
 		if (errno != ENOENT) {
 			sys_error( "Error: cannot read journal %s", svars->jname );
