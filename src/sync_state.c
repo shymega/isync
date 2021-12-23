@@ -172,6 +172,8 @@ load_state( sync_vars_t *svars )
 		error( "Error: unterminated sync state header in %s\n", svars->dname );
 		goto jbail;
 	  gothdr:
+		debug( "  uid val %u/%u, max uid %u/%u, max expired %u\n",
+		       svars->uidval[F], svars->uidval[N], svars->maxuid[F], svars->maxuid[N], svars->maxxfuid );
 		while (fgets( buf, sizeof(buf), jfp )) {
 			line++;
 			if (!(ll = strlen( buf )) || buf[--ll] != '\n') {
@@ -318,13 +320,17 @@ load_state( sync_vars_t *svars )
 				}
 				if (c == 'N') {
 					svars->maxuid[t1] = t2;
+					debug( "  maxuid of %s now %u\n", str_fn[t1], t2 );
 				} else if (c == 'F') {
 					svars->finduid[t1] = t2;
+					debug( "  saved UIDNEXT of %s now %u\n", str_fn[t1], t2 );
 				} else if (c == 'T') {
 					*uint_array_append( &svars->trashed_msgs[t1] ) = t2;
+					debug( "  trashed %u from %s\n", t2, str_fn[t1] );
 				} else if (c == '|') {
 					svars->uidval[F] = t1;
 					svars->uidval[N] = t2;
+					debug( "  UIDVALIDITYs now %u/%u\n", t1, t2 );
 				} else if (c == '+') {
 					srec = nfzalloc( sizeof(*srec) );
 					srec->uid[F] = t1;
