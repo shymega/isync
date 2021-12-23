@@ -379,6 +379,21 @@ timegm( struct tm *t )
 #endif
 
 void
+fmt_bits( uint bits, uint num_bits, const char *bit_str, const int *bit_off, char *buf )
+{
+	uint d = 0;
+	for (uint i = 0, val = 1; i < num_bits; i++, val <<= 1) {
+		if (bits & val) {
+			if (d)
+				buf[d++] = ',';
+			for (const char *s = bit_str + bit_off[i]; *s; s++)
+				buf[d++] = *s;
+		}
+	}
+	buf[d] = 0;
+}
+
+void
 oob( void )
 {
 	fputs( "Fatal: buffer too small. Please report a bug.\n", stderr );

@@ -17,6 +17,8 @@
 
 const char *str_fn[] = { "far side", "near side" }, *str_hl[] = { "push", "pull" };
 
+BIT_FORMATTER_FUNCTION(sts, S)
+
 static char *
 clean_strdup( const char *s )
 {
@@ -208,9 +210,8 @@ load_state( sync_vars_t *svars )
 				srec->status = S_SKIPPED;
 			}
 			srec->flags = parse_flags( s );
-			debug( "  entry (%u,%u,%s,%s%s)\n", srec->uid[F], srec->uid[N], fmt_flags( srec->flags ).str,
-			       (srec->status & S_SKIPPED) ? "SKIP" : (srec->status & S_EXPIRED) ? "XPIRE" : "",
-			       (srec->status & S_DUMMY(F)) ? ",F-DUMMY" : (srec->status & S_DUMMY(N)) ? ",N-DUMMY" : "" );
+			debug( "  entry (%u,%u,%s,%s)\n", srec->uid[F], srec->uid[N],
+			       fmt_flags( srec->flags ).str, fmt_sts( srec->status ).str );
 			*svars->srecadd = srec;
 			svars->srecadd = &srec->next;
 			svars->nsrecs++;
@@ -384,7 +385,7 @@ load_state( sync_vars_t *svars )
 						srec->status = (srec->status & ~S_LOGGED) | t3;
 						if ((srec->status & S_EXPIRED) && svars->maxxfuid < srec->uid[F])
 							svars->maxxfuid = srec->uid[F];
-						debug( "status now %#x\n", srec->status );
+						debug( "status now %s\n", fmt_sts( srec->status ).str );
 						break;
 					case '_':
 						debug( "has placeholder now\n" );
