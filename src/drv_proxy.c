@@ -258,7 +258,7 @@ static @type@proxy_@name@( store_t *gctx@decl_args@, void (*cb)( @decl_cb_args@v
 //# END
 
 //# DEFINE load_box_pre_print_args
-	static char ubuf[12];
+	char ubuf[12];
 //# END
 //# DEFINE load_box_print_fmt_args , [%u,%s] (find >= %u, paired <= %u, new > %u)
 //# DEFINE load_box_print_pass_args , minuid, (maxuid == UINT_MAX) ? "inf" : (nfsnprintf( ubuf, sizeof(ubuf), "%u", maxuid ), ubuf), finduid, pairuid, newuid
@@ -274,7 +274,7 @@ static @type@proxy_@name@( store_t *gctx@decl_args@, void (*cb)( @decl_cb_args@v
 //# DEFINE load_box_print_pass_cb_args , cmd->sts, cmd->total_msgs, cmd->recent_msgs
 //# DEFINE load_box_print_cb_args
 	if (cmd->sts == DRV_OK) {
-		static char fbuf[as(Flags) + 1];
+		char fbuf[as(Flags) + 1];
 		for (message_t *msg = cmd->msgs; msg; msg = msg->next)
 			debug( "  uid=%-5u flags=%-4s size=%-6u tuid=%." stringify(TUIDL) "s\n",
 			       msg->uid, (msg->status & M_FLAGS) ? (proxy_make_flags( msg->flags, fbuf ), fbuf) : "?", msg->size, *msg->tuid ? msg->tuid : "?" );
@@ -299,7 +299,7 @@ static @type@proxy_@name@( store_t *gctx@decl_args@, void (*cb)( @decl_cb_args@v
 //# DEFINE fetch_msg_print_fmt_args , uid=%u, want_flags=%s, want_date=%s
 //# DEFINE fetch_msg_print_pass_args , msg->uid, !(msg->status & M_FLAGS) ? "yes" : "no", data->date ? "yes" : "no"
 //# DEFINE fetch_msg_pre_print_cb_args
-	static char fbuf[as(Flags) + 1];
+	char fbuf[as(Flags) + 1];
 	proxy_make_flags( cmd->data->flags, fbuf );
 //# END
 //# DEFINE fetch_msg_print_fmt_cb_args , flags=%s, date=%lld, size=%u
@@ -314,7 +314,7 @@ static @type@proxy_@name@( store_t *gctx@decl_args@, void (*cb)( @decl_cb_args@v
 //# END
 
 //# DEFINE store_msg_pre_print_args
-	static char fbuf[as(Flags) + 1];
+	char fbuf[as(Flags) + 1];
 	proxy_make_flags( data->flags, fbuf );
 //# END
 //# DEFINE store_msg_print_fmt_args , flags=%s, date=%lld, size=%u, to_trash=%s
@@ -329,7 +329,7 @@ static @type@proxy_@name@( store_t *gctx@decl_args@, void (*cb)( @decl_cb_args@v
 //# END
 
 //# DEFINE set_msg_flags_pre_print_args
-	static char fbuf1[as(Flags) + 1], fbuf2[as(Flags) + 1];
+	char fbuf1[as(Flags) + 1], fbuf2[as(Flags) + 1];
 	proxy_make_flags( add, fbuf1 );
 	proxy_make_flags( del, fbuf2 );
 //# END
