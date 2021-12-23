@@ -356,10 +356,14 @@ send_imap_cmd( imap_store_t *ctx, imap_cmd_t *cmd )
 	iov[2].len = 2;
 	iov[2].takeOwn = KeepOwn;
 	if (litplus) {
-		if (DFlags & DEBUG_NET_ALL) {
-			printf( "%s>>>>>>>>>\n", ctx->label );
-			fwrite( cmd->param.data, cmd->param.data_len, 1, stdout );
-			printf( "%s>>>>>>>>>\n", ctx->label );
+		if (DFlags & DEBUG_NET) {
+			if (DFlags & DEBUG_NET_ALL) {
+				printf( "%s>>>>>>>>>\n", ctx->label );
+				fwrite( cmd->param.data, cmd->param.data_len, 1, stdout );
+				printf( "%s>>>>>>>>>\n", ctx->label );
+			} else {
+				printf( "%s>>>>> (%u bytes omitted)\n", ctx->label, cmd->param.data_len );
+			}
 			fflush( stdout );
 		}
 		iov[3].buf = cmd->param.data;
@@ -788,18 +792,24 @@ parse_imap_list( imap_store_t *ctx, char **sp, parse_list_state_t *sts )
 				sts->err = "unexpected EOF";
 				goto bail;
 			}
+			if (DFlags & DEBUG_NET) {
+				if (cur->len < 64) {
+					xprintf( "%s%.*!s\n", ctx->label, (int)n, p );
+				} else if (DFlags & DEBUG_NET_ALL) {
+					printf( "%s=========\n", ctx->label );
+					fwrite( p, n, 1, stdout );
+					if (p[n - 1] != '\n')
+						fputs( "\n(no-nl) ", stdout );
+					printf( "%s=========\n", ctx->label );
+				} else {
+					printf( "%s=== (%u bytes omitted)\n", ctx->label, n );
+				}
+				fflush( stdout );
+			}
 			memcpy( s, p, n );
 			bytes -= n;
 			if (bytes > 0)
 				goto postpone;
-
-			if (DFlags & DEBUG_NET_ALL) {
-				printf( "%s=========\n", ctx->label );
-				fwrite( cur->val, cur->len, 1, stdout );
-				printf( "%s=========\n", ctx->label );
-				fflush( stdout );
-			}
-
 		  getline:
 			if (!(s = socket_read_line( &ctx->conn )))
 				goto postpone;
@@ -1614,10 +1624,14 @@ imap_socket_read( void *aux )
 			if (cmdp->param.data) {
 				if (cmdp->param.to_trash)
 					ctx->trashnc = TrashKnown; /* Can't get NO [TRYCREATE] any more. */
-				if (DFlags & DEBUG_NET_ALL) {
-					printf( "%s>>>>>>>>>\n", ctx->label );
-					fwrite( cmdp->param.data, cmdp->param.data_len, 1, stdout );
-					printf( "%s>>>>>>>>>\n", ctx->label );
+				if (DFlags & DEBUG_NET) {
+					if (DFlags & DEBUG_NET_ALL) {
+						printf( "%s>>>>>>>>>\n", ctx->label );
+						fwrite( cmdp->param.data, cmdp->param.data_len, 1, stdout );
+						printf( "%s>>>>>>>>>\n", ctx->label );
+					} else {
+						printf( "%s>>>>> (%u bytes omitted)\n", ctx->label, cmdp->param.data_len );
+					}
 					fflush( stdout );
 				}
 				iov[0].buf = cmdp->param.data;
