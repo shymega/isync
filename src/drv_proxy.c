@@ -172,6 +172,28 @@ static @type@proxy_@name@( store_t *gctx@decl_args@ )
 }
 //# END
 
+//# TEMPLATE CALLBACK_VOID
+	debug( "%s[% 2d] Callback enter @name@\n", ctx->label, cmd->tag );
+	@print_cb_args@
+//# END
+//# TEMPLATE CALLBACK_STS
+	debug( "%s[% 2d] Callback enter @name@, sts=%d\n", ctx->label, cmd->tag, sts );
+//# END
+//# TEMPLATE CALLBACK_STS_PRN
+	debug( "%s[% 2d] Callback enter @name@, sts=%d\n", ctx->label, cmd->tag, sts );
+	if (sts == DRV_OK) {
+		@print_cb_args@
+	}
+//# END
+//# TEMPLATE CALLBACK_STS_FMT
+	if (sts == DRV_OK) {
+		debug( "%s[% 2d] Callback enter @name@, sts=" stringify(DRV_OK) "@print_fmt_cb_args@\n", ctx->label, cmd->tag@print_pass_cb_args@ );
+		@print_cb_args@
+	} else {
+		debug( "%s[% 2d] Callback enter @name@, sts=%d\n", ctx->label, cmd->tag, sts );
+	}
+//# END
+
 //# TEMPLATE CALLBACK
 typedef union {
 	gen_cmd_t gen;
@@ -189,8 +211,7 @@ proxy_@name@_cb( @decl_cb_args@void *aux )
 	@name@_cmd_t *cmd = (@name@_cmd_t *)aux;
 	proxy_store_t *ctx = cmd->ctx;
 
-	debug( "%s[% 2d] Callback enter @name@@print_fmt_cb_args@\n", ctx->label, cmd->tag@print_pass_cb_args@ );
-	@print_cb_args@
+	@print_cb_args_tpl@
 	cmd->callback( @pass_cb_args@cmd->callback_aux );
 	debug( "%s[% 2d] Callback leave @name@\n", ctx->label, cmd->tag );
 	proxy_cmd_done( &cmd->gen );
@@ -225,10 +246,8 @@ static @type@proxy_@name@( store_t *gctx@decl_args@, void (*cb)( @decl_cb_args@v
 //# UNDEFINE list_store_print_fmt_cb_args
 //# UNDEFINE list_store_print_pass_cb_args
 //# DEFINE list_store_print_cb_args
-	if (sts == DRV_OK) {
-		for (string_list_t *box = boxes; box; box = box->next)
-			debug( "  %s\n", box->string );
-	}
+	for (string_list_t *box = boxes; box; box = box->next)
+		debug( "  %s\n", box->string );
 //# END
 
 //# DEFINE prepare_load_box_print_fmt_args , opts=%s
@@ -249,23 +268,19 @@ static @type@proxy_@name@( store_t *gctx@decl_args@, void (*cb)( @decl_cb_args@v
 		debug( "\n" );
 	}
 //# END
-//# DEFINE load_box_print_fmt_cb_args , sts=%d, total=%d, recent=%d
-//# DEFINE load_box_print_pass_cb_args , sts, total_msgs, recent_msgs
+//# DEFINE load_box_print_fmt_cb_args , total=%d, recent=%d
+//# DEFINE load_box_print_pass_cb_args , total_msgs, recent_msgs
 //# DEFINE load_box_print_cb_args
-	if (sts == DRV_OK) {
-		for (message_t *msg = msgs; msg; msg = msg->next)
-			debug( "  uid=%-5u flags=%-4s size=%-6u tuid=%." stringify(TUIDL) "s\n",
-			       msg->uid, (msg->status & M_FLAGS) ? fmt_flags( msg->flags ).str : "?", msg->size, *msg->tuid ? msg->tuid : "?" );
-	}
+	for (message_t *msg = msgs; msg; msg = msg->next)
+		debug( "  uid=%-5u flags=%-4s size=%-6u tuid=%." stringify(TUIDL) "s\n",
+		       msg->uid, (msg->status & M_FLAGS) ? fmt_flags( msg->flags ).str : "?", msg->size, *msg->tuid ? msg->tuid : "?" );
 //# END
 
-//# DEFINE find_new_msgs_print_fmt_cb_args , sts=%d
-//# DEFINE find_new_msgs_print_pass_cb_args , sts
+//# UNDEFINE find_new_msgs_print_fmt_cb_args
+//# UNDEFINE find_new_msgs_print_pass_cb_args
 //# DEFINE find_new_msgs_print_cb_args
-	if (sts == DRV_OK) {
-		for (message_t *msg = msgs; msg; msg = msg->next)
-			debug( "  uid=%-5u tuid=%." stringify(TUIDL) "s\n", msg->uid, msg->tuid );
-	}
+	for (message_t *msg = msgs; msg; msg = msg->next)
+		debug( "  uid=%-5u tuid=%." stringify(TUIDL) "s\n", msg->uid, msg->tuid );
 //# END
 
 //# DEFINE fetch_msg_print_fmt_args , uid=%u, want_flags=%s, want_date=%s
@@ -273,7 +288,7 @@ static @type@proxy_@name@( store_t *gctx@decl_args@, void (*cb)( @decl_cb_args@v
 //# DEFINE fetch_msg_print_fmt_cb_args , flags=%s, date=%lld, size=%u
 //# DEFINE fetch_msg_print_pass_cb_args , fmt_flags( cmd->data->flags ).str, (long long)cmd->data->date, cmd->data->len
 //# DEFINE fetch_msg_print_cb_args
-	if (sts == DRV_OK && (DFlags & DEBUG_DRV_ALL)) {
+	if (DFlags & DEBUG_DRV_ALL) {
 		printf( "%s=========\n", cmd->ctx->label );
 		fwrite( cmd->data->data, cmd->data->len, 1, stdout );
 		printf( "%s=========\n", cmd->ctx->label );

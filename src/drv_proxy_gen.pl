@@ -126,6 +126,7 @@ for (@ptypes) {
 	}
 	push @cmd_table, "proxy_$cmd_name";
 	next if (defined($special{$cmd_name}));
+	my $inc_tpl = "";
 	my %replace;
 	$replace{'name'} = $cmd_name;
 	$replace{'type'} = $cmd_type;
@@ -139,9 +140,16 @@ for (@ptypes) {
 			my $cmd_cb_args = $1;
 			$replace{'decl_cb_args'} = $cmd_cb_args;
 			$replace{'pass_cb_args'} = make_args($cmd_cb_args);
-			my $cmd_print_cb_args = $cmd_cb_args =~ s/(.*), $/, $1/r;
-			$replace{'print_pass_cb_args'} = make_args($cmd_print_cb_args);
-			$replace{'print_fmt_cb_args'} = make_format($cmd_print_cb_args);
+			if (length($cmd_cb_args)) {
+				my $r_cmd_cb_args = $cmd_cb_args;
+				$r_cmd_cb_args =~ s/^int sts, // or die("Callback arguments of $cmd_name don't start with sts.\n");
+				$r_cmd_cb_args =~ s/^(.*), $/, $1/;
+				$replace{'print_pass_cb_args'} = make_args($r_cmd_cb_args);
+				$replace{'print_fmt_cb_args'} = make_format($r_cmd_cb_args);
+				$inc_tpl = 'CALLBACK_STS';
+			} else {
+				$inc_tpl = 'CALLBACK_VOID';
+			}
 
 			$pass_args = make_args($cmd_args);
 			$pass_args =~ s/([^, ]+)/cmd->$1/g;
@@ -172,6 +180,21 @@ for (@ptypes) {
 	}
 	my %used;
 	my $text = $templates{$template};
+	if ($inc_tpl) {
+		if ($inc_tpl eq 'CALLBACK_STS') {
+			if ($replace{print_fmt_cb_args}) {
+				$inc_tpl .= '_FMT';
+			} else {
+				if ($replace{print_cb_args}) {
+					$inc_tpl .= '_PRN';
+				}
+				# These may be defined but empty; that's not an error.
+				delete $replace{print_fmt_cb_args};
+				delete $replace{print_pass_cb_args};
+			}
+		}
+		$text =~ s/^\t\@print_cb_args_tpl\@\n/$templates{$inc_tpl}/sm;
+	}
 	$text =~ s/^(\h*)\@(\w+)\@\n/$used{$2} = 1; indent($replace{$2} \/\/ "", $1)/smeg;
 	$text =~ s/\@(\w+)\@/$used{$1} = 1; $replace{$1} \/\/ ""/eg;
 	print $outh $text."\n";
