@@ -3333,7 +3333,6 @@ imap_find_new_msgs_p3( imap_store_t *ctx, imap_cmd_t *gcmd, int response )
 	imap_cmd_find_new_t *cmdp = (imap_cmd_find_new_t *)gcmd;
 	imap_cmd_find_new_t *cmd;
 
-	ctx->fetch_sts = FetchNone;
 	if (response != RESP_OK) {
 		imap_find_new_msgs_p4( ctx, gcmd, response );
 		return;
@@ -3352,6 +3351,7 @@ imap_find_new_msgs_p3( imap_store_t *ctx, imap_cmd_t *gcmd, int response )
 		}
 		return;
 	}
+	ctx->fetch_sts = FetchMsgs;
 	INIT_IMAP_CMD(imap_cmd_find_new_t, cmd, cmdp->callback, cmdp->callback_aux)
 	cmd->out_msgs = cmdp->out_msgs;
 	imap_exec( (imap_store_t *)ctx, &cmd->gen, imap_find_new_msgs_p4,
@@ -3363,6 +3363,7 @@ imap_find_new_msgs_p4( imap_store_t *ctx ATTR_UNUSED, imap_cmd_t *gcmd, int resp
 {
 	imap_cmd_find_new_t *cmdp = (imap_cmd_find_new_t *)gcmd;
 
+	ctx->fetch_sts = FetchNone;
 	transform_box_response( &response );
 	cmdp->callback( response, &(*cmdp->out_msgs)->gen, cmdp->callback_aux );
 }
