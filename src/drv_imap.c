@@ -156,7 +156,7 @@ union imap_store {
 		char wait_check;  /* Don't report success until subsequent CHECK success. */ \
 		char to_trash;  /* we are storing to trash, not current. */ \
 		char create;  /* create the mailbox if we get an error which suggests so. */ \
-		char failok;  /* Don't complain about NO response. */ \
+		char failok;  /* Don't complain about NO (@1) / BAD (@2) response. */ \
 	} param;
 
 struct imap_cmd {
@@ -1718,7 +1718,12 @@ imap_socket_read( void *aux )
 					if (cmdp->param.failok)  // SELECT
 						goto doresp;
 				} else /*if (!strcmp( "BAD", arg ))*/ {
-					resp = RESP_CANCEL;
+					if (cmdp->param.failok == 2 && cmd && starts_with_upper( cmd, -1, "[TOOBIG]", 8 )) {  // APPEND
+						resp = RESP_NO;
+						// Fall through - we still complain
+					} else {
+						resp = RESP_CANCEL;
+					}
 				}
 				error( "IMAP command '%s' returned an error: %s %s\n",
 				       starts_with( cmdp->cmd, -1, "LOGIN", 5 ) ?
@@ -3233,6 +3238,7 @@ imap_store_msg( store_t *gctx, msg_data_t *data, int to_trash,
 	ctx->buffer_mem += data->len;
 	cmd->param.data_len = data->len;
 	cmd->param.data = data->data;
+	cmd->param.failok = 2;
 
 	if (to_trash) {
 		cmd->param.create = 1;
