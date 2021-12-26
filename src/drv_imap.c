@@ -289,11 +289,6 @@ new_imap_cmd( uint size )
 	cmdp->callback = cb; \
 	cmdp->callback_aux = aux;
 
-#define INIT_IMAP_CMD_X(type, cmdp, cb, aux) \
-	cmdp = (type *)new_imap_cmd( sizeof(*cmdp) ); \
-	cmdp->callback = cb; \
-	cmdp->callback_aux = aux;
-
 static void
 done_imap_cmd( imap_store_t *ctx, imap_cmd_t *cmd, int response )
 {
@@ -3002,7 +2997,7 @@ imap_fetch_msg( store_t *ctx, message_t *msg, msg_data_t *data, int minimal,
 {
 	imap_cmd_fetch_msg_t *cmd;
 
-	INIT_IMAP_CMD_X(imap_cmd_fetch_msg_t, cmd, cb, aux)
+	INIT_IMAP_CMD(imap_cmd_fetch_msg_t, cmd, cb, aux)
 	cmd->param.uid = msg->uid;
 	cmd->msg_data = data;
 	data->data = NULL;
