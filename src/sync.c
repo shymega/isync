@@ -29,36 +29,19 @@ int trash_total[2], trash_done[2];
 const char *str_fn[] = { "far side", "near side" }, *str_hl[] = { "push", "pull" };
 
 
-/* Keep the mailbox driver flag definitions in sync: */
-/* grep for MAILBOX_DRIVER_FLAG */
-/* The order is according to alphabetical maildir flag sort */
-static const char Flags[] = { 'D', 'F', 'P', 'R', 'S', 'T' };
-
 static uchar
 parse_flags( const char *buf )
 {
 	uint i, d;
 	uchar flags;
 
-	for (flags = i = d = 0; i < as(Flags); i++) {
-		if (buf[d] == Flags[i]) {
+	for (flags = i = d = 0; i < as(MsgFlags); i++) {
+		if (buf[d] == MsgFlags[i]) {
 			flags |= (1 << i);
 			d++;
 		}
 	}
 	return flags;
-}
-
-static uint
-make_flags( uchar flags, char *buf )
-{
-	uint i, d;
-
-	for (i = d = 0; i < as(Flags); i++)
-		if (flags & (1 << i))
-			buf[d++] = Flags[i];
-	buf[d] = 0;
-	return d;
 }
 
 // This is the (mostly) persistent status of the sync record.

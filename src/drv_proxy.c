@@ -27,23 +27,6 @@ typedef union proxy_store {
 	};
 } proxy_store_t;
 
-/* Keep the mailbox driver flag definitions in sync: */
-/* grep for MAILBOX_DRIVER_FLAG */
-/* The order is according to alphabetical maildir flag sort */
-static const char Flags[] = { 'D', 'F', 'P', 'R', 'S', 'T' };
-
-static char *
-proxy_make_flags( uchar flags, char *buf )
-{
-	uint i, d;
-
-	for (d = 0, i = 0; i < as(Flags); i++)
-		if (flags & (1 << i))
-			buf[d++] = Flags[i];
-	buf[d] = 0;
-	return buf;
-}
-
 static void
 proxy_store_deref( proxy_store_t *ctx )
 {
@@ -274,10 +257,10 @@ static @type@proxy_@name@( store_t *gctx@decl_args@, void (*cb)( @decl_cb_args@v
 //# DEFINE load_box_print_pass_cb_args , cmd->sts, cmd->total_msgs, cmd->recent_msgs
 //# DEFINE load_box_print_cb_args
 	if (cmd->sts == DRV_OK) {
-		char fbuf[as(Flags) + 1];
+		char fbuf[as(MsgFlags) + 1];
 		for (message_t *msg = cmd->msgs; msg; msg = msg->next)
 			debug( "  uid=%-5u flags=%-4s size=%-6u tuid=%." stringify(TUIDL) "s\n",
-			       msg->uid, (msg->status & M_FLAGS) ? (proxy_make_flags( msg->flags, fbuf ), fbuf) : "?", msg->size, *msg->tuid ? msg->tuid : "?" );
+			       msg->uid, (msg->status & M_FLAGS) ? (make_flags( msg->flags, fbuf ), fbuf) : "?", msg->size, *msg->tuid ? msg->tuid : "?" );
 	}
 //# END
 
@@ -299,8 +282,8 @@ static @type@proxy_@name@( store_t *gctx@decl_args@, void (*cb)( @decl_cb_args@v
 //# DEFINE fetch_msg_print_fmt_args , uid=%u, want_flags=%s, want_date=%s
 //# DEFINE fetch_msg_print_pass_args , msg->uid, !(msg->status & M_FLAGS) ? "yes" : "no", data->date ? "yes" : "no"
 //# DEFINE fetch_msg_pre_print_cb_args
-	char fbuf[as(Flags) + 1];
-	proxy_make_flags( cmd->data->flags, fbuf );
+	char fbuf[as(MsgFlags) + 1];
+	make_flags( cmd->data->flags, fbuf );
 //# END
 //# DEFINE fetch_msg_print_fmt_cb_args , flags=%s, date=%lld, size=%u
 //# DEFINE fetch_msg_print_pass_cb_args , fbuf, (long long)cmd->data->date, cmd->data->len
@@ -314,8 +297,8 @@ static @type@proxy_@name@( store_t *gctx@decl_args@, void (*cb)( @decl_cb_args@v
 //# END
 
 //# DEFINE store_msg_pre_print_args
-	char fbuf[as(Flags) + 1];
-	proxy_make_flags( data->flags, fbuf );
+	char fbuf[as(MsgFlags) + 1];
+	make_flags( data->flags, fbuf );
 //# END
 //# DEFINE store_msg_print_fmt_args , flags=%s, date=%lld, size=%u, to_trash=%s
 //# DEFINE store_msg_print_pass_args , fbuf, (long long)data->date, data->len, to_trash ? "yes" : "no"
@@ -329,9 +312,9 @@ static @type@proxy_@name@( store_t *gctx@decl_args@, void (*cb)( @decl_cb_args@v
 //# END
 
 //# DEFINE set_msg_flags_pre_print_args
-	char fbuf1[as(Flags) + 1], fbuf2[as(Flags) + 1];
-	proxy_make_flags( add, fbuf1 );
-	proxy_make_flags( del, fbuf2 );
+	char fbuf1[as(MsgFlags) + 1], fbuf2[as(MsgFlags) + 1];
+	make_flags( add, fbuf1 );
+	make_flags( del, fbuf2 );
 //# END
 //# DEFINE set_msg_flags_print_fmt_args , uid=%u, add=%s, del=%s
 //# DEFINE set_msg_flags_print_pass_args , uid, fbuf1, fbuf2

@@ -31,8 +31,7 @@ typedef struct store_conf {
 } store_conf_t;
 
 /* For message->flags */
-/* Keep the mailbox driver flag definitions in sync: */
-/* grep for MAILBOX_DRIVER_FLAG */
+// Keep the MESSAGE_FLAGS in sync (grep that)!
 /* The order is according to alphabetical maildir flag sort */
 #define F_DRAFT	     (1<<0) /* Draft */
 #define F_FLAGGED    (1<<1) /* Flagged */
@@ -41,6 +40,9 @@ typedef struct store_conf {
 #define F_SEEN       (1<<4) /* Seen */
 #define F_DELETED    (1<<5) /* Trashed */
 #define NUM_FLAGS 6
+
+extern const char MsgFlags[NUM_FLAGS];
+void make_flags( uchar flags, char *buf );
 
 /* For message->status */
 #define M_RECENT       (1<<0) /* unsyncable flag; maildir_* depend on this being 1<<0 */

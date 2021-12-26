@@ -266,9 +266,7 @@ static int imap_deref( imap_store_t *ctx );
 
 static void imap_invoke_bad_callback( imap_store_t *ctx );
 
-/* Keep the mailbox driver flag definitions in sync: */
-/* grep for MAILBOX_DRIVER_FLAG */
-/* The order is according to alphabetical maildir flag sort */
+// Keep the MESSAGE_FLAGS in sync (grep that)!
 static const char *Flags[] = {
 	"\\Draft",	/* 'D' */
 	"\\Flagged",	/* 'F' */

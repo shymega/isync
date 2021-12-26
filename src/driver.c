@@ -9,6 +9,20 @@
 
 driver_t *drivers[N_DRIVERS] = { &maildir_driver, &imap_driver };
 
+// Keep the MESSAGE_FLAGS in sync (grep that)!
+const char MsgFlags[] = { 'D', 'F', 'P', 'R', 'S', 'T' };
+
+void
+make_flags( uchar flags, char *buf )
+{
+	uint i, d;
+
+	for (i = d = 0; i < as(MsgFlags); i++)
+		if (flags & (1 << i))
+			buf[d++] = MsgFlags[i];
+	buf[d] = 0;
+}
+
 uint
 count_generic_messages( message_t *msgs )
 {

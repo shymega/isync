@@ -87,11 +87,6 @@ static struct flock lck;
 
 static int MaildirCount;
 
-/* Keep the mailbox driver flag definitions in sync: */
-/* grep for MAILBOX_DRIVER_FLAG */
-/* The order is according to alphabetical maildir flag sort */
-static const char Flags[] = { 'D', 'F', 'P', 'R', 'S', 'T' };
-
 static uchar
 maildir_parse_flags( const char *info_prefix, const char *base )
 {
@@ -101,8 +96,8 @@ maildir_parse_flags( const char *info_prefix, const char *base )
 
 	flags = 0;
 	if ((s = strstr( base, info_prefix )))
-		for (s += 3, i = 0; i < as(Flags); i++)
-			if (strchr( s, Flags[i] ))
+		for (s += 3, i = 0; i < as(MsgFlags); i++)
+			if (strchr( s, MsgFlags[i] ))
 				flags |= (1 << i);
 	return flags;
 }
@@ -1570,9 +1565,9 @@ maildir_make_flags( char info_delimiter, uchar flags, char *buf )
 	buf[0] = info_delimiter;
 	buf[1] = '2';
 	buf[2] = ',';
-	for (d = 3, i = 0; i < (int)as(Flags); i++)
+	for (d = 3, i = 0; i < (int)as(MsgFlags); i++)
 		if (flags & (1 << i))
-			buf[d++] = Flags[i];
+			buf[d++] = MsgFlags[i];
 	buf[d] = 0;
 	return d;
 }
@@ -1690,24 +1685,24 @@ maildir_set_msg_flags( store_t *gctx, message_t *gmsg, uint uid ATTR_UNUSED, int
 	for (;;) {
 		bl = bbl + nfsnprintf( buf + bbl, _POSIX_PATH_MAX - bbl, "%s/", subdirs[gmsg->status & M_RECENT] );
 		ol = strlen( msg->base );
-		if (_POSIX_PATH_MAX - bl < ol + 3 + NUM_FLAGS)
+		if (_POSIX_PATH_MAX - bl < ol + 3 + (int)as(MsgFlags))
 			oob();
 		memcpy( buf + bl, msg->base, (size_t)ol + 1 );
 		memcpy( nbuf + bl, msg->base, (size_t)ol + 1 );
 		if ((s = strstr( nbuf + bl, conf->info_prefix ))) {
 			s += 3;
 			fl = ol - (s - (nbuf + bl));
-			for (i = 0; i < as(Flags); i++) {
-				if ((p = strchr( s, Flags[i] ))) {
+			for (i = 0; i < as(MsgFlags); i++) {
+				if ((p = strchr( s, MsgFlags[i] ))) {
 					if (del & (1 << i)) {
 						memmove( p, p + 1, (size_t)fl - (size_t)(p - s) );
 						fl--;
 					}
 				} else if (add & (1 << i)) {
-					for (j = 0; j < fl && Flags[i] > s[j]; j++);
+					for (j = 0; j < fl && MsgFlags[i] > s[j]; j++);
 					fl++;
 					memmove( s + j + 1, s + j, (size_t)(fl - j) );
-					s[j] = Flags[i];
+					s[j] = MsgFlags[i];
 				}
 			}
 			tl = ol + 3 + fl;
