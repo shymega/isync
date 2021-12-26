@@ -3214,6 +3214,7 @@ imap_trash_msg( store_t *gctx, message_t *msg,
 	cmd->param.to_trash = 1;
 	if (prepare_trash( &buf, ctx ) < 0) {
 		cb( DRV_BOX_BAD, aux );
+		free( cmd );
 		return;
 	}
 	imap_exec( ctx, &cmd->gen, imap_done_simple_msg,
@@ -3252,11 +3253,13 @@ imap_store_msg( store_t *gctx, msg_data_t *data, int to_trash,
 		cmd->param.to_trash = 1;
 		if (prepare_trash( &buf, ctx ) < 0) {
 			cb( DRV_BOX_BAD, 0, aux );
+			free( cmd );
 			return;
 		}
 	} else {
 		if (prepare_box( &buf, ctx ) < 0) {
 			cb( DRV_BOX_BAD, 0, aux );
+			free( cmd );
 			return;
 		}
 	}
