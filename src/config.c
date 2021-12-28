@@ -213,7 +213,9 @@ getopt_helper( conffile_t *cfile, int *cops, channel_conf_t *conf )
 				conf->ops[F] |= OP_FLAGS;
 			} else if (!strcasecmp( "All", arg ) || !strcasecmp( "Full", arg )) {
 				*cops |= XOP_PULL|XOP_PUSH;
-			} else if (strcasecmp( "None", arg ) && strcasecmp( "Noop", arg )) {
+			} else if (!strcasecmp( "None", arg ) || !strcasecmp( "Noop", arg )) {
+				conf->ops[F] |= XOP_TYPE_NOOP;
+			} else {
 				error( "%s:%d: invalid Sync arg '%s'\n",
 				       cfile->file, cfile->line, arg );
 				cfile->err = 1;
@@ -246,7 +248,9 @@ getopt_helper( conffile_t *cfile, int *cops, channel_conf_t *conf )
 					} else if (!strcasecmp( "Slave", arg )) {  // Pre-1.4 legacy
 						conf->ops[N] |= op;
 						cfile->ms_warn = 1;
-					} else if (strcasecmp( "None", arg )) {
+					} else if (!strcasecmp( "None", arg )) {
+						conf->ops[F] |= op * (XOP_EXPUNGE_NOOP / OP_EXPUNGE);
+					} else {
 						error( "%s:%d: invalid %s arg '%s'\n",
 						       cfile->file, cfile->line, boxOps[i].name, arg );
 						cfile->err = 1;
@@ -300,7 +304,6 @@ channel_str( const char *chan_name )
 	return buf;
 }
 
-/* XXX - this does not detect None conflicts ... */
 int
 merge_ops( int cops, int ops[], const char *chan_name )
 {
@@ -310,8 +313,13 @@ merge_ops( int cops, int ops[], const char *chan_name )
 	aops = ops[F] | ops[N];
 	if (ops[F] & XOP_HAVE_TYPE) {
 		if (aops & OP_MASK_TYPE) {  // PullNew, etc.
-			if (aops & cops & OP_MASK_TYPE) {  // Overlapping New, etc.
+			if (ops[F] & XOP_TYPE_NOOP) {
 			  cfl:
+				error( "Conflicting Sync options specified %s.\n", channel_str( chan_name ) );
+				return 1;
+			}
+			if (aops & cops & OP_MASK_TYPE) {  // Overlapping New, etc.
+			  ovl:
 				error( "Redundant Sync options specified %s.\n", channel_str( chan_name ) );
 				return 1;
 			}
@@ -321,15 +329,17 @@ merge_ops( int cops, int ops[], const char *chan_name )
 			ops[N] |= cops & OP_MASK_TYPE;
 			if (cops & XOP_PULL) {
 				if (ops[N] & OP_MASK_TYPE)
-					goto cfl;
+					goto ovl;
 				ops[N] |= OP_MASK_TYPE;
 			}
 			if (cops & XOP_PUSH) {
 				if (ops[F] & OP_MASK_TYPE)
-					goto cfl;
+					goto ovl;
 				ops[F] |= OP_MASK_TYPE;
 			}
 		} else if (cops & (OP_MASK_TYPE | XOP_MASK_DIR)) {  // Pull New, etc.
+			if (ops[F] & XOP_TYPE_NOOP)
+				goto cfl;
 			if (!(cops & OP_MASK_TYPE))
 				cops |= OP_MASK_TYPE;
 			else if (!(cops & XOP_MASK_DIR))
@@ -343,6 +353,10 @@ merge_ops( int cops, int ops[], const char *chan_name )
 	for (i = 0; i < as(boxOps); i++) {
 		op = boxOps[i].op;
 		if (ops[F] & (op * (XOP_HAVE_EXPUNGE / OP_EXPUNGE))) {
+			if (((aops | cops) & op) && (ops[F] & (op * (XOP_EXPUNGE_NOOP / OP_EXPUNGE)))) {
+				error( "Conflicting %s options specified %s.\n", boxOps[i].name, channel_str( chan_name ) );
+				return 1;
+			}
 			if (aops & cops & op) {
 				error( "Redundant %s options specified %s.\n", boxOps[i].name, channel_str( chan_name ) );
 				return 1;

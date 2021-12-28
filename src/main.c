@@ -238,15 +238,15 @@ main( int argc, char **argv )
 					op = OP_EXPUNGE|XOP_HAVE_EXPUNGE;
 					goto lcop;
 				} else if (!strcmp( opt, "no-expunge" )) {
-					mvars->ops[F] |= XOP_HAVE_EXPUNGE;
+					mvars->ops[F] |= XOP_EXPUNGE_NOOP | XOP_HAVE_EXPUNGE;
 				} else if (!strcmp( opt, "no-create" )) {
-					mvars->ops[F] |= XOP_HAVE_CREATE;
+					mvars->ops[F] |= XOP_CREATE_NOOP | XOP_HAVE_CREATE;
 				} else if (!strcmp( opt, "no-remove" )) {
-					mvars->ops[F] |= XOP_HAVE_REMOVE;
+					mvars->ops[F] |= XOP_REMOVE_NOOP | XOP_HAVE_REMOVE;
 				} else if (!strcmp( opt, "full" )) {
 					mvars->ops[F] |= XOP_HAVE_TYPE | XOP_PULL | XOP_PUSH;
 				} else if (!strcmp( opt, "noop" )) {
-					mvars->ops[F] |= XOP_HAVE_TYPE;
+					mvars->ops[F] |= XOP_TYPE_NOOP | XOP_HAVE_TYPE;
 				} else if (starts_with( opt, -1, "pull", 4 )) {
 					op = XOP_PULL;
 				  lcac:
@@ -335,9 +335,10 @@ main( int argc, char **argv )
 			goto cop;
 		case 'F':
 			cops |= XOP_PULL|XOP_PUSH;
-			FALLTHROUGH
-		case '0':
 			mvars->ops[F] |= XOP_HAVE_TYPE;
+			break;
+		case '0':
+			mvars->ops[F] |= XOP_TYPE_NOOP | XOP_HAVE_TYPE;
 			break;
 		case 'n':
 		case 'd':

@@ -30,6 +30,12 @@ BIT_ENUM(
 	XOP_HAVE_EXPUNGE,
 	XOP_HAVE_CREATE,
 	XOP_HAVE_REMOVE,
+	// ... until here.
+	XOP_TYPE_NOOP,
+	// ... and here again from scratch.
+	XOP_EXPUNGE_NOOP,
+	XOP_CREATE_NOOP,
+	XOP_REMOVE_NOOP,
 )
 
 #define OP_MASK_TYPE (OP_NEW | OP_RENEW | OP_DELETE | OP_FLAGS)  // Asserted in the target side ops
