@@ -312,7 +312,7 @@ merge_ops( int cops, int ops[], const char *chan_name )
 		if (aops & OP_MASK_TYPE) {  // PullNew, etc.
 			if (aops & cops & OP_MASK_TYPE) {  // Overlapping New, etc.
 			  cfl:
-				error( "Conflicting Sync args specified %s.\n", channel_str( chan_name ) );
+				error( "Redundant Sync options specified %s.\n", channel_str( chan_name ) );
 				return 1;
 			}
 			// Mix in non-overlapping Push/Pull or New, etc.
@@ -344,7 +344,7 @@ merge_ops( int cops, int ops[], const char *chan_name )
 		op = boxOps[i].op;
 		if (ops[F] & (op * (XOP_HAVE_EXPUNGE / OP_EXPUNGE))) {
 			if (aops & cops & op) {
-				error( "Conflicting %s args specified %s.\n", boxOps[i].name, channel_str( chan_name ) );
+				error( "Redundant %s options specified %s.\n", boxOps[i].name, channel_str( chan_name ) );
 				return 1;
 			}
 			ops[F] |= cops & op;
