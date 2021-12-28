@@ -283,6 +283,8 @@ sync_chans( core_vars_t *cvars, char **argv )
 		  gotgrp: ;
 		}
 	}
+	if (cvars->ret)
+		return;
 	if (!chans) {
 		fputs( "No channel specified. Try '" EXE " -h'\n", stderr );
 		cvars->ret = 1;
