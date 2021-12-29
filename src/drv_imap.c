@@ -2819,6 +2819,8 @@ typedef struct {
 	int flags;
 } imap_range_t;
 
+#define MAX_RANGES 4
+
 static void
 imap_set_range( imap_range_t *ranges, uint *nranges, int low_flags, int high_flags, uint maxlow )
 {
@@ -2830,6 +2832,8 @@ imap_set_range( imap_range_t *ranges, uint *nranges, int low_flags, int high_fla
 				continue; /* Range ends below split point; try next one. */
 			if (ranges[r].last != maxlow) {
 				/* Range does not end exactly at split point; need to split. */
+				if (*nranges == MAX_RANGES)
+					oob();
 				memmove( &ranges[r + 1], &ranges[r], ((*nranges)++ - r) * sizeof(*ranges) );
 				ranges[r].last = maxlow;
 				ranges[r + 1].first = maxlow + 1;
@@ -2883,7 +2887,7 @@ imap_load_box( store_t *gctx, uint minuid, uint maxuid, uint finduid, uint pairu
 		if (maxuid == UINT_MAX)
 			maxuid = ctx->uidnext - 1;
 		if (maxuid >= minuid) {
-			imap_range_t ranges[4];
+			imap_range_t ranges[MAX_RANGES];
 			ranges[0].first = minuid;
 			ranges[0].last = maxuid;
 			ranges[0].flags = 0;
