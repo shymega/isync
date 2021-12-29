@@ -3128,7 +3128,18 @@ imap_close_box( store_t *gctx,
 					buf[bl++] = ',';
 				bl += sprintf( buf + bl, "%u", msg->uid );
 				fmsg = msg;
-				for (; (nmsg = msg->next) && (nmsg->flags & F_DELETED); msg = nmsg) {}
+				for (; (nmsg = msg->next); msg = nmsg) {
+					if (nmsg->status & M_DEAD) {
+						// Messages that jump a gap interrupt the range, even expunged ones.
+						if (nmsg->seq)
+							break;
+					} else {
+						if (nmsg->seq > 1)
+							break;
+						if (!(nmsg->flags & F_DELETED))
+							break;
+					}
+				}
 				if (msg != fmsg)
 					bl += sprintf( buf + bl, ":%u", msg->uid );
 			}
