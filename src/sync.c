@@ -842,6 +842,7 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 
 	if (svars->state[t] & ST_FIND_OLD) {
 		debug( "matching previously copied messages on %s\n", str_fn[t] );
+		for (; msgs && msgs->uid < svars->finduid[t]; msgs = msgs->next) {}
 		match_tuids( svars, t, msgs );
 	}
 
