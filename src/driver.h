@@ -97,6 +97,9 @@ BIT_ENUM(
 	OPEN_APPEND,
 	OPEN_SETFLAGS,
 	OPEN_EXPUNGE,
+	// Expunge only deleted messages we know about. Relies on OPEN_{OLD,NEW,FLAGS}
+	// being set externally. The driver may unset it if it can't handle it.
+	OPEN_UID_EXPUNGE,
 )
 
 #define UIDVAL_BAD ((uint)-1)

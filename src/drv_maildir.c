@@ -1406,7 +1406,7 @@ maildir_prepare_load_box( store_t *gctx, uint opts )
 	if (opts & OPEN_SETFLAGS)
 		opts |= OPEN_PAIRED;
 	if (opts & OPEN_EXPUNGE)
-		opts |= OPEN_PAIRED | OPEN_OLD | OPEN_NEW | OPEN_FLAGS;
+		opts |= OPEN_PAIRED | OPEN_OLD | OPEN_NEW | OPEN_FLAGS | OPEN_UID_EXPUNGE;
 	ctx->opts = opts;
 	return opts;
 }

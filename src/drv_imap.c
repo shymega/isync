@@ -2812,6 +2812,8 @@ imap_prepare_load_box( store_t *gctx, uint opts )
 {
 	imap_store_t *ctx = (imap_store_t *)gctx;
 
+	if (!CAP(UIDPLUS))
+		opts &= ~OPEN_UID_EXPUNGE;
 	ctx->opts = opts;
 	return opts;
 }
@@ -3129,7 +3131,7 @@ imap_close_box( store_t *gctx,
 
 	assert( !ctx->num_wait_check );
 
-	if (ctx->conf->trash && CAP(UIDPLUS)) {
+	if (ctx->opts & OPEN_UID_EXPUNGE) {
 		INIT_REFCOUNTED_STATE(imap_expunge_state_t, sts, cb, aux)
 		imap_message_t *msg, *fmsg, *nmsg;
 		int bl;

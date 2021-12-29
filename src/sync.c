@@ -793,9 +793,9 @@ box_opened2( sync_vars_t *svars, int t )
 			if (chan->stores[t]->trash) {
 				if (!chan->stores[t]->trash_only_new)
 					opts[t] |= OPEN_OLD;
-				opts[t] |= OPEN_NEW|OPEN_FLAGS;
+				opts[t] |= OPEN_NEW | OPEN_FLAGS | OPEN_UID_EXPUNGE;
 			} else if (chan->stores[t^1]->trash && chan->stores[t^1]->trash_remote_new) {
-				opts[t] |= OPEN_NEW|OPEN_FLAGS;
+				opts[t] |= OPEN_NEW | OPEN_FLAGS | OPEN_UID_EXPUNGE;
 			}
 		}
 	}
