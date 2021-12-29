@@ -2883,7 +2883,7 @@ imap_load_box( store_t *gctx, uint minuid, uint maxuid, uint finduid, uint pairu
 		if (maxuid == UINT_MAX)
 			maxuid = ctx->uidnext - 1;
 		if (maxuid >= minuid) {
-			imap_range_t ranges[3];
+			imap_range_t ranges[4];
 			ranges[0].first = minuid;
 			ranges[0].last = maxuid;
 			ranges[0].flags = 0;
