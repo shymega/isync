@@ -1075,6 +1075,8 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 	for (t = 0; t < 2; t++) {
 		debug( "synchronizing new messages on %s\n", str_fn[t^1] );
 		for (tmsg = svars->msgs[t^1]; tmsg; tmsg = tmsg->next) {
+			if (tmsg->status & M_DEAD)
+				continue;
 			srec = tmsg->srec;
 			if (srec) {
 				if (srec->status & S_SKIPPED) {
@@ -1418,6 +1420,8 @@ msgs_copied( sync_vars_t *svars, int t )
 
 	if (!(svars->state[t] & ST_SENT_NEW)) {
 		for (tmsg = svars->new_msgs[t]; tmsg; tmsg = tmsg->next) {
+			if (tmsg->status & M_DEAD)
+				continue;
 			if ((srec = tmsg->srec) && (srec->status & S_PENDING)) {
 				if (svars->drv[t]->get_memory_usage( svars->ctx[t] ) >= BufferLimit) {
 					svars->new_msgs[t] = tmsg;
@@ -1568,6 +1572,8 @@ msgs_flags_set( sync_vars_t *svars, int t )
 		goto skip;
 	}
 	for (tmsg = svars->msgs[t]; tmsg; tmsg = tmsg->next) {
+		if (tmsg->status & M_DEAD)
+			continue;
 		if (!(tmsg->flags & F_DELETED)) {
 			//debug( "  message %u is not deleted\n", tmsg->uid );  // Too noisy
 			continue;

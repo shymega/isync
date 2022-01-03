@@ -272,16 +272,22 @@ static @type@proxy_@name@( store_t *gctx@decl_args@, void (*cb)( @decl_cb_args@v
 //# DEFINE load_box_print_fmt_cb_args , total=%d, recent=%d
 //# DEFINE load_box_print_pass_cb_args , total_msgs, recent_msgs
 //# DEFINE load_box_print_cb_args
-	for (message_t *msg = msgs; msg; msg = msg->next)
+	for (message_t *msg = msgs; msg; msg = msg->next) {
+		if (msg->status & M_DEAD)
+			continue;
 		debug( "  uid=%-5u flags=%-4s size=%-6u tuid=%." stringify(TUIDL) "s\n",
 		       msg->uid, (msg->status & M_FLAGS) ? fmt_flags( msg->flags ).str : "?", msg->size, *msg->tuid ? msg->tuid : "?" );
+	}
 //# END
 
 //# UNDEFINE find_new_msgs_print_fmt_cb_args
 //# UNDEFINE find_new_msgs_print_pass_cb_args
 //# DEFINE find_new_msgs_print_cb_args
-	for (message_t *msg = msgs; msg; msg = msg->next)
+	for (message_t *msg = msgs; msg; msg = msg->next) {
+		if (msg->status & M_DEAD)
+			continue;
 		debug( "  uid=%-5u tuid=%." stringify(TUIDL) "s\n", msg->uid, msg->tuid );
+	}
 //# END
 
 //# DEFINE fetch_msg_print_fmt_args , uid=%u, want_flags=%s, want_date=%s
