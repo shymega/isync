@@ -810,11 +810,6 @@ typedef struct {
 	int aflags, dflags;
 } flag_vars_t;
 
-typedef struct {
-	uint uid;
-	sync_rec_t *srec;
-} sync_rec_map_t;
-
 static void flags_set( int sts, void *aux );
 static void flags_set_p2( sync_vars_t *svars, sync_rec_t *srec, int t );
 static void msgs_flags_set( sync_vars_t *svars, int t );
@@ -825,8 +820,7 @@ static void
 box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux )
 {
 	DECL_SVARS;
-	sync_rec_t *srec;
-	sync_rec_map_t *srecmap;
+	sync_rec_t *srec, **srecmap;
 	message_t *tmsg;
 	flag_vars_t *fv;
 	int no[2], del[2], alive, todel;
@@ -856,22 +850,19 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 		if (!uid)
 			continue;
 		idx = (uint)(uid * 1103515245U) % hashsz;
-		while (srecmap[idx].uid)
+		while (srecmap[idx])
 			if (++idx == hashsz)
 				idx = 0;
-		srecmap[idx].uid = uid;
-		srecmap[idx].srec = srec;
+		srecmap[idx] = srec;
 	}
 	for (tmsg = svars->msgs[t]; tmsg; tmsg = tmsg->next) {
 		if (tmsg->srec) /* found by TUID */
 			continue;
 		uint uid = tmsg->uid;
 		idx = (uint)(uid * 1103515245U) % hashsz;
-		while (srecmap[idx].uid) {
-			if (srecmap[idx].uid == uid) {
-				srec = srecmap[idx].srec;
+		while ((srec = srecmap[idx])) {
+			if (srec->uid[t] == uid)
 				goto found;
-			}
 			if (++idx == hashsz)
 				idx = 0;
 		}
