@@ -269,6 +269,7 @@ free_maildir_messages( maildir_message_t *msg )
 	for (maildir_message_t *tmsg; (tmsg = msg); msg = tmsg) {
 		tmsg = msg->next;
 		free( msg->base );
+		free( msg->msgid );
 		free( msg );
 	}
 }
@@ -552,8 +553,10 @@ maildir_free_scan( msg_t_array_alloc_t *msglist )
 	uint i;
 
 	if (msglist->array.data) {
-		for (i = 0; i < msglist->array.size; i++)
+		for (i = 0; i < msglist->array.size; i++) {
 			free( msglist->array.data[i].base );
+			free( msglist->array.data[i].msgid );
+		}
 		free( msglist->array.data );
 	}
 }
