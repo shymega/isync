@@ -25,8 +25,9 @@ typedef union proxy_store {
 		wakeup_t wakeup;
 		char force_async;
 
+		void (*expunge_callback)( message_t *msg, void *aux );
 		void (*bad_callback)( void *aux );
-		void *bad_callback_aux;
+		void *callback_aux;
 	};
 } proxy_store_t;
 
@@ -337,14 +338,26 @@ static @type@proxy_@name@( store_t *gctx@decl_args@, void (*cb)( @decl_cb_args@v
 //# END
 #endif
 
-//# SPECIAL set_bad_callback
+//# SPECIAL set_callbacks
 static void
-proxy_set_bad_callback( store_t *gctx, void (*cb)( void *aux ), void *aux )
+proxy_set_callbacks( store_t *gctx, void (*exp_cb)( message_t *, void * ),
+                     void (*bad_cb)( void * ), void *aux )
 {
 	proxy_store_t *ctx = (proxy_store_t *)gctx;
 
-	ctx->bad_callback = cb;
-	ctx->bad_callback_aux = aux;
+	ctx->expunge_callback = exp_cb;
+	ctx->bad_callback = bad_cb;
+	ctx->callback_aux = aux;
+}
+
+static void
+proxy_invoke_expunge_callback( message_t *msg, proxy_store_t *ctx )
+{
+	ctx->ref_count++;
+	debug( "%sCallback enter expunged message %u\n", ctx->label, msg->uid );
+	ctx->expunge_callback( msg, ctx->callback_aux );
+	debug( "%sCallback leave expunged message %u\n", ctx->label, msg->uid );
+	proxy_store_deref( ctx );
 }
 
 static void
@@ -352,7 +365,7 @@ proxy_invoke_bad_callback( proxy_store_t *ctx )
 {
 	ctx->ref_count++;
 	debug( "%sCallback enter bad store\n", ctx->label );
-	ctx->bad_callback( ctx->bad_callback_aux );
+	ctx->bad_callback( ctx->callback_aux );
 	debug( "%sCallback leave bad store\n", ctx->label );
 	proxy_store_deref( ctx );
 }
@@ -373,7 +386,9 @@ proxy_alloc_store( store_t *real_ctx, const char *label, int force_async )
 	ctx->check_cmds_append = &ctx->check_cmds;
 	ctx->real_driver = real_ctx->driver;
 	ctx->real_store = real_ctx;
-	ctx->real_driver->set_bad_callback( ctx->real_store, (void (*)(void *))proxy_invoke_bad_callback, ctx );
+	ctx->real_driver->set_callbacks( ctx->real_store,
+	                                 (void (*)( message_t *, void * ))proxy_invoke_expunge_callback,
+	                                 (void (*)( void * ))proxy_invoke_bad_callback, ctx );
 	init_wakeup( &ctx->wakeup, proxy_wakeup, ctx );
 	return &ctx->gen;
 }

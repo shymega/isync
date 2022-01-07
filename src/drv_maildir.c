@@ -75,8 +75,9 @@ typedef union maildir_store {
 		maildir_message_t *msgs;
 		wakeup_t lcktmr;
 
+		void (*expunge_callback)( message_t *msg, void *aux );
 		void (*bad_callback)( void *aux );
-		void *bad_callback_aux;
+		void *callback_aux;
 	};
 } maildir_store_t;
 
@@ -277,18 +278,20 @@ maildir_cleanup_drv( void )
 }
 
 static void
-maildir_set_bad_callback( store_t *gctx, void (*cb)( void *aux ), void *aux )
+maildir_set_callbacks( store_t *gctx, void (*exp_cb)( message_t *, void * ),
+                       void (*bad_cb)( void * ), void *aux )
 {
 	maildir_store_t *ctx = (maildir_store_t *)gctx;
 
-	ctx->bad_callback = cb;
-	ctx->bad_callback_aux = aux;
+	ctx->expunge_callback = exp_cb;
+	ctx->bad_callback = bad_cb;
+	ctx->callback_aux = aux;
 }
 
 static void
 maildir_invoke_bad_callback( maildir_store_t *ctx )
 {
-	ctx->bad_callback( ctx->bad_callback_aux );
+	ctx->bad_callback( ctx->callback_aux );
 }
 
 static int
@@ -1457,6 +1460,7 @@ maildir_rescan( maildir_store_t *ctx )
 		} else if (i >= msglist.array.size) {
 			debug( "  purging deleted message %u\n", msg->uid );
 			msg->status = M_DEAD;
+			ctx->expunge_callback( &msg->gen, ctx->callback_aux );
 			msgapp = &msg->next;
 		} else if (msglist.array.data[i].uid < msg->uid) {
 			/* this should not happen, actually */
@@ -1470,6 +1474,7 @@ maildir_rescan( maildir_store_t *ctx )
 		} else if (msglist.array.data[i].uid > msg->uid) {
 			debug( "  purging deleted message %u\n", msg->uid );
 			msg->status = M_DEAD;
+			ctx->expunge_callback( &msg->gen, ctx->callback_aux );
 			msgapp = &msg->next;
 		} else {
 			debug( "  updating message %u\n", msg->uid );
@@ -1765,6 +1770,7 @@ maildir_trash_msg( store_t *gctx, message_t *gmsg,
 	}
 	gmsg->status |= M_DEAD;
 	ctx->total_msgs--;
+	ctx->expunge_callback( gmsg, ctx->callback_aux );
 
 #ifdef USE_DB
 	if (ctx->usedb) {
@@ -1798,6 +1804,7 @@ maildir_close_box( store_t *gctx,
 				} else {
 					msg->status |= M_DEAD;
 					ctx->total_msgs--;
+					ctx->expunge_callback( &msg->gen, ctx->callback_aux );
 #ifdef USE_DB
 					if (ctx->db && (ret = maildir_purge_msg( ctx, msg->base )) != DRV_OK) {
 						cb( ret, aux );
@@ -1914,7 +1921,7 @@ struct driver maildir_driver = {
 	maildir_parse_store,
 	maildir_cleanup_drv,
 	maildir_alloc_store,
-	maildir_set_bad_callback,
+	maildir_set_callbacks,
 	maildir_connect_store,
 	maildir_free_store,
 	maildir_free_store, /* _cancel_, but it's the same */

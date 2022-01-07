@@ -432,6 +432,18 @@ check_ret( int sts, void *aux )
 	} \
 	INIT_SVARS(vars->aux)
 
+static void
+message_expunged( message_t *msg, void *aux )
+{
+	DECL_INIT_SVARS(aux);
+	(void)svars;
+
+	if (msg->srec) {
+		msg->srec->msg[t] = NULL;
+		msg->srec = NULL;
+	}
+}
+
 static void box_confirmed( int sts, uint uidvalidity, void *aux );
 static void box_confirmed2( sync_vars_t *svars, int t );
 static void box_deleted( int sts, void *aux );
@@ -473,7 +485,7 @@ sync_boxes( store_t *ctx[], const char * const names[], int present[], channel_c
 			return;
 		}
 		svars->drv[t] = ctx[t]->driver;
-		svars->drv[t]->set_bad_callback( ctx[t], store_bad, AUX );
+		svars->drv[t]->set_callbacks( ctx[t], message_expunged, store_bad, AUX );
 		svars->can_crlf[t] = (svars->drv[t]->get_caps( svars->ctx[t] ) / DRV_CRLF) & 1;
 	}
 	/* Both boxes must be fully set up at this point, so that error exit paths
@@ -1259,17 +1271,19 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 		for (t = 0; t < 2; t++) {
 			if (!srec->uid[t])
 				continue;
+			if (!srec->msg[t] && (svars->opts[t] & OPEN_OLD)) {
+				// The message was expunged. No need to call flags_set(), because:
+				// - for S_DELETE and S_PURGE, the entry will be pruned due to both sides being gone
+				// - for regular flag propagations, there is nothing to do
+				// - expirations were already handled above
+				continue;
+			}
 			aflags = srec->aflags[t];
 			dflags = srec->dflags[t];
 			if (srec->status & (S_DELETE | S_PURGE)) {
 				if (!aflags) {
 					// This deletion propagation goes the other way round, or
 					// this deletion of a dummy happens on the other side.
-					continue;
-				}
-				if (!srec->msg[t] && (svars->opts[t] & OPEN_OLD)) {
-					// The message disappeared. This can happen, because the status may
-					// come from the journal, and things could have happened meanwhile.
 					continue;
 				}
 			} else {

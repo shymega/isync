@@ -412,7 +412,7 @@ do_sync_chans( main_vars_t *mvars )
 				ctx = proxy_alloc_store( ctx, labels[t], DFlags & FORCEASYNC(t) );
 			}
 			mvars->ctx[t] = ctx;
-			mvars->drv[t]->set_bad_callback( ctx, store_bad, AUX );
+			mvars->drv[t]->set_callbacks( ctx, NULL, store_bad, AUX );
 			mvars->state[t] = ST_FRESH;
 		}
 		mvars->chan_cben = 0;

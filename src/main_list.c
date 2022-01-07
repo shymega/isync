@@ -114,7 +114,7 @@ do_list_stores( list_vars_t *lvars )
 			ctx = proxy_alloc_store( ctx, "", DFlags & FORCEASYNC(F) );
 		}
 		lvars->ctx = ctx;
-		lvars->drv->set_bad_callback( ctx, list_store_bad, lvars );
+		lvars->drv->set_callbacks( ctx, NULL, list_store_bad, lvars );
 		info( "Opening store %s...\n", lvars->store->name );
 		lvars->cben = lvars->done = 0;
 		lvars->drv->connect_store( lvars->ctx, list_store_connected, lvars );

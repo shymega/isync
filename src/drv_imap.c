@@ -1787,7 +1787,8 @@ imap_deref( imap_store_t *ctx )
 }
 
 static void
-imap_set_bad_callback( store_t *gctx, void (*cb)( void *aux ), void *aux )
+imap_set_callbacks( store_t *gctx, void (*exp_cb)( message_t *, void * ) ATTR_UNUSED,
+                    void (*cb)( void * ), void *aux )
 {
 	imap_store_t *ctx = (imap_store_t *)gctx;
 
@@ -1833,7 +1834,7 @@ imap_free_store( store_t *gctx )
 
 	free_generic_messages( &ctx->msgs->gen );
 	ctx->msgs = NULL;
-	imap_set_bad_callback( gctx, imap_cancel_unowned, gctx );
+	imap_set_callbacks( gctx, NULL, imap_cancel_unowned, gctx );
 	ctx->next = unowned;
 	unowned = ctx;
 }
@@ -1849,7 +1850,7 @@ imap_cleanup( void )
 
 	for (ctx = unowned; ctx; ctx = nctx) {
 		nctx = ctx->next;
-		imap_set_bad_callback( &ctx->gen, (void (*)(void *))imap_cancel_store, ctx );
+		imap_set_callbacks( &ctx->gen, NULL, (void (*)( void * ))imap_cancel_store, ctx );
 		ctx->expectBYE = 1;
 		imap_exec( ctx, NULL, imap_cleanup_p2, "LOGOUT" );
 	}
@@ -3795,7 +3796,7 @@ struct driver imap_driver = {
 	imap_parse_store,
 	imap_cleanup,
 	imap_alloc_store,
-	imap_set_bad_callback,
+	imap_set_callbacks,
 	imap_connect_store,
 	imap_free_store,
 	imap_cancel_store,

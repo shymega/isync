@@ -166,9 +166,14 @@ struct driver {
 	 * return quickly, and must not fail. */
 	store_t *(*alloc_store)( store_conf_t *conf, const char *label );
 
-	/* When this callback is invoked (at most once per store), the store is fubar;
-	 * call cancel_store() to dispose of it. */
-	void (*set_bad_callback)( store_t *ctx, void (*cb)( void *aux ), void *aux );
+	// When exp_cb is invoked, the passed message has been expunged;
+	// its status is M_DEAD now.
+	// When bad_cb is invoked (at most once per store), the store is fubar;
+	// call cancel_store() to dispose of it.
+	void (*set_callbacks)( store_t *ctx,
+	                       void (*exp_cb)( message_t *msg, void *aux ),
+	                       void (*bad_cb)( void *aux ),
+	                       void *aux );
 
 	/* Open/connect the store. This may recycle existing server connections. */
 	void (*connect_store)( store_t *ctx,
