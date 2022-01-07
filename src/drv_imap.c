@@ -285,7 +285,7 @@ new_imap_cmd( uint size )
 }
 
 #define INIT_IMAP_CMD(type, cmdp, cb, aux) \
-	cmdp = (type *)new_imap_cmd( sizeof(*cmdp) ); \
+	type *cmdp = (type *)new_imap_cmd( sizeof(*cmdp) ); \
 	cmdp->callback = cb; \
 	cmdp->callback_aux = aux;
 
@@ -2655,7 +2655,6 @@ imap_open_box( store_t *gctx,
                void (*cb)( int sts, uint uidvalidity, void *aux ), void *aux )
 {
 	imap_store_t *ctx = (imap_store_t *)gctx;
-	imap_cmd_open_box_t *cmd;
 	char *buf;
 
 	if (prepare_box( &buf, ctx ) < 0) {
@@ -2677,7 +2676,6 @@ static void
 imap_open_box_p2( imap_store_t *ctx, imap_cmd_t *gcmd, int response )
 {
 	imap_cmd_open_box_t *cmdp = (imap_cmd_open_box_t *)gcmd;
-	imap_cmd_open_box_t *cmd;
 
 	if (response != RESP_OK || ctx->uidnext) {
 		imap_open_box_p4( ctx, cmdp, response );
@@ -2740,7 +2738,6 @@ imap_create_box( store_t *gctx,
                  void (*cb)( int sts, void *aux ), void *aux )
 {
 	imap_store_t *ctx = (imap_store_t *)gctx;
-	imap_cmd_simple_t *cmd;
 	char *buf;
 
 	if (prepare_box( &buf, ctx ) < 0) {
@@ -2771,7 +2768,6 @@ imap_delete_box( store_t *gctx,
                  void (*cb)( int sts, void *aux ), void *aux )
 {
 	imap_store_t *ctx = (imap_store_t *)gctx;
-	imap_cmd_simple_t *cmd;
 
 	INIT_IMAP_CMD(imap_cmd_simple_t, cmd, cb, aux)
 	imap_exec( ctx, &cmd->gen, imap_delete_box_p2, "CLOSE" );
@@ -2781,7 +2777,6 @@ static void
 imap_delete_box_p2( imap_store_t *ctx, imap_cmd_t *gcmd, int response )
 {
 	imap_cmd_simple_t *cmdp = (imap_cmd_simple_t *)gcmd;
-	imap_cmd_simple_t *cmd;
 	char *buf;
 
 	if (response != RESP_OK) {
@@ -2995,8 +2990,6 @@ static void
 imap_fetch_msg( store_t *ctx, message_t *msg, msg_data_t *data, int minimal,
                 void (*cb)( int sts, void *aux ), void *aux )
 {
-	imap_cmd_fetch_msg_t *cmd;
-
 	INIT_IMAP_CMD(imap_cmd_fetch_msg_t, cmd, cb, aux)
 	cmd->param.uid = msg->uid;
 	cmd->msg_data = data;
@@ -3155,7 +3148,6 @@ imap_close_box( store_t *gctx,
 		/* This is inherently racy: it may cause messages which other clients
 		 * marked as deleted to be expunged without being trashed. */
 		// Note that, to save bandwidth, we don't use EXPUNGE.
-		imap_cmd_simple_t *cmd;
 		INIT_IMAP_CMD(imap_cmd_simple_t, cmd, cb, aux)
 		imap_exec( ctx, &cmd->gen, imap_done_simple_box, "CLOSE" );
 	}
@@ -3183,7 +3175,6 @@ imap_trash_msg( store_t *gctx, message_t *msg,
                 void (*cb)( int sts, void *aux ), void *aux )
 {
 	imap_store_t *ctx = (imap_store_t *)gctx;
-	imap_cmd_simple_t *cmd;
 	char *buf;
 
 	INIT_IMAP_CMD(imap_cmd_simple_t, cmd, cb, aux)
@@ -3208,7 +3199,6 @@ imap_store_msg( store_t *gctx, msg_data_t *data, int to_trash,
                 void (*cb)( int sts, uint uid, void *aux ), void *aux )
 {
 	imap_store_t *ctx = (imap_store_t *)gctx;
-	imap_cmd_out_uid_t *cmd;
 	char *buf;
 	uint d;
 	char flagstr[128], datestr[64];
@@ -3275,7 +3265,6 @@ imap_find_new_msgs( store_t *gctx, uint newuid,
                     void (*cb)( int sts, message_t *msgs, void *aux ), void *aux )
 {
 	imap_store_t *ctx = (imap_store_t *)gctx;
-	imap_cmd_find_new_t *cmd;
 
 	INIT_IMAP_CMD(imap_cmd_find_new_t, cmd, cb, aux)
 	cmd->out_msgs = ctx->msgapp;
@@ -3288,7 +3277,6 @@ static void
 imap_find_new_msgs_p2( imap_store_t *ctx, imap_cmd_t *gcmd, int response )
 {
 	imap_cmd_find_new_t *cmdp = (imap_cmd_find_new_t *)gcmd;
-	imap_cmd_find_new_t *cmd;
 
 	if (response != RESP_OK) {
 		imap_done_simple_box( ctx, gcmd, response );
@@ -3311,7 +3299,6 @@ static void
 imap_find_new_msgs_p3( imap_store_t *ctx, imap_cmd_t *gcmd, int response )
 {
 	imap_cmd_find_new_t *cmdp = (imap_cmd_find_new_t *)gcmd;
-	imap_cmd_find_new_t *cmd;
 
 	if (response != RESP_OK) {
 		imap_find_new_msgs_p4( ctx, gcmd, response );
