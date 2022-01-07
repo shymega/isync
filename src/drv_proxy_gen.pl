@@ -77,7 +77,7 @@ while (<$inh>) {
 }
 close($inh);
 
-$cont =~ s,\n, ,g;
+$cont =~ s,(?://.*)?\n, ,g;
 $cont =~ s,/\*.*?\*/, ,g;
 $cont =~ s,\h+, ,g;
 my @ptypes = map { s,^ ,,r } split(/;/, $cont);
