@@ -1047,6 +1047,11 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 					// The target may be in an unknown state (not fetched).
 					if ((t == F) && (srec->status & (S_EXPIRE|S_EXPIRED))) {
 						/* Don't propagate deletion resulting from expiration. */
+						if (~srec->status & (S_EXPIRE | S_EXPIRED)) {
+							// An expiration was interrupted, but the message was expunged since.
+							srec->status |= S_EXPIRE | S_EXPIRED;  // Override failed unexpiration attempts.
+							JLOG( "~ %u %u %u", (srec->uid[F], srec->uid[N], srec->status), "forced expiration commit" );
+						}
 						JLOG( "> %u %u 0", (srec->uid[F], srec->uid[N]), "near side expired, orphaning far side" );
 						srec->uid[N] = 0;
 					} else {
