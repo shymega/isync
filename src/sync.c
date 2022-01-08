@@ -273,6 +273,17 @@ assign_uid( sync_vars_t *svars, sync_rec_t *srec, int t, uint uid )
 	} while (0)
 
 static void
+assign_tuid( sync_vars_t *svars, sync_rec_t *srec )
+{
+	for (uint i = 0; i < TUIDL; i++) {
+		uchar c = arc4_getbyte() & 0x3f;
+		srec->tuid[i] = (char)(c < 26 ? c + 'A' : c < 52 ? c + 'a' - 26 :
+		                       c < 62 ? c + '0' - 52 : c == 62 ? '+' : '/');
+	}
+	JLOG( "# %u %u %." stringify(TUIDL) "s", (srec->uid[F], srec->uid[N], srec->tuid), "new TUID" );
+}
+
+static void
 match_tuids( sync_vars_t *svars, int t, message_t *msgs )
 {
 	sync_rec_t *srec;
@@ -2022,16 +2033,28 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 	}
 
 	debug( "propagating new messages\n" );
-	if (UseFSync && svars->jfp)
-		fdatasync( fileno( svars->jfp ) );
 	for (t = 0; t < 2; t++) {
 		if (any_new[t]) {
+			// fsync'ing the UIDNEXT bump is not strictly necessary, but advantageous.
 			svars->finduid[t] = svars->drv[t]->get_uidnext( svars->ctx[t] );
 			JLOG( "F %d %u", (t, svars->finduid[t]), "save UIDNEXT of %s", str_fn[t] );
 			svars->new_msgs[t] = svars->msgs[1-t];
 		} else {
 			svars->state[t] |= ST_SENT_NEW;
 		}
+	}
+	if (any_new[F] | any_new[N]) {
+		// TUID assignment needs to be fsync'd, as otherwise a system crash may
+		// lead to the newly propagated messages becoming duplicated.
+		// Of course, we could assign each TUID only after fetching the message
+		// and fsync it separately, but that would be horribly inefficient.
+		for (srec = svars->srecs; srec; srec = srec->next)
+			if (srec->status & S_PENDING)
+				assign_tuid( svars, srec );
+		if (UseFSync && svars->jfp)
+			fdatasync( fileno( svars->jfp ) );
+	}
+	for (t = 0; t < 2; t++) {
 		msgs_copied( svars, t );
 		if (check_cancel( svars ))
 			goto out;
@@ -2097,11 +2120,6 @@ msgs_copied( sync_vars_t *svars, int t )
 					svars->new_msgs[t] = tmsg;
 					goto out;
 				}
-				for (uint i = 0; i < TUIDL; i++) {
-					uchar c = arc4_getbyte() & 0x3f;
-					srec->tuid[i] = (char)(c < 26 ? c + 'A' : c < 52 ? c + 'a' - 26 : c < 62 ? c + '0' - 52 : c == 62 ? '+' : '/');
-				}
-				JLOG( "# %u %u %." stringify(TUIDL) "s", (srec->uid[F], srec->uid[N], srec->tuid), "%sing message", str_hl[t] );
 				new_total[t]++;
 				stats();
 				svars->new_pending[t]++;
