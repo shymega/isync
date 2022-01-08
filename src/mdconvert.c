@@ -251,8 +251,9 @@ main( int argc, char **argv )
 		} else if (argv[oint][0] == '-') {
 			fprintf( stderr, "Unrecognized option '%s'. Try " EXE " -h\n", argv[oint] );
 			return 1;
-		} else
+		} else {
 			break;
+		}
 	}
 	if (oint == argc) {
 		fprintf( stderr, "Mailbox specification missing. Try " EXE " -h\n" );

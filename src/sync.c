@@ -95,11 +95,12 @@ parse_flags( const char *buf )
 	uint i, d;
 	uchar flags;
 
-	for (flags = i = d = 0; i < as(Flags); i++)
+	for (flags = i = d = 0; i < as(Flags); i++) {
 		if (buf[d] == Flags[i]) {
 			flags |= (1 << i);
 			d++;
 		}
+	}
 	return flags;
 }
 
@@ -755,9 +756,9 @@ prepare_state( sync_vars_t *svars )
 		nfasprintf( &svars->dname, "%s/." EXE "state", path );
 	} else {
 		csname = clean_strdup( svars->box_name[N] );
-		if (chan->sync_state)
+		if (chan->sync_state) {
 			nfasprintf( &svars->dname, "%s%s", chan->sync_state, csname );
-		else {
+		} else {
 			char c = FieldDelimiter;
 			cmname = clean_strdup( svars->box_name[F] );
 			nfasprintf( &svars->dname, "%s%c%s%c%s_%c%s%c%s", global_conf.sync_state,
@@ -891,19 +892,19 @@ load_state( sync_vars_t *svars )
 				error( "Error: malformed sync state header entry at %s:%d\n", svars->dname, line );
 				goto jbail;
 			}
-			if (!strcmp( buf1, "FarUidValidity" ) || !strcmp( buf1, "MasterUidValidity" ) /* Pre-1.4 legacy */)
+			if (!strcmp( buf1, "FarUidValidity" ) || !strcmp( buf1, "MasterUidValidity" ) /* Pre-1.4 legacy */) {
 				svars->uidval[F] = uid;
-			else if (!strcmp( buf1, "NearUidValidity" ) || !strcmp( buf1, "SlaveUidValidity" ) /* Pre-1.4 legacy */)
+			} else if (!strcmp( buf1, "NearUidValidity" ) || !strcmp( buf1, "SlaveUidValidity" ) /* Pre-1.4 legacy */) {
 				svars->uidval[N] = uid;
-			else if (!strcmp( buf1, "MaxPulledUid" ))
+			} else if (!strcmp( buf1, "MaxPulledUid" )) {
 				svars->maxuid[F] = uid;
-			else if (!strcmp( buf1, "MaxPushedUid" ))
+			} else if (!strcmp( buf1, "MaxPushedUid" )) {
 				svars->maxuid[N] = uid;
-			else if (!strcmp( buf1, "MaxExpiredFarUid" ) || !strcmp( buf1, "MaxExpiredMasterUid" ) /* Pre-1.4 legacy */)
+			} else if (!strcmp( buf1, "MaxExpiredFarUid" ) || !strcmp( buf1, "MaxExpiredMasterUid" ) /* Pre-1.4 legacy */) {
 				svars->maxxfuid = uid;
-			else if (!strcmp( buf1, "MaxExpiredSlaveUid" ))  // Pre-1.3 legacy
+			} else if (!strcmp( buf1, "MaxExpiredSlaveUid" )) {  // Pre-1.3 legacy
 				maxxnuid = uid;
-			else {
+			} else {
 				error( "Error: unrecognized sync state header entry at %s:%d\n", svars->dname, line );
 				goto jbail;
 			}
@@ -1033,15 +1034,15 @@ load_state( sync_vars_t *svars )
 					error( "Error: malformed journal entry at %s:%d\n", svars->jname, line );
 					goto jbail;
 				}
-				if (c == 'N')
+				if (c == 'N') {
 					svars->maxuid[t1] = t2;
-				else if (c == 'F')
+				} else if (c == 'F') {
 					svars->finduid[t1] = t2;
-				else if (c == 'T')
+				} else if (c == 'T') {
 					*uint_array_append( &svars->trashed_msgs[t1] ) = t2;
-				else if (c == '!')
+				} else if (c == '!') {
 					svars->maxxfuid = t1;
-				else if (c == '|') {
+				} else if (c == '|') {
 					svars->uidval[F] = t1;
 					svars->uidval[N] = t2;
 				} else if (c == '+') {
@@ -1409,8 +1410,9 @@ box_opened2( sync_vars_t *svars, int t )
 				if (!chan->stores[t]->trash_only_new)
 					opts[t] |= OPEN_OLD;
 				opts[t] |= OPEN_NEW|OPEN_FLAGS;
-			} else if (chan->stores[1-t]->trash && chan->stores[1-t]->trash_remote_new)
+			} else if (chan->stores[1-t]->trash && chan->stores[1-t]->trash_remote_new) {
 				opts[t] |= OPEN_NEW|OPEN_FLAGS;
+			}
 		}
 	}
 	// While only new messages can cause expiration due to displacement,
@@ -1420,7 +1422,7 @@ box_opened2( sync_vars_t *svars, int t )
 	// OP_RENEW makes sense only for legacy S_SKIPPED entries.
 	if ((chan->ops[N] & (OP_NEW|OP_RENEW|OP_FLAGS)) && chan->max_messages)
 		opts[N] |= OPEN_OLD|OPEN_NEW|OPEN_FLAGS;
-	if (svars->replayed)
+	if (svars->replayed) {
 		for (srec = svars->srecs; srec; srec = srec->next) {
 			if (srec->status & S_DEAD)
 				continue;
@@ -1442,6 +1444,7 @@ box_opened2( sync_vars_t *svars, int t )
 				opts[1-t] |= OPEN_OLD;
 			}
 		}
+	}
 	svars->opts[F] = svars->drv[F]->prepare_load_box( ctx[F], opts[F] );
 	svars->opts[N] = svars->drv[N]->prepare_load_box( ctx[N], opts[N] );
 
@@ -1885,9 +1888,10 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 			} else {
 				nflags = tmsg->flags;
 			}
-			if (!(nflags & F_DELETED) || (srec->status & (S_EXPIRE|S_EXPIRED)))
+			if (!(nflags & F_DELETED) || (srec->status & (S_EXPIRE | S_EXPIRED))) {
 				// The message is not deleted, or it is, but only due to being expired.
 				alive++;
+			}
 		}
 		todel = alive - svars->chan->max_messages;
 		debug( "%d alive messages, %d excess - expiring\n", alive, todel );
@@ -2025,8 +2029,9 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 				svars->drv[t]->set_msg_flags( svars->ctx[t], srec->msg[t], srec->uid[t], aflags, dflags, flags_set, fv );
 				if (check_cancel( svars ))
 					goto out;
-			} else
+			} else {
 				flags_set_p2( svars, srec, t );
+			}
 		}
 	}
 	for (t = 0; t < 2; t++) {
@@ -2080,11 +2085,10 @@ msg_copied( int sts, uint uid, copy_vars_t *vars )
 			srec->flags = vars->msg->flags;
 			JLOG( "* %u %u %u", (srec->uid[F], srec->uid[N], srec->flags), "%sed with flags", str_hl[t] );
 		}
-		if (!uid) {  // Stored to a non-UIDPLUS mailbox
+		if (!uid)  // Stored to a non-UIDPLUS mailbox
 			svars->state[t] |= ST_FIND_NEW;
-		} else {
+		else
 			ASSIGN_UID( srec, t, uid, "%sed message", str_hl[t] );
-		}
 		break;
 	case SYNC_NOGOOD:
 		srec->status = S_DEAD;
@@ -2249,7 +2253,7 @@ msgs_flags_set( sync_vars_t *svars, int t )
 	if ((svars->chan->ops[t] & OP_EXPUNGE) &&
 	    (svars->ctx[t]->conf->trash || (svars->ctx[1-t]->conf->trash && svars->ctx[1-t]->conf->trash_remote_new))) {
 		debug( "trashing on %s\n", str_fn[t] );
-		for (tmsg = svars->msgs[t]; tmsg; tmsg = tmsg->next)
+		for (tmsg = svars->msgs[t]; tmsg; tmsg = tmsg->next) {
 			if ((tmsg->flags & F_DELETED) && !find_uint_array( svars->trashed_msgs[t].array, tmsg->uid ) &&
 			    (t == F || !tmsg->srec || !(tmsg->srec->status & (S_EXPIRE|S_EXPIRED)))) {
 				if (svars->ctx[t]->conf->trash) {
@@ -2264,8 +2268,9 @@ msgs_flags_set( sync_vars_t *svars, int t )
 						svars->drv[t]->trash_msg( svars->ctx[t], tmsg, msg_trashed, tv );
 						if (check_cancel( svars ))
 							goto out;
-					} else
+					} else {
 						debug( "%s: not trashing message %u - not new\n", str_fn[t], tmsg->uid );
+					}
 				} else {
 					if (!tmsg->srec || (tmsg->srec->status & (S_PENDING | S_SKIPPED))) {
 						if (tmsg->size <= svars->ctx[1-t]->conf->max_size) {
@@ -2282,12 +2287,15 @@ msgs_flags_set( sync_vars_t *svars, int t )
 							copy_msg( cv );
 							if (check_cancel( svars ))
 								goto out;
-						} else
+						} else {
 							debug( "%s: not remote trashing message %u - too big\n", str_fn[t], tmsg->uid );
-					} else
+						}
+					} else {
 						debug( "%s: not remote trashing message %u - not new\n", str_fn[t], tmsg->uid );
+					}
 				}
 			}
+		}
 	}
 	svars->state[t] |= ST_SENT_TRASH;
 	sync_close( svars, t );

@@ -151,7 +151,7 @@ maildir_join_path( maildir_store_conf_t *conf, int in_inbox, const char *box )
 		prefix = conf->path;
 	}
 	pl = strlen( prefix );
-	for (bl = 0, n = 0; (c = box[bl]); bl++)
+	for (bl = 0, n = 0; (c = box[bl]); bl++) {
 		if (c == '/') {
 			if (conf->sub_style == SUB_UNSET) {
 				error( "Maildir error: accessing subfolder '%s', but store '%s' does not specify SubFolders style\n",
@@ -164,6 +164,7 @@ maildir_join_path( maildir_store_conf_t *conf, int in_inbox, const char *box )
 			       conf->name, box );
 			return NULL;
 		}
+	}
 	switch (conf->sub_style) {
 	case SUB_VERBATIM:
 		n = 0;
@@ -1046,11 +1047,10 @@ maildir_scan( maildir_store_t *ctx, msg_t_array_alloc_t *msglist )
 		}
 #ifdef USE_DB
 		if (ctx->usedb) {
-			if (maildir_uidval_lock( ctx ) != DRV_OK)
-				;
-			else if ((ret = ctx->db->cursor( ctx->db, NULL, &dbc, 0 )))
+			if (maildir_uidval_lock( ctx ) != DRV_OK) {
+			} else if ((ret = ctx->db->cursor( ctx->db, NULL, &dbc, 0 ))) {
 				ctx->db->err( ctx->db, ret, "Maildir error: db->cursor()" );
-			else {
+			} else {
 				for (;;) {
 					if ((ret = dbc->c_get( dbc, &key, &value, DB_NEXT ))) {
 						if (ret != DB_NOTFOUND)
@@ -1232,8 +1232,9 @@ maildir_init_msg( maildir_store_t *ctx, maildir_message_t *msg, msg_t *entry )
 	if (ctx->opts & OPEN_FLAGS) {
 		msg->status |= M_FLAGS;
 		msg->flags = maildir_parse_flags( ctx->conf->info_prefix, msg->base );
-	} else
+	} else {
 		msg->flags = 0;
+	}
 }
 
 static void
@@ -1821,7 +1822,7 @@ maildir_close_box( store_t *gctx,
 	for (;;) {
 		retry = 0;
 		basel = nfsnprintf( buf, sizeof(buf), "%s/", ctx->path );
-		for (msg = ctx->msgs; msg; msg = msg->next)
+		for (msg = ctx->msgs; msg; msg = msg->next) {
 			if (!(msg->status & M_DEAD) && (msg->flags & F_DELETED)) {
 				nfsnprintf( buf + basel, _POSIX_PATH_MAX - basel, "%s/%s", subdirs[msg->status & M_RECENT], msg->base );
 				if (unlink( buf )) {
@@ -1840,6 +1841,7 @@ maildir_close_box( store_t *gctx,
 #endif /* USE_DB */
 				}
 			}
+		}
 		if (!retry) {
 			cb( DRV_OK, aux );
 			return;
@@ -1888,16 +1890,16 @@ maildir_parse_store( conffile_t *cfg, store_conf_t **storep )
 	store->driver = &maildir_driver;
 	store->name = nfstrdup( cfg->val );
 
-	while (getcline( cfg ) && cfg->cmd)
-		if (!strcasecmp( "Inbox", cfg->cmd ))
+	while (getcline( cfg ) && cfg->cmd) {
+		if (!strcasecmp( "Inbox", cfg->cmd )) {
 			store->inbox = expand_strdup( cfg->val );
-		else if (!strcasecmp( "Path", cfg->cmd ))
+		} else if (!strcasecmp( "Path", cfg->cmd )) {
 			store->path = expand_strdup( cfg->val );
 #ifdef USE_DB
-		else if (!strcasecmp( "AltMap", cfg->cmd ))
+		} else if (!strcasecmp( "AltMap", cfg->cmd )) {
 			store->alt_map = parse_bool( cfg );
 #endif /* USE_DB */
-		else if (!strcasecmp( "InfoDelimiter", cfg->cmd )) {
+		} else if (!strcasecmp( "InfoDelimiter", cfg->cmd )) {
 			if (strlen( cfg->val ) != 1) {
 				error( "%s:%d: Info delimiter must be exactly one character long\n", cfg->file, cfg->line );
 				cfg->err = 1;
@@ -1920,8 +1922,10 @@ maildir_parse_store( conffile_t *cfg, store_conf_t **storep )
 				error( "%s:%d: Unrecognized SubFolders style\n", cfg->file, cfg->line );
 				cfg->err = 1;
 			}
-		} else
+		} else {
 			parse_generic_store( &store->gen, cfg, "MaildirStore" );
+		}
+	}
 	if (!store->inbox)
 		store->inbox = expand_strdup( "~/Maildir" );
 	if (store->sub_style == SUB_MAILDIRPP && store->path) {

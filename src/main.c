@@ -261,8 +261,9 @@ filter_boxes( string_list_t *boxes, const char *prefix, string_list_t *patterns 
 			if (*ps == '!') {
 				ps++;
 				not = 1;
-			} else
+			} else {
 				not = 0;
+			}
 			if (matches( boxes->string + pfxl, ps )) {
 				fnot = not;
 				break;
@@ -448,17 +449,17 @@ main( int argc, char **argv )
 						return 1;
 					}
 					config = argv[oind++];
-				} else if (starts_with( opt, -1, "config=", 7 ))
+				} else if (starts_with( opt, -1, "config=", 7 )) {
 					config = opt + 7;
-				else if (!strcmp( opt, "all" ))
+				} else if (!strcmp( opt, "all" )) {
 					mvars->all = 1;
-				else if (!strcmp( opt, "list" ))
+				} else if (!strcmp( opt, "list" )) {
 					mvars->list = 1;
-				else if (!strcmp( opt, "help" ))
+				} else if (!strcmp( opt, "help" )) {
 					usage( 0 );
-				else if (!strcmp( opt, "version" ))
+				} else if (!strcmp( opt, "version" )) {
 					version();
-				else if (!strcmp( opt, "quiet" )) {
+				} else if (!strcmp( opt, "quiet" )) {
 					if (DFlags & QUIET)
 						DFlags |= VERYQUIET;
 					else
@@ -488,11 +489,11 @@ main( int argc, char **argv )
 					else
 						goto badopt;
 					DFlags |= op;
-				} else if (!strcmp( opt, "pull" ))
+				} else if (!strcmp( opt, "pull" )) {
 					cops |= XOP_PULL, ops[F] |= XOP_HAVE_TYPE;
-				else if (!strcmp( opt, "push" ))
+				} else if (!strcmp( opt, "push" )) {
 					cops |= XOP_PUSH, ops[F] |= XOP_HAVE_TYPE;
-				else if (starts_with( opt, -1, "create", 6 )) {
+				} else if (starts_with( opt, -1, "create", 6 )) {
 					opt += 6;
 					op = OP_CREATE|XOP_HAVE_CREATE;
 				  lcop:
@@ -517,42 +518,43 @@ main( int argc, char **argv )
 					opt += 7;
 					op = OP_EXPUNGE|XOP_HAVE_EXPUNGE;
 					goto lcop;
-				} else if (!strcmp( opt, "no-expunge" ))
+				} else if (!strcmp( opt, "no-expunge" )) {
 					ops[F] |= XOP_HAVE_EXPUNGE;
-				else if (!strcmp( opt, "no-create" ))
+				} else if (!strcmp( opt, "no-create" )) {
 					ops[F] |= XOP_HAVE_CREATE;
-				else if (!strcmp( opt, "no-remove" ))
+				} else if (!strcmp( opt, "no-remove" )) {
 					ops[F] |= XOP_HAVE_REMOVE;
-				else if (!strcmp( opt, "full" ))
+				} else if (!strcmp( opt, "full" )) {
 					ops[F] |= XOP_HAVE_TYPE|XOP_PULL|XOP_PUSH;
-				else if (!strcmp( opt, "noop" ))
+				} else if (!strcmp( opt, "noop" )) {
 					ops[F] |= XOP_HAVE_TYPE;
-				else if (starts_with( opt, -1, "pull", 4 )) {
+				} else if (starts_with( opt, -1, "pull", 4 )) {
 					op = XOP_PULL;
 				  lcac:
 					opt += 4;
-					if (!*opt)
+					if (!*opt) {
 						cops |= op;
-					else if (*opt == '-') {
+					} else if (*opt == '-') {
 						opt++;
 						goto rlcac;
-					} else
+					} else {
 						goto badopt;
+					}
 				} else if (starts_with( opt, -1, "push", 4 )) {
 					op = XOP_PUSH;
 					goto lcac;
 				} else {
 					op = 0;
 				  rlcac:
-					if (!strcmp( opt, "new" ))
+					if (!strcmp( opt, "new" )) {
 						op |= OP_NEW;
-					else if (!strcmp( opt, "renew" ))
+					} else if (!strcmp( opt, "renew" )) {
 						op |= OP_RENEW;
-					else if (!strcmp( opt, "delete" ))
+					} else if (!strcmp( opt, "delete" )) {
 						op |= OP_DELETE;
-					else if (!strcmp( opt, "flags" ))
+					} else if (!strcmp( opt, "flags" )) {
 						op |= OP_FLAGS;
-					else {
+					} else {
 					  badopt:
 						error( "Unknown option '%s'\n", argv[oind - 1] );
 						return 1;
@@ -634,14 +636,15 @@ main( int argc, char **argv )
 				else
 					break;
 			}
-			if (op & OP_MASK_TYPE)
+			if (op & OP_MASK_TYPE) {
 				switch (op & XOP_MASK_DIR) {
 				case XOP_PULL: ops[N] |= op & OP_MASK_TYPE; break;
 				case XOP_PUSH: ops[F] |= op & OP_MASK_TYPE; break;
 				default: cops |= op; break;
 				}
-			else
+			} else {
 				cops |= op;
+			}
 			ops[F] |= XOP_HAVE_TYPE;
 			break;
 		case 'L':
@@ -943,8 +946,9 @@ sync_chans( main_vars_t *mvars, int ent )
 			  syncone:
 				if (!mvars->skip)
 					goto syncml;
-			} else
+			} else {
 				printf( "%s <=> %s\n", nz( mvars->chan->boxes[F], "INBOX" ), nz( mvars->chan->boxes[N], "INBOX" ) );
+			}
 		}
 
 	  next:

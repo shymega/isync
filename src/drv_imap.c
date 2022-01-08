@@ -1628,13 +1628,13 @@ imap_socket_read( void *aux )
 				resp = parse_list( ctx, cmd, parse_namespace_rsp );
 				goto listret;
 			} else if ((arg1 = next_arg( &cmd ))) {
-				if (!strcmp( "EXISTS", arg1 ))
+				if (!strcmp( "EXISTS", arg1 )) {
 					ctx->total_msgs = atoi( arg );
-				else if (!strcmp( "EXPUNGE", arg1 ))
+				} else if (!strcmp( "EXPUNGE", arg1 )) {
 					ctx->total_msgs--;
-				else if (!strcmp( "RECENT", arg1 ))
+				} else if (!strcmp( "RECENT", arg1 )) {
 					ctx->recent_msgs = atoi( arg );
-				else if(!strcmp ( "FETCH", arg1 )) {
+				} else if (!strcmp( "FETCH", arg1 )) {
 					resp = parse_list( ctx, cmd, parse_fetch_rsp );
 					goto listret;
 				}
@@ -1714,8 +1714,9 @@ imap_socket_read( void *aux )
 					resp = RESP_NO;
 					if (cmdp->param.failok)  // SELECT
 						goto doresp;
-				} else /*if (!strcmp( "BAD", arg ))*/
+				} else /*if (!strcmp( "BAD", arg ))*/ {
 					resp = RESP_CANCEL;
+				}
 				error( "IMAP command '%s' returned an error: %s %s\n",
 				       starts_with( cmdp->cmd, -1, "LOGIN", 5 ) ?
 				           "LOGIN <user> <pass>" :
@@ -1824,11 +1825,12 @@ imap_cancel_unowned( void *gctx )
 {
 	imap_store_t *store, **storep;
 
-	for (storep = &unowned; (store = *storep); storep = &store->next)
+	for (storep = &unowned; (store = *storep); storep = &store->next) {
 		if (store == gctx) {
 			*storep = store->next;
 			break;
 		}
+	}
 	imap_cancel_store( gctx );
 }
 
@@ -1917,14 +1919,15 @@ imap_alloc_store( store_conf_t *conf, const char *label )
 	imap_store_t *ctx, **ctxp;
 
 	/* First try to recycle a whole store. */
-	for (ctxp = &unowned; (ctx = *ctxp); ctxp = &ctx->next)
+	for (ctxp = &unowned; (ctx = *ctxp); ctxp = &ctx->next) {
 		if (ctx->state == SST_GOOD && ctx->conf == cfg) {
 			*ctxp = ctx->next;
 			goto gotstore;
 		}
+	}
 
 	/* Then try to recycle a server connection. */
-	for (ctxp = &unowned; (ctx = *ctxp); ctxp = &ctx->next)
+	for (ctxp = &unowned; (ctx = *ctxp); ctxp = &ctx->next) {
 		if (ctx->conf->server == srvc) {
 			*ctxp = ctx->next;
 			free_string_list( ctx->boxes );
@@ -1935,6 +1938,7 @@ imap_alloc_store( store_conf_t *conf, const char *label )
 			ctx->state = SST_HALF;
 			goto gotsrv;
 		}
+	}
 
 	/* Finally, schedule opening a new server connection. */
 	ctx = nfcalloc( sizeof(*ctx) );
@@ -3039,12 +3043,13 @@ imap_make_flags( int flags, char *buf )
 	const char *s;
 	uint i, d;
 
-	for (i = d = 0; i < as(Flags); i++)
+	for (i = d = 0; i < as(Flags); i++) {
 		if (flags & (1 << i)) {
 			buf[d++] = ' ';
 			for (s = Flags[i]; *s; s++)
 				buf[d++] = *s;
 		}
+	}
 	buf[0] = '(';
 	buf[d++] = ')';
 	return d;
@@ -3521,8 +3526,9 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep )
 		memset( &sserver, 0, sizeof(sserver) );
 		server = &sserver;
 		type = "IMAP store";
-	} else
+	} else {
 		return 0;
+	}
 
 	server->sconf.timeout = 20;
 #ifdef HAVE_LIBSSL
@@ -3536,35 +3542,34 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep )
 		if (!strcasecmp( "Host", cfg->cmd )) {
 			/* The imap[s]: syntax is just a backwards compat hack. */
 			arg = cfg->val;
+			if (starts_with( arg, -1, "imap:", 5 ))
+				arg += 5;
 #ifdef HAVE_LIBSSL
-			if (starts_with( arg, -1, "imaps:", 6 )) {
+			else if (starts_with( arg, -1, "imaps:", 6 )) {
 				arg += 6;
 				server->ssl_type = SSL_IMAPS;
 				if (server->sconf.ssl_versions == -1)
 					server->sconf.ssl_versions = TLSv1 | TLSv1_1 | TLSv1_2 | TLSv1_3;
-			} else
+			}
 #endif
-			if (starts_with( arg, -1, "imap:", 5 ))
-				arg += 5;
 			if (starts_with( arg, -1, "//", 2 ))
 				arg += 2;
 			if (arg != cfg->val)
 				warn( "%s:%d: Notice: URL notation is deprecated; use a plain host name and possibly 'SSLType IMAPS' instead\n", cfg->file, cfg->line );
 			server->sconf.host = nfstrdup( arg );
-		}
-		else if (!strcasecmp( "User", cfg->cmd ))
+		} else if (!strcasecmp( "User", cfg->cmd )) {
 			server->user = nfstrdup( cfg->val );
-		else if (!strcasecmp( "UserCmd", cfg->cmd ))
+		} else if (!strcasecmp( "UserCmd", cfg->cmd )) {
 			server->user_cmd = nfstrdup( cfg->val );
-		else if (!strcasecmp( "Pass", cfg->cmd ))
+		} else if (!strcasecmp( "Pass", cfg->cmd )) {
 			server->pass = nfstrdup( cfg->val );
-		else if (!strcasecmp( "PassCmd", cfg->cmd ))
+		} else if (!strcasecmp( "PassCmd", cfg->cmd )) {
 			server->pass_cmd = nfstrdup( cfg->val );
 #ifdef HAVE_MACOS_KEYCHAIN
-		else if (!strcasecmp( "UseKeychain", cfg->cmd ))
+		} else if (!strcasecmp( "UseKeychain", cfg->cmd )) {
 			server->use_keychain = parse_bool( cfg );
 #endif
-		else if (!strcasecmp( "Port", cfg->cmd )) {
+		} else if (!strcasecmp( "Port", cfg->cmd )) {
 			int port = parse_int( cfg );
 			if ((unsigned)port > 0xffff) {
 				error( "%s:%d: Invalid port number\n", cfg->file, cfg->line );
@@ -3572,9 +3577,9 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep )
 			} else {
 				server->sconf.port = (ushort)port;
 			}
-		} else if (!strcasecmp( "Timeout", cfg->cmd ))
+		} else if (!strcasecmp( "Timeout", cfg->cmd )) {
 			server->sconf.timeout = parse_int( cfg );
-		else if (!strcasecmp( "PipelineDepth", cfg->cmd )) {
+		} else if (!strcasecmp( "PipelineDepth", cfg->cmd )) {
 			if ((server->max_in_progress = parse_int( cfg )) < 1) {
 				error( "%s:%d: PipelineDepth must be at least 1\n", cfg->file, cfg->line );
 				cfg->err = 1;
@@ -3593,9 +3598,8 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep )
 				cfg->err = 1;
 			  gotcap: ;
 			} while ((arg = get_arg( cfg, ARG_OPTIONAL, NULL )));
-		}
 #ifdef HAVE_LIBSSL
-		else if (!strcasecmp( "CertificateFile", cfg->cmd )) {
+		} else if (!strcasecmp( "CertificateFile", cfg->cmd )) {
 			server->sconf.cert_file = expand_strdup( cfg->val );
 			if (access( server->sconf.cert_file, R_OK )) {
 				sys_error( "%s:%d: CertificateFile '%s'",
@@ -3653,34 +3657,34 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep )
 					cfg->err = 1;
 				}
 			} while ((arg = get_arg( cfg, ARG_OPTIONAL, NULL )));
-		} else if (!strcasecmp( "RequireSSL", cfg->cmd ))
+		} else if (!strcasecmp( "RequireSSL", cfg->cmd )) {
 			require_ssl = parse_bool( cfg );
-		else if (!strcasecmp( "UseIMAPS", cfg->cmd ))
+		} else if (!strcasecmp( "UseIMAPS", cfg->cmd )) {
 			use_imaps = parse_bool( cfg );
-		else if (!strcasecmp( "UseSSLv2", cfg->cmd ))
+		} else if (!strcasecmp( "UseSSLv2", cfg->cmd )) {
 			warn( "Warning: UseSSLv2 is no longer supported\n" );
-		else if (!strcasecmp( "UseSSLv3", cfg->cmd ))
+		} else if (!strcasecmp( "UseSSLv3", cfg->cmd )) {
 			warn( "Warning: UseSSLv3 is no longer supported\n" );
-		else if (!strcasecmp( "UseTLSv1", cfg->cmd ))
+		} else if (!strcasecmp( "UseTLSv1", cfg->cmd )) {
 			use_tlsv1 = parse_bool( cfg );
-		else if (!strcasecmp( "UseTLSv1.1", cfg->cmd ))
+		} else if (!strcasecmp( "UseTLSv1.1", cfg->cmd )) {
 			use_tlsv11 = parse_bool( cfg );
-		else if (!strcasecmp( "UseTLSv1.2", cfg->cmd ))
+		} else if (!strcasecmp( "UseTLSv1.2", cfg->cmd )) {
 			use_tlsv12 = parse_bool( cfg );
-		else if (!strcasecmp( "UseTLSv1.3", cfg->cmd ))
+		} else if (!strcasecmp( "UseTLSv1.3", cfg->cmd )) {
 			use_tlsv13 = parse_bool( cfg );
 #endif
-		else if (!strcasecmp( "AuthMech", cfg->cmd ) ||
+		} else if (!strcasecmp( "AuthMech", cfg->cmd ) ||
 		         !strcasecmp( "AuthMechs", cfg->cmd )) {
 			arg = cfg->val;
-			do
+			do {
 				add_string_list( &server->auth_mechs, arg );
-			while ((arg = get_arg( cfg, ARG_OPTIONAL, NULL )));
-		} else if (!strcasecmp( "RequireCRAM", cfg->cmd ))
+			} while ((arg = get_arg( cfg, ARG_OPTIONAL, NULL )));
+		} else if (!strcasecmp( "RequireCRAM", cfg->cmd )) {
 			require_cram = parse_bool( cfg );
-		else if (!strcasecmp( "Tunnel", cfg->cmd ))
+		} else if (!strcasecmp( "Tunnel", cfg->cmd )) {
 			server->sconf.tunnel = nfstrdup( cfg->val );
-		else if (store) {
+		} else if (store) {
 			if (!strcasecmp( "Account", cfg->cmd )) {
 				for (srv = servers; srv; srv = srv->next)
 					if (srv->name && !strcmp( srv->name, cfg->val ))
@@ -3690,21 +3694,22 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep )
 				continue;
 			  gotsrv:
 				store->server = srv;
-			} else if (!strcasecmp( "UseNamespace", cfg->cmd ))
+			} else if (!strcasecmp( "UseNamespace", cfg->cmd )) {
 				store->use_namespace = parse_bool( cfg );
-			else if (!strcasecmp( "SubscribedOnly", cfg->cmd ))
+			} else if (!strcasecmp( "SubscribedOnly", cfg->cmd )) {
 				store->use_lsub = parse_bool( cfg );
-			else if (!strcasecmp( "Path", cfg->cmd ))
+			} else if (!strcasecmp( "Path", cfg->cmd )) {
 				store->path = nfstrdup( cfg->val );
-			else if (!strcasecmp( "PathDelimiter", cfg->cmd )) {
+			} else if (!strcasecmp( "PathDelimiter", cfg->cmd )) {
 				if (strlen( cfg->val ) != 1) {
 					error( "%s:%d: Path delimiter must be exactly one character long\n", cfg->file, cfg->line );
 					cfg->err = 1;
 					continue;
 				}
 				store->delimiter = cfg->val[0];
-			} else
+			} else {
 				parse_generic_store( &store->gen, cfg, "IMAPStore" );
+			}
 			continue;
 		} else {
 			error( "%s:%d: keyword '%s' is not recognized in IMAPAccount sections\n",
@@ -3784,12 +3789,13 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep )
 		}
 		if (!server->auth_mechs)
 			add_string_list( &server->auth_mechs, "*" );
-		if (!server->sconf.port)
+		if (!server->sconf.port) {
 			server->sconf.port =
 #ifdef HAVE_LIBSSL
 				server->ssl_type == SSL_IMAPS ? 993 :
 #endif
 				143;
+		}
 	}
 	if (store) {
 		if (!store->server) {
