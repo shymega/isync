@@ -35,7 +35,7 @@ char parse_bool( conffile_t *cfile );
 int parse_int( conffile_t *cfile );
 uint parse_size( conffile_t *cfile );
 int getcline( conffile_t *cfile );
-int merge_ops( int cops, int ops[] );
+int merge_ops( int cops, int ops[], const char *chan_name );
 int load_config( const char *filename );
 
 #endif

@@ -468,7 +468,7 @@ main( int argc, char **argv )
 	}
 #endif
 
-	if (merge_ops( cops, mvars->ops ))
+	if (merge_ops( cops, mvars->ops, NULL ))
 		return 1;
 
 	if (load_config( config ))

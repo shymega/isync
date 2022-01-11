@@ -286,9 +286,23 @@ getcline( conffile_t *cfile )
 	return 0;
 }
 
+static const char *
+channel_str( const char *chan_name )
+{
+	if (!chan_name)
+		return "on the command line";
+
+	if (!*chan_name)
+		return "in global config section";
+
+	static char buf[100];
+	nfsnprintf( buf, sizeof(buf), "in Channel '%s'", chan_name );
+	return buf;
+}
+
 /* XXX - this does not detect None conflicts ... */
 int
-merge_ops( int cops, int ops[] )
+merge_ops( int cops, int ops[], const char *chan_name )
 {
 	int aops, op;
 	uint i;
@@ -298,7 +312,7 @@ merge_ops( int cops, int ops[] )
 		if (aops & OP_MASK_TYPE) {  // PullNew, etc.
 			if (aops & cops & OP_MASK_TYPE) {  // Overlapping New, etc.
 			  cfl:
-				error( "Conflicting Sync args specified.\n" );
+				error( "Conflicting Sync args specified %s.\n", channel_str( chan_name ) );
 				return 1;
 			}
 			// Mix in non-overlapping Push/Pull or New, etc.
@@ -330,7 +344,7 @@ merge_ops( int cops, int ops[] )
 		op = boxOps[i].op;
 		if (ops[F] & (op * (XOP_HAVE_EXPUNGE / OP_EXPUNGE))) {
 			if (aops & cops & op) {
-				error( "Conflicting %s args specified.\n", boxOps[i].name );
+				error( "Conflicting %s args specified %s.\n", boxOps[i].name, channel_str( chan_name ) );
 				return 1;
 			}
 			ops[F] |= cops & op;
@@ -485,7 +499,7 @@ load_config( const char *where )
 			} else if (!channel->stores[N]) {
 				error( "channel '%s' refers to no near side store\n", channel->name );
 				cfile.err = 1;
-			} else if (merge_ops( cops, channel->ops )) {
+			} else if (merge_ops( cops, channel->ops, channel->name )) {
 				cfile.err = 1;
 			} else {
 				if (max_size != UINT_MAX) {
@@ -567,7 +581,7 @@ load_config( const char *where )
 	fclose (cfile.fp);
 	if (cfile.ms_warn)
 		warn( "Notice: Master/Slave are deprecated; use Far/Near instead.\n" );
-	cfile.err |= merge_ops( gcops, global_conf.ops );
+	cfile.err |= merge_ops( gcops, global_conf.ops, "" );
 	if (!global_conf.sync_state) {
 		const char *state_home = getenv( "XDG_STATE_HOME" );
 		if (state_home)
