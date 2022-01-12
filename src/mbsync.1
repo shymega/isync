@@ -61,11 +61,11 @@ Override any \fBRemove\fR options from the config file. See below.
 \fB-X\fR[\fBf\fR][\fBn\fR], \fB--expunge\fR[\fB-far\fR|\fB-near\fR]
 Override any \fBExpunge\fR options from the config file. See below.
 .TP
-{\fB-n\fR|\fB-N\fR|\fB-d\fR|\fB-f\fR|\fB-0\fR|\fB-F\fR},\
- {\fB--new\fR|\fB--renew\fR|\fB--delete\fR|\fB--flags\fR|\fB--noop\fR|\fB--full\fR}
+{\fB-n\fR|\fB-u\fR|\fB-d\fR|\fB-f\fR|\fB-0\fR|\fB-F\fR},\
+ {\fB--new\fR|\fB--upgrade\fR|\fB--delete\fR|\fB--flags\fR|\fB--noop\fR|\fB--full\fR}
 .TP
-\r{\fB-L\fR|\fB-H\fR}[\fBn\fR][\fBN\fR][\fBd\fR][\fBf\fR],\
- {\fB--pull\fR|\fB--push\fR}[\fB-new\fR|\fB-renew\fR|\fB-delete\fR|\fB-flags\fR]
+\r{\fB-L\fR|\fB-H\fR}[\fBn\fR][\fBu\fR][\fBd\fR][\fBf\fR],\
+ {\fB--pull\fR|\fB--push\fR}[\fB-new\fR|\fB-upgrade\fR|\fB-delete\fR|\fB-flags\fR]
 Override any \fBSync\fR options from the config file. See below.
 .TP
 \fB-h\fR, \fB--help\fR
@@ -164,7 +164,7 @@ propagated into this Store.
 This is useful for avoiding downloading messages with large attachments
 unless they are actually needed.
 To upgrade the placeholder to the full message, it must be flagged, and
-the \fBReNew\fR operation executed.
+the \fBUpgrade\fR operation executed.
 Caveats: Setting a size limit on a Store you never read directly (which is
 typically the case for servers) is not recommended, as you may never
 notice that affected messages were not propagated to it.
@@ -574,7 +574,7 @@ case you need to enable this option.
 (Global default: \fBno\fR).
 .
 .TP
-\fBSync\fR {\fBNone\fR|[\fBPull\fR] [\fBPush\fR] [\fBNew\fR] [\fBReNew\fR] [\fBDelete\fR] [\fBFlags\fR]|\fBAll\fR}
+\fBSync\fR {\fBNone\fR|[\fBPull\fR] [\fBPush\fR] [\fBNew\fR] [\fBUpgrade\fR] [\fBDelete\fR] [\fBFlags\fR]|\fBAll\fR}
 Select the synchronization operation(s) to perform:
 .br
 \fBPull\fR - propagate changes from far to near side.
@@ -583,7 +583,7 @@ Select the synchronization operation(s) to perform:
 .br
 \fBNew\fR - propagate newly appeared messages.
 .br
-\fBReNew\fR - upgrade placeholders to full messages. Useful only with
+\fBUpgrade\fR - upgrade placeholders to full messages. Useful only with
 a configured \fBMaxSize\fR.
 .br
 \fBDelete\fR - propagate message deletions. This applies only to messages that
@@ -601,7 +601,7 @@ This is the global default.
 \fBNone\fR (\fB--noop\fR on the command line) - don't propagate anything.
 Useful if you want to expunge only.
 .IP
-\fBPull\fR and \fBPush\fR are direction flags, while \fBNew\fR, \fBReNew\fR,
+\fBPull\fR and \fBPush\fR are direction flags, while \fBNew\fR, \fBUpgrade\fR,
 \fBDelete\fR and \fBFlags\fR are type flags. The two flag classes make up a
 two-dimensional matrix (a table). Its cells are the individual actions to
 perform. There are two styles of asserting the cells:

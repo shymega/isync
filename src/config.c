@@ -191,24 +191,33 @@ getopt_helper( conffile_t *cfile, int *cops, channel_conf_t *conf )
 				*cops |= XOP_PUSH;
 			} else if (!strcasecmp( "Pull", arg )) {
 				*cops |= XOP_PULL;
+			} else if (!strcasecmp( "Upgrade", arg )) {
+				*cops |= OP_UPGRADE;
 			} else if (!strcasecmp( "ReNew", arg )) {
-				*cops |= OP_RENEW;
+				cfile->renew_warn = 1;
+				*cops |= OP_UPGRADE;
 			} else if (!strcasecmp( "New", arg )) {
 				*cops |= OP_NEW;
 			} else if (!strcasecmp( "Delete", arg )) {
 				*cops |= OP_DELETE;
 			} else if (!strcasecmp( "Flags", arg )) {
 				*cops |= OP_FLAGS;
+			} else if (!strcasecmp( "PullUpgrade", arg )) {
+				conf->ops[N] |= OP_UPGRADE;
 			} else if (!strcasecmp( "PullReNew", arg )) {
-				conf->ops[N] |= OP_RENEW;
+				cfile->renew_warn = 1;
+				conf->ops[N] |= OP_UPGRADE;
 			} else if (!strcasecmp( "PullNew", arg )) {
 				conf->ops[N] |= OP_NEW;
 			} else if (!strcasecmp( "PullDelete", arg )) {
 				conf->ops[N] |= OP_DELETE;
 			} else if (!strcasecmp( "PullFlags", arg )) {
 				conf->ops[N] |= OP_FLAGS;
+			} else if (!strcasecmp( "PushUpgrade", arg )) {
+				conf->ops[F] |= OP_UPGRADE;
 			} else if (!strcasecmp( "PushReNew", arg )) {
-				conf->ops[F] |= OP_RENEW;
+				cfile->renew_warn = 1;
+				conf->ops[F] |= OP_UPGRADE;
 			} else if (!strcasecmp( "PushNew", arg )) {
 				conf->ops[F] |= OP_NEW;
 			} else if (!strcasecmp( "PushDelete", arg )) {
@@ -446,6 +455,7 @@ load_config( const char *where )
 	cfile.line = 0;
 	cfile.err = 0;
 	cfile.ms_warn = 0;
+	cfile.renew_warn = 0;
 	cfile.rest = NULL;
 
 	gcops = 0;
@@ -617,6 +627,8 @@ load_config( const char *where )
 	fclose (cfile.fp);
 	if (cfile.ms_warn)
 		warn( "Notice: Master/Slave are deprecated; use Far/Near instead.\n" );
+	if (cfile.renew_warn)
+		warn( "Notice: ReNew is deprecated; use Upgrade instead.\n" );
 	cfile.err |= merge_ops( gcops, global_conf.ops, "" );
 	if (!global_conf.sync_state) {
 		const char *state_home = getenv( "XDG_STATE_HOME" );

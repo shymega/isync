@@ -208,7 +208,7 @@ copy_msg_convert( int in_cr, int out_cr, copy_vars_t *vars, int t )
 	static const char dummy_subj[] = "Subject: [placeholder] (No Subject)";
 	static const char dummy_msg[] =
 		"Having a size of %s, this message is over the MaxSize limit.%s"
-		"Flag it and sync again (Sync mode ReNew) to fetch its real contents.%s";
+		"Flag it and sync again (Sync mode Upgrade) to fetch its real contents.%s";
 	static const char dummy_flag[] =
 		"%s"
 		"The original message is flagged as important.%s";
@@ -711,7 +711,7 @@ box_opened2( sync_vars_t *svars, int t )
 	int any_upgrades[2] = { 0, 0 };
 	int any_new[2] = { 0, 0 };
 	int any_tuids[2] = { 0, 0 };
-	if (svars->replayed || ((chan->ops[F] | chan->ops[N]) & OP_RENEW)) {
+	if (svars->replayed || ((chan->ops[F] | chan->ops[N]) & OP_UPGRADE)) {
 		for (srec = svars->srecs; srec; srec = srec->next) {
 			if (srec->status & S_DEAD)
 				continue;
@@ -758,11 +758,11 @@ box_opened2( sync_vars_t *svars, int t )
 			if (chan->ops[t] & OP_FLAGS)
 				opts[t^1] |= OPEN_FLAGS;
 		}
-		if (!any_dummies[t] && (chan->ops[t] & OP_RENEW)) {
-			chan->ops[t] &= ~OP_RENEW;
-			debug( "no %s dummies; masking ReNew\n", str_fn[t] );
+		if (!any_dummies[t] && (chan->ops[t] & OP_UPGRADE)) {
+			chan->ops[t] &= ~OP_UPGRADE;
+			debug( "no %s dummies; masking Upgrade\n", str_fn[t] );
 		}
-		if ((chan->ops[t] & (OP_NEW | OP_RENEW)) || any_new[t] || any_upgrades[t]) {
+		if ((chan->ops[t] & (OP_NEW | OP_UPGRADE)) || any_new[t] || any_upgrades[t]) {
 			opts[t] |= OPEN_APPEND;
 			if ((chan->ops[t] & OP_NEW) || any_new[t]) {
 				debug( "resuming %s of %d new message(s)\n", str_hl[t], any_new[t] );
@@ -770,9 +770,9 @@ box_opened2( sync_vars_t *svars, int t )
 				if (chan->stores[t]->max_size != UINT_MAX)
 					opts[t^1] |= OPEN_NEW_SIZE;
 			}
-			if ((chan->ops[t] & OP_RENEW) || any_upgrades[t]) {
+			if ((chan->ops[t] & OP_UPGRADE) || any_upgrades[t]) {
 				debug( "resuming %s of %d upgrade(s)\n", str_hl[t], any_upgrades[t] );
-				if (chan->ops[t] & OP_RENEW)
+				if (chan->ops[t] & OP_UPGRADE)
 					opts[t] |= OPEN_OLD | OPEN_FLAGS | OPEN_SETFLAGS;
 				opts[t^1] |= OPEN_OLD;
 			}
@@ -794,14 +794,14 @@ box_opened2( sync_vars_t *svars, int t )
 	// updating flags can cause expiration of already overdue messages.
 	// The latter would also apply when the expired box is the source,
 	// but it's more natural to treat it as read-only in that case.
-	// OP_RENEW makes sense only for legacy S_SKIPPED entries.
-	if ((chan->ops[N] & (OP_NEW|OP_RENEW|OP_FLAGS)) && chan->max_messages)
+	// OP_UPGRADE makes sense only for legacy S_SKIPPED entries.
+	if ((chan->ops[N] & (OP_NEW | OP_UPGRADE | OP_FLAGS)) && chan->max_messages)
 		svars->any_expiring = 1;
 	if (svars->any_expiring) {
 		opts[N] |= OPEN_OLD | OPEN_FLAGS;
 		if (any_dummies[N])
 			opts[F] |= OPEN_OLD | OPEN_FLAGS;
-		else if (chan->ops[N] & (OP_NEW | OP_RENEW))
+		else if (chan->ops[N] & (OP_NEW | OP_UPGRADE))
 			opts[F] |= OPEN_FLAGS;
 	}
 	svars->opts[F] = svars->drv[F]->prepare_load_box( ctx[F], opts[F] );
@@ -1053,7 +1053,7 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 				// Flagging the message on the target side causes an upgrade of the dummy.
 				// We do this first in a separate loop, so flag propagation sees the upgraded
 				// state for both sides. After a journal replay, that would be the case anyway.
-				if ((svars->chan->ops[t] & OP_RENEW) && (srec->status & S_DUMMY(t)) && srec->uid[t^1] && srec->msg[t]) {
+				if ((svars->chan->ops[t] & OP_UPGRADE) && (srec->status & S_DUMMY(t)) && srec->uid[t^1] && srec->msg[t]) {
 					sflags = srec->msg[t]->flags;
 					if (sflags & F_FLAGGED) {
 						sflags &= ~(F_SEEN | F_FLAGGED) | (srec->flags & F_SEEN);  // As below.
@@ -1183,7 +1183,7 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 
 				if (srec->status & S_SKIPPED) {
 					// Pre-1.4 legacy only: The message was skipped due to being too big.
-					if (!(svars->chan->ops[t] & OP_RENEW))
+					if (!(svars->chan->ops[t] & OP_UPGRADE))
 						continue;
 					// The message size was not queried, so this won't be dummified below.
 					srec->status = S_PENDING | S_DUMMY(t);

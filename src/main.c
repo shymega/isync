@@ -37,7 +37,7 @@ PACKAGE " " VERSION " - mailbox synchronizer\n"
 "  -n, --new		propagate new messages\n"
 "  -d, --delete		propagate message deletions\n"
 "  -f, --flags		propagate message flag changes\n"
-"  -N, --renew		propagate previously not propagated new messages\n"
+"  -u, --upgrade		upgrade placeholders to full messages\n"
 "  -L, --pull		propagate from far to near side\n"
 "  -H, --push		propagate from near to far side\n"
 "  -C, --create		propagate creations of mailboxes\n"
@@ -50,8 +50,8 @@ PACKAGE " " VERSION " - mailbox synchronizer\n"
 "  -v, --version		display version\n"
 "  -h, --help		display this help message\n"
 "\nIf neither --pull nor --push are specified, both are active.\n"
-"If neither --new, --delete, --flags nor --renew are specified, all are active.\n"
-"Direction and operation can be concatenated like --pull-new, etc.\n"
+"If neither --new, --delete, --flags, nor --upgrade are specified, all are\n"
+"active. Direction and operation can be concatenated like --pull-new, etc.\n"
 "--create, --remove, and --expunge can be suffixed with -far/-near.\n"
 "See the man page for details.\n"
 "\nSupported mailbox formats are: IMAP4rev1, Maildir\n"
@@ -144,7 +144,7 @@ main( int argc, char **argv )
 {
 	core_vars_t mvars[1];
 	char *config = NULL, *opt, *ochar;
-	int oind, cops = 0, op, ms_warn = 0;
+	int oind, cops = 0, op, ms_warn = 0, renew_warn = 0;
 
 	tzset();
 	gethostname( Hostname, sizeof(Hostname) );
@@ -274,8 +274,11 @@ main( int argc, char **argv )
 				  rlcac:
 					if (!strcmp( opt, "new" )) {
 						op |= OP_NEW;
+					} else if (!strcmp( opt, "upgrade" )) {
+						op |= OP_UPGRADE;
 					} else if (!strcmp( opt, "renew" )) {
-						op |= OP_RENEW;
+						renew_warn = 1;
+						op |= OP_UPGRADE;
 					} else if (!strcmp( opt, "delete" )) {
 						op |= OP_DELETE;
 					} else if (!strcmp( opt, "flags" )) {
@@ -351,6 +354,7 @@ main( int argc, char **argv )
 		case 'd':
 		case 'f':
 		case 'N':
+		case 'u':
 			--ochar;
 			op = 0;
 		  cac:
@@ -361,8 +365,10 @@ main( int argc, char **argv )
 					op |= OP_DELETE;
 				else if (*ochar == 'f')
 					op |= OP_FLAGS;
+				else if (*ochar == 'u')
+					op |= OP_UPGRADE;
 				else if (*ochar == 'N')
-					op |= OP_RENEW;
+					op |= OP_UPGRADE, renew_warn = 1;
 				else
 					break;
 			}
@@ -467,6 +473,8 @@ main( int argc, char **argv )
 	}
 	if (ms_warn)
 		warn( "Notice: -master/-slave/m/s suffixes are deprecated; use -far/-near/f/n instead.\n" );
+	if (renew_warn)
+		warn( "Notice: --renew/-N are deprecated; use --upgrade/-u instead.\n" );
 
 	if (DFlags & DEBUG_ANY) {
 		Verbosity = VERBOSE;
