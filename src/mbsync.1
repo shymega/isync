@@ -574,7 +574,7 @@ case you need to enable this option.
 (Global default: \fBno\fR).
 .
 .TP
-\fBSync\fR {\fBNone\fR|[\fBPull\fR] [\fBPush\fR] [\fBNew\fR] [\fBUpgrade\fR] [\fBGone\fR] [\fBFlags\fR]|\fBAll\fR}
+\fBSync\fR {\fBNone\fR|[\fBPull\fR] [\fBPush\fR] [\fBNew\fR] [\fBUpgrade\fR] [\fBGone\fR] [\fBFlags\fR] [\fBFull\fR]}
 Select the synchronization operation(s) to perform:
 .br
 \fBPull\fR - propagate changes from far to near side.
@@ -595,7 +595,7 @@ that Store is expunged.
 well; this is particularly interesting if you use \fBmutt\fR with the
 maildir_trash option.
 .br
-\fBAll\fR (\fB--full\fR on the command line) - all of the above.
+\fBFull\fR - alias for "\fBNew\fR\ \fBUpgrade\fR\ \fBGone\fR\ \fBFlags\fR".
 This is the global default.
 .br
 \fBNone\fR (\fB--noop\fR on the command line) - don't propagate anything.
@@ -608,7 +608,8 @@ perform. There are two styles of asserting the cells:
 .br
 In the first style, the flags select entire rows/colums in the matrix. Only
 the cells which are selected both horizontally and vertically are asserted.
-Specifying no flags from a class is like specifying all flags from this class.
+Specifying no direction is like specifying both directions, and specifying
+no type is like specifying \fBFull\fR.
 For example, "\fBSync\fR\ \fBPull\fR\ \fBNew\fR\ \fBFlags\fR" will propagate
 new messages and flag changes from the far side to the near side,
 "\fBSync\fR\ \fBNew\fR\ \fBGone\fR" will propagate message arrivals and

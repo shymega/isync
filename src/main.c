@@ -250,8 +250,6 @@ main( int argc, char **argv )
 					mvars->ops[F] |= XOP_CREATE_NOOP | XOP_HAVE_CREATE;
 				} else if (!strcmp( opt, "no-remove" )) {
 					mvars->ops[F] |= XOP_REMOVE_NOOP | XOP_HAVE_REMOVE;
-				} else if (!strcmp( opt, "full" )) {
-					mvars->ops[F] |= XOP_HAVE_TYPE | XOP_PULL | XOP_PUSH;
 				} else if (!strcmp( opt, "noop" )) {
 					mvars->ops[F] |= XOP_TYPE_NOOP | XOP_HAVE_TYPE;
 				} else if (starts_with( opt, -1, "pull", 4 )) {
@@ -286,6 +284,8 @@ main( int argc, char **argv )
 						op |= OP_GONE;
 					} else if (!strcmp( opt, "flags" )) {
 						op |= OP_FLAGS;
+					} else if (!strcmp( opt, "full" )) {
+						op |= OP_MASK_TYPE;
 					} else {
 					  badopt:
 						error( "Unknown option '%s'\n", argv[oind - 1] );

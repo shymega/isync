@@ -205,6 +205,8 @@ getopt_helper( conffile_t *cfile, int *cops, channel_conf_t *conf )
 				*cops |= OP_GONE;
 			} else if (!strcasecmp( "Flags", arg )) {
 				*cops |= OP_FLAGS;
+			} else if (!strcasecmp( "All", arg ) || !strcasecmp( "Full", arg )) {
+				*cops |= OP_MASK_TYPE;
 			} else if (!strcasecmp( "PullUpgrade", arg )) {
 				conf->ops[N] |= OP_UPGRADE;
 			} else if (!strcasecmp( "PullReNew", arg )) {
@@ -219,6 +221,8 @@ getopt_helper( conffile_t *cfile, int *cops, channel_conf_t *conf )
 				conf->ops[N] |= OP_GONE;
 			} else if (!strcasecmp( "PullFlags", arg )) {
 				conf->ops[N] |= OP_FLAGS;
+			} else if (!strcasecmp( "PullFull", arg )) {
+				conf->ops[N] |= OP_MASK_TYPE;
 			} else if (!strcasecmp( "PushUpgrade", arg )) {
 				conf->ops[F] |= OP_UPGRADE;
 			} else if (!strcasecmp( "PushReNew", arg )) {
@@ -233,8 +237,8 @@ getopt_helper( conffile_t *cfile, int *cops, channel_conf_t *conf )
 				conf->ops[F] |= OP_GONE;
 			} else if (!strcasecmp( "PushFlags", arg )) {
 				conf->ops[F] |= OP_FLAGS;
-			} else if (!strcasecmp( "All", arg ) || !strcasecmp( "Full", arg )) {
-				*cops |= XOP_PULL|XOP_PUSH;
+			} else if (!strcasecmp( "PushFull", arg )) {
+				conf->ops[F] |= OP_MASK_TYPE;
 			} else if (!strcasecmp( "None", arg ) || !strcasecmp( "Noop", arg )) {
 				conf->ops[F] |= XOP_TYPE_NOOP;
 			} else {
