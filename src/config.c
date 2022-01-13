@@ -324,18 +324,30 @@ merge_ops( int cops, int ops[], const char *chan_name )
 				return 1;
 			}
 			// Mix in non-overlapping Push/Pull or New, etc.
-			// Do the ops first, so e.g. PullNew Push Flags will error out.
-			ops[F] |= cops & OP_MASK_TYPE;
-			ops[N] |= cops & OP_MASK_TYPE;
 			if (cops & XOP_PULL) {
+				if (cops & (XOP_PUSH | OP_MASK_TYPE)) {
+					// Mixing instant effect flags with row/column flags would be confusing,
+					// so instead everything is instant effect. This implies that mixing
+					// direction with type would cause overlaps, so PullNew Push Delete, etc.
+					// is invalid.
+					// Pull Push covers everything, so makes no sense to combine.
+				  ivl:
+					error( "Invalid combination of simple and compound Sync options %s.\n",
+					       channel_str( chan_name ) );
+					return 1;
+				}
 				if (ops[N] & OP_MASK_TYPE)
 					goto ovl;
 				ops[N] |= OP_MASK_TYPE;
-			}
-			if (cops & XOP_PUSH) {
+			} else if (cops & XOP_PUSH) {
+				if (cops & OP_MASK_TYPE)
+					goto ivl;
 				if (ops[F] & OP_MASK_TYPE)
 					goto ovl;
 				ops[F] |= OP_MASK_TYPE;
+			} else {
+				ops[F] |= cops & OP_MASK_TYPE;
+				ops[N] |= cops & OP_MASK_TYPE;
 			}
 		} else if (cops & (OP_MASK_TYPE | XOP_MASK_DIR)) {  // Pull New, etc.
 			if (ops[F] & XOP_TYPE_NOOP)
