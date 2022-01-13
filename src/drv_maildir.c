@@ -113,7 +113,7 @@ debug( const char *msg, ... )
 	va_list va;
 
 	va_start( va, msg );
-	vdebug( DEBUG_SYNC, msg, va );
+	vdebug( DEBUG_MAILDIR, msg, va );
 	va_end( va );
 }
 
