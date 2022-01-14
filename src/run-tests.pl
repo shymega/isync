@@ -559,7 +559,10 @@ sub ckstate($$)
 	$hdr{'MaxPulledUid'} = $$t[0];
 	$hdr{'MaxPushedUid'} = $$t[2];
 	$hdr{'MaxExpiredFarUid'} = $$t[1] if ($$t[1] ne 0);
-	open(FILE, "<", $fn) or die "Cannot read sync state $fn.\n";
+	if (!open(FILE, "<", $fn)) {
+		print STDERR "Cannot read sync state $fn.\n";
+		return 1;
+	}
 	chomp(my @ls = <FILE>);
 	close FILE;
 	OUTER: while (1) {
