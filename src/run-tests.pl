@@ -298,6 +298,47 @@ test("max messages + expunge", \@x50, \@X51, \@O51);
 print "OK.\n";
 exit 0;
 
+sub parse_box($)
+{
+	my ($rbs) = @_;
+
+	my $mu = $$rbs[0];
+	my %ms;
+	for (my $i = 1; $i < @$rbs; $i += 3) {
+		$ms{$$rbs[$i + 1]} = [ $$rbs[$i], $$rbs[$i + 2] ];
+	}
+	return {
+		max_uid => $mu,
+		messages => \%ms  #  { uid => [ subject, flags ], ... }
+	};
+}
+
+sub parse_state($)
+{
+	my ($rss) = @_;
+
+	my @ents;
+	for (my $i = 3; $i < @$rss; $i += 3) {
+		push @ents, [ @{$rss}[$i .. $i+2] ];
+	}
+	return {
+		max_pulled => $$rss[0],
+		max_expired => $$rss[1],
+		max_pushed => $$rss[2],
+		entries => \@ents  # [ [ far_uid, near_uid, flags ], ... ]
+	};
+}
+
+sub parse_chan($)
+{
+	my ($cs) = @_;
+
+	return {
+		far => parse_box($$cs[0]),
+		near => parse_box($$cs[1]),
+		state => parse_state($$cs[2])
+	};
+}
 
 sub qm($)
 {
@@ -383,7 +424,6 @@ sub readfile($;$)
 }
 
 # $path
-# Return: $max_uid, { uid => [ seq, flags ] }
 sub readbox($)
 {
 	my $bn = shift;
@@ -420,11 +460,10 @@ sub readbox($)
 			@{ $ms{$uid} } = ($num, $flg.($sz>1000?"*":"").($ph?"?":""));
 		}
 	}
-	return $mu, \%ms;
+	return { max_uid => $mu, messages => \%ms };
 }
 
 # $filename
-# Return: [ $max_pulled, $max_expired_far, $max_pushed, (far_uid, near_uid, flags), ... ]
 sub readstate($)
 {
 	my ($fn) = @_;
@@ -434,14 +473,20 @@ sub readstate($)
 		print STDERR "Cannot read sync state $fn: $!\n";
 		return;
 	}
+	my @ents;
+	my %ss = (
+		max_pulled => 0,
+		max_expired => 0,
+		max_pushed => 0,
+		entries => \@ents
+	);
 	my ($far_val, $near_val) = (0, 0);
-	my ($max_pull, $max_push, $max_exp) = (0, 0, 0);
 	my %hdr = (
 		'FarUidValidity' => \$far_val,
 		'NearUidValidity' => \$near_val,
-		'MaxPulledUid' => \$max_pull,
-		'MaxPushedUid' => \$max_push,
-		'MaxExpiredFarUid' => \$max_exp
+		'MaxPulledUid' => \$ss{max_pulled},
+		'MaxPushedUid' => \$ss{max_pushed},
+		'MaxExpiredFarUid' => \$ss{max_expired}
 	);
 	OUTER: while (1) {
 		while (@$ls) {
@@ -471,15 +516,14 @@ sub readstate($)
 		print STDERR "Unexpected UID validity $far_val $near_val (instead of 1 1)\n";
 		return;
 	}
-	my @T = ($max_pull, $max_exp, $max_push);
 	for (@$ls) {
 		if (!/^(\d+) (\d+) (.*)$/) {
 			print STDERR "Malformed sync state entry: $_\n";
 			return;
 		}
-		push @T, $1, $2, $3;
+		push @ents, [ $1, $2, $3 ];
 	}
-	return \@T;
+	return \%ss;
 }
 
 # $boxname
@@ -490,12 +534,7 @@ sub showbox($)
 {
 	my ($bn) = @_;
 
-	my ($mu, $ms) = readbox($bn);
-	my @bc = ($mu);
-	for my $uid (sort { $a <=> $b } keys %$ms) {
-		push @bc, $$ms{$uid}[0], $uid, $$ms{$uid}[1];
-	}
-	printbox(\@bc);
+	printbox(readbox($bn));
 }
 
 # $filename
@@ -542,7 +581,7 @@ sub show($$$)
 	rmtree "far";
 }
 
-# $box_name, \@box_state
+# $box_name, \%box_state
 sub mkbox($$)
 {
 	my ($bn, $bs) = @_;
@@ -551,10 +590,11 @@ sub mkbox($$)
 	(mkdir($bn) and mkdir($bn."/tmp") and mkdir($bn."/new") and mkdir($bn."/cur")) or
 		die "Cannot create mailbox $bn.\n";
 	open(FILE, ">", $bn."/.uidvalidity") or die "Cannot create UID validity for mailbox $bn.\n";
-	print FILE "1\n$$bs[0]\n";
+	print FILE "1\n$$bs{max_uid}\n";
 	close FILE;
-	for (my $i = 1; $i < @$bs; $i += 3) {
-		my ($num, $uid, $flg) = ($$bs[$i], $$bs[$i + 1], $$bs[$i + 2]);
+	my $ms = $$bs{messages};
+	for my $uid (keys %$ms) {
+		my ($num, $flg) = @{$$ms{$uid}};
 		my $big = $flg =~ s/\*//;
 		my $ph = $flg =~ s/\?//;
 		open(FILE, ">", $bn."/".($flg =~ /S/ ? "cur" : "new")."/0.1_".$num.".local,U=".$uid.":2,".$flg) or
@@ -564,44 +604,46 @@ sub mkbox($$)
 	}
 }
 
-# \@state
+# \%sync_state
 sub mkstate($)
 {
-	my ($t) = @_;
+	my ($ss) = @_;
 
 	open(FILE, ">", "near/.mbsyncstate") or
 		die "Cannot create sync state.\n";
-	print FILE "FarUidValidity 1\nMaxPulledUid ".$$t[0]."\n".
-	           "NearUidValidity 1\nMaxExpiredFarUid ".$$t[1]."\nMaxPushedUid ".$$t[2]."\n\n";
-	for (my $i = 3; $i < @$t; $i += 3) {
-		print FILE $$t[$i]." ".$$t[$i + 1]." ".$$t[$i + 2]."\n";
+	print FILE "FarUidValidity 1\nMaxPulledUid ".$$ss{max_pulled}."\n".
+	           "NearUidValidity 1\nMaxExpiredFarUid ".$$ss{max_expired}.
+	           "\nMaxPushedUid ".$$ss{max_pushed}."\n\n";
+	for my $ent (@{$$ss{entries}}) {
+		print FILE $$ent[0]." ".$$ent[1]." ".$$ent[2]."\n";
 	}
 	close FILE;
 }
 
-# \@chan_state
+# \%chan_state
 sub mkchan($)
 {
 	my ($cs) = @_;
 
-	my ($f, $n, $t) = @$cs;
-	mkbox("far", $f);
-	mkbox("near", $n);
-	mkstate($t);
+	mkbox("far", $$cs{far});
+	mkbox("near", $$cs{near});
+	mkstate($$cs{state});
 }
 
-# $box_name, \@box_state
+# $box_name, \%reference_box_state
 sub ckbox($$)
 {
-	my ($bn, $bs) = @_;
+	my ($bn, $ref_bs) = @_;
 
-	my ($mu, $ms) = readbox($bn);
-	if ($mu != $$bs[0]) {
-		print STDERR "MAXUID mismatch for '$bn' (got $mu, wanted $$bs[0]).\n";
+	my ($ref_mu, $ref_ms) = ($$ref_bs{max_uid}, $$ref_bs{messages});
+	my $bs = readbox($bn);
+	my ($mu, $ms) = ($$bs{max_uid}, $$bs{messages});
+	if ($mu != $ref_mu) {
+		print STDERR "MAXUID mismatch for '$bn' (got $mu, wanted $ref_mu).\n";
 		return 1;
 	}
-	for (my $i = 1; $i < @$bs; $i += 3) {
-		my ($num, $uid, $flg) = ($$bs[$i], $$bs[$i + 1], $$bs[$i + 2]);
+	for my $uid (sort { $a <=> $b } keys %$ref_ms) {
+		my ($num, $flg) = @{$$ref_ms{$uid}};
 		my $m = delete $$ms{$uid};
 		if (!defined $m) {
 			print STDERR "No message $bn:$uid.\n";
@@ -623,99 +665,108 @@ sub ckbox($$)
 	return 0;
 }
 
-# $state_file, \@sync_state
+# $state_file, \%sync_state
 sub ckstate($$)
 {
-	my ($fn, $t) = @_;
+	my ($fn, $ref_ss) = @_;
 
 	my $ss = readstate($fn);
 	return 1 if (!$ss);
-	my @hn = ('MaxPulledUid', 'MaxExpiredFarUid', 'MaxPushedUid');
-	for my $h (0 .. 2) {
-		my ($got, $want) = ($$ss[$h], $$t[$h]);
+	for my $h (['MaxPulledUid', 'max_pulled'],
+	           ['MaxExpiredFarUid', 'max_expired'],
+	           ['MaxPushedUid', 'max_pushed']) {
+		my ($hn, $sn) = @$h;
+		my ($got, $want) = ($$ss{$sn}, $$ref_ss{$sn});
 		if ($got ne $want) {
-			print STDERR "Sync state header entry $hn[$h] mismatch: got $got, wanted $want\n";
+			print STDERR "Sync state header entry $hn mismatch: got $got, wanted $want\n";
 			return 1;
 		}
 	}
-	my $i = 3;
-	while ($i < @$ss) {
-		my $l = $$ss[$i]." ".$$ss[$i + 1]." ".$$ss[$i + 2];
-		if ($i == @$t) {
+	my $ref_ents = $$ref_ss{entries};
+	my $ents = $$ss{entries};
+	my $i = 0;
+	while ($i < @$ents) {
+		my $ent = $$ents[$i];
+		my $l = $$ent[0]." ".$$ent[1]." ".$$ent[2];
+		if ($i == @$ref_ents) {
 			print STDERR "Excess sync state entry: '$l'.\n";
 			return 1;
 		}
-		my $xl = $$t[$i]." ".$$t[$i + 1]." ".$$t[$i + 2];
+		my $rent = $$ref_ents[$i];
+		my $xl = $$rent[0]." ".$$rent[1]." ".$$rent[2];
 		if ($l ne $xl) {
 			print STDERR "Sync state entry mismatch: '$l' instead of '$xl'.\n";
 			return 1;
 		}
-		$i += 3;
+		$i += 1;
 	}
-	if ($i < @$t) {
-		print STDERR "Missing sync state entry: '".$$t[$i]." ".$$t[$i + 1]." ".$$t[$i + 2]."'.\n";
+	if ($i < @$ref_ents) {
+		my $rent = $$ref_ents[$i];
+		print STDERR "Missing sync state entry: '".$$rent[0]." ".$$rent[1]." ".$$rent[2]."'.\n";
 		return 1;
 	}
 	return 0;
 }
 
-# $state_file, \@chan_state
+# $state_file, \%chan_state
 sub ckchan($$)
 {
 	my ($fn, $cs) = @_;
-	my $rslt = ckstate($fn, $$cs[2]);
-	$rslt |= ckbox("far", $$cs[0]);
-	$rslt |= ckbox("near", $$cs[1]);
+	my $rslt = ckstate($fn, $$cs{state});
+	$rslt |= ckbox("far", $$cs{far});
+	$rslt |= ckbox("near", $$cs{near});
 	return $rslt;
 }
 
-# \@box_state
+# \%box_state
 sub printbox($)
 {
 	my ($bs) = @_;
 
-	print " [ $$bs[0],\n   ";
+	my ($mu, $ms) = ($$bs{max_uid}, $$bs{messages});
+	print " [ $mu,\n   ";
 	my $frst = 1;
-	for (my $i = 1; $i < @$bs; $i += 3) {
+	for my $uid (sort { $a <=> $b } keys %$ms) {
+		my ($num, $flg) = @{$$ms{$uid}};
 		if ($frst) {
 			$frst = 0;
 		} else {
 			print ", ";
 		}
-		print mn($$bs[$i]).", ".$$bs[$i + 1].", \"".$$bs[$i + 2]."\"";
+		print mn($num).", ".$uid.", \"".$flg."\"";
 	}
 	print " ],\n";
 }
 
-# \@sync_state
+# \%sync_state
 sub printstate($)
 {
-	my ($t) = @_;
+	my ($ss) = @_;
 
-	print " [ ".$$t[0].", ".$$t[1].", ".$$t[2].",\n   ";
+	print " [ ".$$ss{max_pulled}.", ".$$ss{max_expired}.", ".$$ss{max_pushed}.",\n   ";
 	my $frst = 1;
-	for (my $i = 3; $i < @$t; $i += 3) {
+	for my $ent (@{$$ss{entries}}) {
 		if ($frst) {
 			$frst = 0;
 		} else {
 			print ", ";
 		}
-		print(($$t[$i] // "??").", ".($$t[$i + 1] // "??").", \"".($$t[$i + 2] // "??")."\"");
+		print(($$ent[0] // "??").", ".($$ent[1] // "??").", \"".($$ent[2] // "??")."\"");
 	}
 	print " ],\n";
 }
 
-# \@chan_state
+# \%chan_state
 sub printchan($)
 {
 	my ($cs) = @_;
 
-	printbox($$cs[0]);
-	printbox($$cs[1]);
-	printstate($$cs[2]);
+	printbox($$cs{far});
+	printbox($$cs{near});
+	printstate($$cs{state});
 }
 
-# $run_async, \@source_state, \@target_state, \@channel_configs
+# $run_async, \%source_state, \%target_state, \@channel_configs
 sub test_impl($$$$)
 {
 	my ($async, $sx, $tx, $sfx) = @_;
@@ -741,16 +792,16 @@ sub test_impl($$$$)
 
 	my $nj = readfile("near/.mbsyncstate.journal");
 	my ($jxc, $jret) = runsync($async, "-0 --no-expunge", "2-replay.log");
-	if ($jxc || ckstate("near/.mbsyncstate", $$tx[2])) {
+	if ($jxc || ckstate("near/.mbsyncstate", $$tx{state})) {
 		print "Journal replay failed.\n";
 		print "Options:\n";
 		print " [ ".join(", ", map('"'.qm($_).'"', @$sfx))." ], [ \"-0\", \"--no-expunge\" ]\n";
 		print "Old State:\n";
-		printstate($$sx[2]);
+		printstate($$sx{state});
 		print "Journal:\n".join("", @$nj)."\n";
 		if (!$jxc) {
 			print "Expected New State:\n";
-			printstate($$tx[2]);
+			printstate($$tx{state});
 			print "New State:\n";
 			showstate("near/.mbsyncstate");
 		}
@@ -820,7 +871,7 @@ sub test_impl($$$$)
 # $title, \@source_state, \@target_state, \@channel_configs
 sub test($$$$)
 {
-	my ($ttl, $sx, $tx, $sfx) = @_;
+	my ($ttl, $isx, $itx, $sfx) = @_;
 
 	if (@match) {
 		if ($start) {
@@ -833,6 +884,9 @@ sub test($$$$)
 
 	print "Testing: ".$ttl." ...\n";
 	writecfg($sfx);
+
+	my $sx = parse_chan($isx);
+	my $tx = parse_chan($itx);
 
 	test_impl(0, $sx, $tx, $sfx);
 	test_impl(1, $sx, $tx, $sfx);
