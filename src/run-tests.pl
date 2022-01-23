@@ -482,7 +482,7 @@ sub show($$$)
 	my ($sp, $sfx);
 	eval "\$sp = \\\@x$sx";
 	eval "\$sfx = \\\@O$sfxn";
-	mkchan($$sp[0], $$sp[1], $$sp[2]);
+	mkchan($sp);
 	print "my \@x$sx = (\n";
 	showchan("near/.mbsyncstate");
 	print ");\n";
@@ -519,10 +519,12 @@ sub mkbox($$)
 	}
 }
 
-# \@far_state, \@near_state, \@sync_state
-sub mkchan($$$)
+# \@chan_state
+sub mkchan($)
 {
-	my ($f, $n, $t) = @_;
+	my ($cs) = @_;
+
+	my ($f, $n, $t) = @$cs;
 	mkbox("far", $f);
 	mkbox("near", $n);
 	open(FILE, ">", "near/.mbsyncstate") or
@@ -701,7 +703,7 @@ sub test_impl($$$$)
 {
 	my ($async, $sx, $tx, $sfx) = @_;
 
-	mkchan($$sx[0], $$sx[1], $$sx[2]);
+	mkchan($sx);
 
 	my ($xc, $ret) = runsync($async, "-Tj", "1-initial.log");
 	if ($xc || ckchan("near/.mbsyncstate.new", $tx)) {
@@ -761,7 +763,7 @@ sub test_impl($$$$)
 
 	my $njl = (@$nj - 1) * 2;
 	for (my $l = 1; $l <= $njl; $l++) {
-		mkchan($$sx[0], $$sx[1], $$sx[2]);
+		mkchan($sx);
 
 		my ($nxc, $nret) = runsync($async, "-Tj$l", "4-interrupt.log");
 		if ($nxc != (100 + ($l & 1)) << 8) {
