@@ -441,7 +441,7 @@ sub readbox($)
 		for my $f (grep(!/^\.\.?$/, readdir(DIR))) {
 			my ($uid, $flg, $ph, $num);
 			if ($f =~ /^\d+\.\d+_\d+\.[-[:alnum:]]+,U=(\d+):2,(.*)$/) {
-				($uid, $flg) = ($1, $2);
+				($uid, $flg) = (int($1), $2);
 			} else {
 				print STDERR "unrecognided file name '$f' in '$bn'.\n";
 				exit 1;
@@ -449,7 +449,7 @@ sub readbox($)
 			open(FILE, "<", $bn."/".$d."/".$f) or die "Cannot read message '$f' in '$bn'.\n";
 			my $sz = 0;
 			while (<FILE>) {
-				/^Subject: (\[placeholder\] )?(\d+)$/ && ($ph = defined($1), $num = $2);
+				/^Subject: (\[placeholder\] )?(\d+)$/ && ($ph = defined($1), $num = int($2));
 				$sz += length($_);
 			}
 			close FILE;
@@ -501,7 +501,7 @@ sub readstate($)
 				print STDERR "Unexpected sync state header entry: $1\n";
 				return;
 			}
-			$$want = $2;
+			$$want = int($2);
 		}
 		print STDERR "Unterminated sync state header.\n";
 		return;
@@ -521,7 +521,7 @@ sub readstate($)
 			print STDERR "Malformed sync state entry: $_\n";
 			return;
 		}
-		push @ents, [ $1, $2, $3 ];
+		push @ents, [ int($1), int($2), $3 ];
 	}
 	return \%ss;
 }
@@ -649,7 +649,7 @@ sub ckbox($$)
 			print STDERR "No message $bn:$uid.\n";
 			return 1;
 		}
-		if ($$m[0] ne $num) {
+		if ($$m[0] != $num) {
 			print STDERR "Subject mismatch for $bn:$uid.\n";
 			return 1;
 		}
@@ -677,7 +677,7 @@ sub ckstate($$)
 	           ['MaxPushedUid', 'max_pushed']) {
 		my ($hn, $sn) = @$h;
 		my ($got, $want) = ($$ss{$sn}, $$ref_ss{$sn});
-		if ($got ne $want) {
+		if ($got != $want) {
 			print STDERR "Sync state header entry $hn mismatch: got $got, wanted $want\n";
 			return 1;
 		}
