@@ -423,6 +423,65 @@ sub readbox($)
 	return $mu, \%ms;
 }
 
+# $filename
+# Return: [ $max_pulled, $max_expired_far, $max_pushed, (far_uid, near_uid, flags), ... ]
+sub readstate($)
+{
+	my ($fn) = @_;
+
+	my $ls = readfile($fn, CHOMP);
+	if (!$ls) {
+		print STDERR "Cannot read sync state $fn: $!\n";
+		return;
+	}
+	my ($far_val, $near_val) = (0, 0);
+	my ($max_pull, $max_push, $max_exp) = (0, 0, 0);
+	my %hdr = (
+		'FarUidValidity' => \$far_val,
+		'NearUidValidity' => \$near_val,
+		'MaxPulledUid' => \$max_pull,
+		'MaxPushedUid' => \$max_push,
+		'MaxExpiredFarUid' => \$max_exp
+	);
+	OUTER: while (1) {
+		while (@$ls) {
+			$_ = shift(@$ls);
+			last OUTER if (!length($_));
+			if (!/^([^ ]+) (\d+)$/) {
+				print STDERR "Malformed sync state header entry: $_\n";
+				return;
+			}
+			my $want = delete $hdr{$1};
+			if (!defined($want)) {
+				print STDERR "Unexpected sync state header entry: $1\n";
+				return;
+			}
+			$$want = $2;
+		}
+		print STDERR "Unterminated sync state header.\n";
+		return;
+	}
+	delete $hdr{'MaxExpiredFarUid'};  # optional field
+	my @ky = keys %hdr;
+	if (@ky) {
+		print STDERR "Keys missing from sync state header: @ky\n";
+		return;
+	}
+	if ($far_val ne '1' or $near_val ne '1') {
+		print STDERR "Unexpected UID validity $far_val $near_val (instead of 1 1)\n";
+		return;
+	}
+	my @T = ($max_pull, $max_exp, $max_push);
+	for (@$ls) {
+		if (!/^(\d+) (\d+) (.*)$/) {
+			print STDERR "Malformed sync state entry: $_\n";
+			return;
+		}
+		push @T, $1, $2, $3;
+	}
+	return \@T;
+}
+
 # $boxname
 # Output:
 # [ maxuid,
@@ -447,34 +506,8 @@ sub showstate($)
 {
 	my ($fn) = @_;
 
-	if (!open(FILE, "<", $fn)) {
-		print STDERR " Cannot read sync state $fn: $!\n";
-		return;
-	}
-	chomp(my @ls = <FILE>);
-	close FILE;
-	my %hdr;
-	OUTER: while (1) {
-		while (@ls) {
-			$_ = shift(@ls);
-			last OUTER if (!length($_));
-			if (!/^([^ ]+) (\d+)$/) {
-				print STDERR "Malformed sync state header entry: $_\n";
-				return;
-			}
-			$hdr{$1} = $2;
-		}
-		print STDERR "Unterminated sync state header.\n";
-		return;
-	}
-	my @T = ($hdr{'MaxPulledUid'} // "missing",
-	         $hdr{'MaxExpiredFarUid'} // "0",
-	         $hdr{'MaxPushedUid'} // "missing");
-	for (@ls) {
-		/^(\d+) (\d+) (.*)$/;
-		push @T, $1, $2, $3;
-	}
-	printstate(\@T);
+	my $rss = readstate($fn);
+	printstate($rss) if ($rss);
 }
 
 # $filename
@@ -594,46 +627,20 @@ sub ckbox($$)
 sub ckstate($$)
 {
 	my ($fn, $t) = @_;
-	my %hdr;
-	$hdr{'FarUidValidity'} = "1";
-	$hdr{'NearUidValidity'} = "1";
-	$hdr{'MaxPulledUid'} = $$t[0];
-	$hdr{'MaxPushedUid'} = $$t[2];
-	$hdr{'MaxExpiredFarUid'} = $$t[1] if ($$t[1] ne 0);
-	if (!open(FILE, "<", $fn)) {
-		print STDERR "Cannot read sync state $fn.\n";
-		return 1;
-	}
-	chomp(my @ls = <FILE>);
-	close FILE;
-	OUTER: while (1) {
-		while (@ls) {
-			my $l = shift(@ls);
-			last OUTER if (!length($l));
-			if ($l !~ /^([^ ]+) (\d+)$/) {
-				print STDERR "Malformed sync state header entry: $l\n";
-				return 1;
-			}
-			my $want = delete $hdr{$1};
-			if (!defined($want)) {
-				print STDERR "Unexpected sync state header entry: $1\n";
-				return 1;
-			}
-			if ($2 != $want) {
-				print STDERR "Sync state header entry $1 mismatch: got $2, wanted $want\n";
-				return 1;
-			}
+
+	my $ss = readstate($fn);
+	return 1 if (!$ss);
+	my @hn = ('MaxPulledUid', 'MaxExpiredFarUid', 'MaxPushedUid');
+	for my $h (0 .. 2) {
+		my ($got, $want) = ($$ss[$h], $$t[$h]);
+		if ($got ne $want) {
+			print STDERR "Sync state header entry $hn[$h] mismatch: got $got, wanted $want\n";
+			return 1;
 		}
-		print STDERR "Unterminated sync state header.\n";
-		return 1;
-	}
-	my @ky = keys %hdr;
-	if (@ky) {
-		print STDERR "Keys missing from sync state header: @ky\n";
-		return 1;
 	}
 	my $i = 3;
-	for my $l (@ls) {
+	while ($i < @$ss) {
+		my $l = $$ss[$i]." ".$$ss[$i + 1]." ".$$ss[$i + 2];
 		if ($i == @$t) {
 			print STDERR "Excess sync state entry: '$l'.\n";
 			return 1;
