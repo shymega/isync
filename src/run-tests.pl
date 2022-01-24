@@ -429,13 +429,11 @@ sub showstate($)
 			last OUTER if (!length($_));
 			if (!/^([^ ]+) (\d+)$/) {
 				print STDERR "Malformed sync state header entry: $_\n";
-				close FILE;
 				return;
 			}
 			$hdr{$1} = $2;
 		}
 		print STDERR "Unterminated sync state header.\n";
-		close FILE;
 		return;
 	}
 	my @T = ($hdr{'MaxPulledUid'} // "missing",
