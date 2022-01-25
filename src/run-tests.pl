@@ -6,6 +6,11 @@
 
 use warnings;
 use strict;
+
+use Carp;
+$SIG{__WARN__} = \&Carp::cluck;
+$SIG{__DIE__} = \&Carp::confess;
+
 use Cwd;
 use File::Path;
 use File::Temp 'tempdir';
