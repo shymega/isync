@@ -789,7 +789,7 @@ sub test($$$$)
 {
 	my ($ttl, $sx, $tx, $sfx) = @_;
 
-	return 0 if (scalar(@ARGV) && !grep { $_ eq $ttl } @ARGV);
+	return 0 if (scalar(@ARGV) && !grep { index($ttl, $_) >= 0 } @ARGV);
 	print "Testing: ".$ttl." ...\n";
 	writecfg($sfx);
 
