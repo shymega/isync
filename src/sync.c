@@ -1812,11 +1812,11 @@ box_closed_p2( sync_vars_t *svars, int t )
 				    ((srec->status & S_EXPIRED) && svars->maxuid[F] >= srec->uid[F] && svars->maxxfuid >= srec->uid[F])) {
 					PC_JLOG( "- %u %u", (srec->uid[F], srec->uid[N]), "killing" );
 					srec->status = S_DEAD;
-				} else if (srec->uid[N]) {
+				} else if (srec->uid[N] && (srec->status & S_DEL(F))) {
 					PC_JLOG( "> %u %u 0", (srec->uid[F], srec->uid[N]), "orphaning" );
 					srec->uid[N] = 0;
 				}
-			} else if (srec->uid[F] && ((srec->status & S_DEL(F)) && (svars->state[F] & ST_DID_EXPUNGE))) {
+			} else if (srec->uid[F] && ((srec->status & S_DEL(F)) && (svars->state[F] & ST_DID_EXPUNGE)) && (srec->status & S_DEL(N))) {
 				PC_JLOG( "< %u %u 0", (srec->uid[F], srec->uid[N]), "orphaning" );
 				srec->uid[F] = 0;
 			}

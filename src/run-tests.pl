@@ -1064,6 +1064,26 @@ my @X08 = (
 );
 test("push flags + pull deletions", \@x01, \@X08, \@O08);
 
+my @O09 = ("", "", "Sync None\nExpunge Both\n");
+my @X09 = (
+  I, 0, I,
+  E, "/", "", "",
+  F, "", "", "/",
+  H, "/", "", "",
+  J, "/", "", "",
+  L, "", "", "/",
+);
+test("noop + expunge both", \@x01, \@X09, \@O09);
+
+my @O0A = ("", "", "Sync None\nExpunge Near\n");
+# Sync entries are not updated/pruned, because the far side is not loaded.
+my @X0A = (
+  I, 0, I,
+  F, "", "", "/",
+  L, "", "", "/",
+);
+test("noop + expunge near side", \@x01, \@X0A, \@O0A);
+
 # Size restriction tests
 
 my @x20 = (
