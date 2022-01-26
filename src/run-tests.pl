@@ -463,11 +463,16 @@ sub readbox($)
 	return { max_uid => $mu, messages => \%ms };
 }
 
-# $filename
-sub readstate($)
+# \%fallback_sync_state
+sub readstate(;$)
 {
-	my ($fn) = @_;
+	my ($fbss) = @_;
 
+	my $fn = "near/.mbsyncstate";
+	if ($fbss) {
+		$fn .= ".new";
+		return $fbss if (!-s $fn);
+	}
 	my $ls = readfile($fn, CHOMP);
 	if (!$ls) {
 		print STDERR "Cannot read sync state $fn: $!\n";
@@ -526,15 +531,15 @@ sub readstate($)
 	return \%ss;
 }
 
-# $state_file
-sub readchan($)
+# \%fallback_sync_state
+sub readchan(;$)
 {
-	my ($fn) = @_;
+	my ($fbss) = @_;
 
 	return {
 		far => readbox("far"),
 		near => readbox("near"),
-		state => readstate($fn)
+		state => readstate($fbss)
 	};
 }
 
@@ -684,6 +689,7 @@ sub cmpstate($$)
 	my ($ss, $ref_ss) = @_;
 
 	return 1 if (!$ss);
+	return 0 if ($ss == $ref_ss);
 	for my $h (['MaxPulledUid', 'max_pulled'],
 	           ['MaxExpiredFarUid', 'max_expired'],
 	           ['MaxPushedUid', 'max_pushed']) {
@@ -789,7 +795,7 @@ sub test_impl($$$$)
 	mkchan($sx);
 
 	my ($xc, $ret) = runsync($async, "-Tj", "1-initial.log");
-	my $rtx = readchan("near/.mbsyncstate.new") if (!$xc);
+	my $rtx = readchan($$sx{state}) if (!$xc);
 	if ($xc || cmpchan($rtx, $tx)) {
 		print "Input:\n";
 		printchan($sx);
@@ -806,29 +812,34 @@ sub test_impl($$$$)
 		exit 1;
 	}
 
-	my $nj = readfile("near/.mbsyncstate.journal");
-	my ($jxc, $jret) = runsync($async, "-0 --no-expunge", "2-replay.log");
-	my $jrcs = readstate("near/.mbsyncstate") if (!$jxc);
-	if ($jxc || cmpstate($jrcs, $$tx{state})) {
-		print "Journal replay failed.\n";
-		print "Options:\n";
-		print " [ ".join(", ", map('"'.qm($_).'"', @$sfx))." ], [ \"-0\", \"--no-expunge\" ]\n";
-		print "Old State:\n";
-		printstate($$sx{state});
-		print "Journal:\n".join("", @$nj)."\n";
-		if (!$jxc) {
-			print "Expected New State:\n";
-			printstate($$tx{state});
-			print "New State:\n";
-			printstate($jrcs);
+	my ($nj, $njl) = (undef, 0);
+	if ($$rtx{state} != $$sx{state}) {
+		$nj = readfile("near/.mbsyncstate.journal");
+		$njl = (@$nj - 1) * 2;
+
+		my ($jxc, $jret) = runsync($async, "-0 --no-expunge", "2-replay.log");
+		my $jrcs = readstate() if (!$jxc);
+		if ($jxc || cmpstate($jrcs, $$tx{state})) {
+			print "Journal replay failed.\n";
+			print "Options:\n";
+			print " [ ".join(", ", map('"'.qm($_).'"', @$sfx))." ], [ \"-0\", \"--no-expunge\" ]\n";
+			print "Old State:\n";
+			printstate($$sx{state});
+			print "Journal:\n".join("", @$nj)."\n";
+			if (!$jxc) {
+				print "Expected New State:\n";
+				printstate($$tx{state});
+				print "New State:\n";
+				printstate($jrcs);
+			}
+			print "Debug output:\n";
+			print @$jret;
+			exit 1;
 		}
-		print "Debug output:\n";
-		print @$jret;
-		exit 1;
 	}
 
 	my ($ixc, $iret) = runsync($async, "", "3-verify.log");
-	my $irtx = readchan("near/.mbsyncstate") if (!$ixc);
+	my $irtx = readchan() if (!$ixc);
 	if ($ixc || cmpchan($irtx, $tx)) {
 		print "Idempotence verification run failed.\n";
 		print "Input == Expected result:\n";
@@ -847,7 +858,6 @@ sub test_impl($$$$)
 	rmtree "near";
 	rmtree "far";
 
-	my $njl = (@$nj - 1) * 2;
 	for (my $l = 1; $l <= $njl; $l++) {
 		mkchan($sx);
 
@@ -860,7 +870,7 @@ sub test_impl($$$$)
 		}
 
 		($nxc, $nret) = runsync($async, "-Tj", "5-resume.log");
-		my $nrtx = readchan("near/.mbsyncstate.new") if (!$nxc);
+		my $nrtx = readchan($$sx{state}) if (!$nxc);
 		if ($nxc || cmpchan($nrtx, $tx)) {
 			print "Resuming from step $l/$njl failed.\n";
 			print "Input:\n";
