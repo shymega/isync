@@ -18,6 +18,17 @@ use File::Temp 'tempdir';
 my $use_vg = $ENV{USE_VALGRIND};
 my $mbsync = getcwd()."/mbsync";
 
+my (@match, $start);
+for my $arg (@ARGV) {
+	if ($arg eq "+") {
+		$start = 1;
+	} else {
+		push @match, $arg;
+	}
+}
+die("Need exactly one test name when using start syntax.\n")
+	if ($start && (@match != 1));
+
 if (!-d "tmp") {
   unlink "tmp";
   my $tdir = tempdir();
@@ -789,7 +800,15 @@ sub test($$$$)
 {
 	my ($ttl, $sx, $tx, $sfx) = @_;
 
-	return 0 if (scalar(@ARGV) && !grep { index($ttl, $_) >= 0 } @ARGV);
+	if (@match) {
+		if ($start) {
+			return if (index($ttl, $match[0]) < 0);
+			@match = ();
+		} else {
+			return if (!grep { index($ttl, $_) >= 0 } @match);
+		}
+	}
+
 	print "Testing: ".$ttl." ...\n";
 	writecfg($sfx);
 
