@@ -47,7 +47,8 @@ sub test($$$$);
 # state: [ MaxPulledUid, MaxExpiredFarUid, MaxPushedUid, { muid, suid, flags }... ]
 
 use enum qw(:=1 A..Z);
-sub mn($) { chr(64 + shift) }
+sub mn($) { my ($n) = @_; $n == 0 ? "0" : chr(64 + $n) }
+sub mf($) { my ($f) = @_; length($f) ? $f : '-' }
 
 # generic syncing tests
 my @x01 = (
@@ -652,44 +653,63 @@ sub cmpbox($$$)
 {
 	my ($bn, $bs, $ref_bs) = @_;
 
+	my $ret = 0;
 	my ($ref_mu, $ref_ms) = ($$ref_bs{max_uid}, $$ref_bs{messages});
 	my ($mu, $ms) = ($$bs{max_uid}, $$bs{messages});
 	if ($mu != $ref_mu) {
-		print STDERR "MAXUID mismatch for '$bn' (got $mu, wanted $ref_mu).\n";
-		return 1;
+		print STDERR "MAXUID mismatch for '$bn': got $mu, wanted $ref_mu\n";
+		$ret = 1;
 	}
 	for my $uid (sort { $a <=> $b } keys %$ref_ms) {
 		my ($num, $flg) = @{$$ref_ms{$uid}};
 		my $m = $$ms{$uid};
 		if (!defined $m) {
-			print STDERR "No message $bn:$uid.\n";
-			return 1;
+			print STDERR "Missing message $bn:$uid:".mn($num)."\n";
+			$ret = 1;
+			next;
 		}
 		if ($$m[0] != $num) {
-			print STDERR "Subject mismatch for $bn:$uid.\n";
+			print STDERR "Subject mismatch for $bn:$uid:".
+					" got ".mn($$m[0]).", wanted ".mn($num)."\n";
 			return 1;
 		}
 		if ($$m[1] ne $flg) {
-			print STDERR "Flag mismatch for $bn:$uid.\n";
-			return 1;
+			print STDERR "Flag mismatch for $bn:$uid:".mn($num).":".
+					" got ".mf($$m[1]).", wanted ".mf($flg)."\n";
+			$ret = 1;
 		}
 	}
 	for my $uid (sort { $a <=> $b } keys %$ms) {
 		if (!defined($$ref_ms{$uid})) {
 			print STDERR "Excess message $bn:$uid:".mn($$ms{$uid}[0])."\n";
-			return 1;
+			$ret = 1;
+		}
+	}
+	return $ret;
+}
+
+sub mapmsg($$)
+{
+	my ($uid, $bs) = @_;
+
+	if ($uid) {
+		if (my $msg = $$bs{messages}{$uid}) {
+			return $$msg[0];
 		}
 	}
 	return 0;
 }
 
-# \%actual_sync_state, \%reference_sync_state
+# \%actual_chan_state, \%reference_chan_state
 sub cmpstate($$)
 {
-	my ($ss, $ref_ss) = @_;
+	my ($cs, $ref_cs) = @_;
 
+	my ($ss, $fbs, $nbs) = ($$cs{state}, $$cs{far}, $$cs{near});
 	return 1 if (!$ss);
+	my ($ref_ss, $ref_fbs, $ref_nbs) = ($$ref_cs{state}, $$ref_cs{far}, $$ref_cs{near});
 	return 0 if ($ss == $ref_ss);
+	my $ret = 0;
 	for my $h (['MaxPulledUid', 'max_pulled'],
 	           ['MaxExpiredFarUid', 'max_expired'],
 	           ['MaxPushedUid', 'max_pushed']) {
@@ -697,33 +717,47 @@ sub cmpstate($$)
 		my ($got, $want) = ($$ss{$sn}, $$ref_ss{$sn});
 		if ($got != $want) {
 			print STDERR "Sync state header entry $hn mismatch: got $got, wanted $want\n";
-			return 1;
+			$ret = 1;
 		}
 	}
 	my $ref_ents = $$ref_ss{entries};
 	my $ents = $$ss{entries};
-	my $i = 0;
-	while ($i < @$ents) {
-		my $ent = $$ents[$i];
-		my $l = $$ent[0]." ".$$ent[1]." ".$$ent[2];
+	for (my $i = 0; $i < @$ents || $i < @$ref_ents; $i++) {
+		my ($ent, $fuid, $nuid, $num);
+		if ($i < @$ents) {
+			$ent = $$ents[$i];
+			($fuid, $nuid) = ($$ent[0], $$ent[1]);
+			my ($fnum, $nnum) = (mapmsg($fuid, $fbs), mapmsg($nuid, $nbs));
+			if ($fnum && $nnum && $fnum != $nnum) {
+				print STDERR "Invalid sync state entry $fuid:$nuid:".
+						" mismatched subjects (".mn($fnum).":".mn($nnum).")\n";
+				return 1;
+			}
+			$num = $fnum || $nnum;
+		}
 		if ($i == @$ref_ents) {
-			print STDERR "Excess sync state entry: '$l'.\n";
+			print STDERR "Excess sync state entry $fuid:$nuid (".mn($num).")\n";
 			return 1;
 		}
 		my $rent = $$ref_ents[$i];
-		my $xl = $$rent[0]." ".$$rent[1]." ".$$rent[2];
-		if ($l ne $xl) {
-			print STDERR "Sync state entry mismatch: '$l' instead of '$xl'.\n";
+		my ($rfuid, $rnuid) = ($$rent[0], $$rent[1]);
+		my $rnum = mapmsg($rfuid, $ref_fbs) || mapmsg($rnuid, $ref_nbs);
+		if ($i == @$ents) {
+			print STDERR "Missing sync state entry $rfuid:$rnuid (".mn($rnum).")\n";
 			return 1;
 		}
-		$i += 1;
+		if ($fuid != $rfuid || $nuid != $rnuid || $num != $rnum) {
+			print STDERR "Unexpected sync state entry:".
+					" got $fuid:$nuid (".mn($num)."), wanted $rfuid:$rnuid (".mn($rnum).")\n";
+			return 1;
+		}
+		if ($$ent[2] ne $$rent[2]) {
+			print STDERR "Flag mismatch in sync state entry $fuid:$nuid (".mn($rnum)."):".
+					" got ".mf($$ent[2]).", wanted ".mf($$rent[2])."\n";
+			$ret = 1;
+		}
 	}
-	if ($i < @$ref_ents) {
-		my $rent = $$ref_ents[$i];
-		print STDERR "Missing sync state entry: '".$$rent[0]." ".$$rent[1]." ".$$rent[2]."'.\n";
-		return 1;
-	}
-	return 0;
+	return $ret;
 }
 
 # \%actual_chan_state, \%reference_chan_state
@@ -734,7 +768,7 @@ sub cmpchan($$)
 	my $rslt = 0;
 	$rslt |= cmpbox("far", $$cs{far}, $$ref_cs{far});
 	$rslt |= cmpbox("near", $$cs{near}, $$ref_cs{near});
-	$rslt |= cmpstate($$cs{state}, $$ref_cs{state});
+	$rslt |= cmpstate($cs, $ref_cs);
 	return $rslt;
 }
 
@@ -819,7 +853,7 @@ sub test_impl($$$$)
 
 		my ($jxc, $jret) = runsync($async, "-0 --no-expunge", "2-replay.log");
 		my $jrcs = readstate() if (!$jxc);
-		if ($jxc || cmpstate($jrcs, $$tx{state})) {
+		if ($jxc || cmpstate({ far => $$tx{far}, near => $$tx{near}, state => $jrcs }, $tx)) {
 			print "Journal replay failed.\n";
 			print "Options:\n";
 			print " [ ".join(", ", map('"'.qm($_).'"', @$sfx))." ], [ \"-0\", \"--no-expunge\" ]\n";
