@@ -283,7 +283,7 @@ assign_tuid( sync_vars_t *svars, sync_rec_t *srec )
 	JLOG( "# %u %u %." stringify(TUIDL) "s", (srec->uid[F], srec->uid[N], srec->tuid), "new TUID" );
 }
 
-static void
+static int
 match_tuids( sync_vars_t *svars, int t, message_t *msgs )
 {
 	sync_rec_t *srec;
@@ -324,8 +324,7 @@ match_tuids( sync_vars_t *svars, int t, message_t *msgs )
 			ASSIGN_UID( srec, t, tmsg->uid, "TUID matched %s", diag );
 		}
 	}
-	if (num_lost)
-		warn( "Warning: lost track of %d %sed message(s)\n", num_lost, str_hl[t] );
+	return num_lost;
 }
 
 
@@ -2161,15 +2160,10 @@ static void
 msgs_found_new( int sts, message_t *msgs, void *aux )
 {
 	SVARS_CHECK_RET;
-	switch (sts) {
-	case DRV_OK:
-		debug( "matching just copied messages on %s\n", str_fn[t] );
-		break;
-	default:
-		warn( "Warning: cannot find newly stored messages on %s.\n", str_fn[t] );
-		break;
-	}
-	match_tuids( svars, t, msgs );
+	debug( "matching just copied messages on %s\n", str_fn[t] );
+	int num_lost = match_tuids( svars, t, msgs );
+	if (num_lost)
+		warn( "Warning: lost track of %d %sed message(s)\n", num_lost, str_hl[t] );
 	msgs_new_done( svars, t );
 }
 
