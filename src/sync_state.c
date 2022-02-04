@@ -574,6 +574,7 @@ upgrade_srec( sync_vars_t *svars, sync_rec_t *srec )
 	srec->next = nsrec;
 	if (svars->srecadd == &srec->next)
 		svars->srecadd = &nsrec->next;
+	svars->nsrecs++;
 	// Move the placeholder to the new entry.
 	int t = (srec->status & S_DUMMY(F)) ? F : N;
 	nsrec->uid[t] = srec->uid[t];
