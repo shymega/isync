@@ -526,6 +526,18 @@ sub readstate($)
 	return \%ss;
 }
 
+# $state_file
+sub readchan($)
+{
+	my ($fn) = @_;
+
+	return {
+		far => readbox("far"),
+		near => readbox("near"),
+		state => readstate($fn)
+	};
+}
+
 # $boxname
 # Output:
 # [ maxuid,
@@ -630,13 +642,12 @@ sub mkchan($)
 	mkstate($$cs{state});
 }
 
-# $box_name, \%reference_box_state
-sub ckbox($$)
+# $box_name, \%actual_box_state, \%reference_box_state
+sub cmpbox($$$)
 {
-	my ($bn, $ref_bs) = @_;
+	my ($bn, $bs, $ref_bs) = @_;
 
 	my ($ref_mu, $ref_ms) = ($$ref_bs{max_uid}, $$ref_bs{messages});
-	my $bs = readbox($bn);
 	my ($mu, $ms) = ($$bs{max_uid}, $$bs{messages});
 	if ($mu != $ref_mu) {
 		print STDERR "MAXUID mismatch for '$bn' (got $mu, wanted $ref_mu).\n";
@@ -644,7 +655,7 @@ sub ckbox($$)
 	}
 	for my $uid (sort { $a <=> $b } keys %$ref_ms) {
 		my ($num, $flg) = @{$$ref_ms{$uid}};
-		my $m = delete $$ms{$uid};
+		my $m = $$ms{$uid};
 		if (!defined $m) {
 			print STDERR "No message $bn:$uid.\n";
 			return 1;
@@ -658,19 +669,20 @@ sub ckbox($$)
 			return 1;
 		}
 	}
-	if (%$ms) {
-		print STDERR "Excess messages in '$bn': ".join(", ", sort({ $a <=> $b } keys(%$ms))).".\n";
-		return 1;
+	for my $uid (sort { $a <=> $b } keys %$ms) {
+		if (!defined($$ref_ms{$uid})) {
+			print STDERR "Excess message $bn:$uid:".mn($$ms{$uid}[0])."\n";
+			return 1;
+		}
 	}
 	return 0;
 }
 
-# $state_file, \%sync_state
-sub ckstate($$)
+# \%actual_sync_state, \%reference_sync_state
+sub cmpstate($$)
 {
-	my ($fn, $ref_ss) = @_;
+	my ($ss, $ref_ss) = @_;
 
-	my $ss = readstate($fn);
 	return 1 if (!$ss);
 	for my $h (['MaxPulledUid', 'max_pulled'],
 	           ['MaxExpiredFarUid', 'max_expired'],
@@ -708,13 +720,15 @@ sub ckstate($$)
 	return 0;
 }
 
-# $state_file, \%chan_state
-sub ckchan($$)
+# \%actual_chan_state, \%reference_chan_state
+sub cmpchan($$)
 {
-	my ($fn, $cs) = @_;
-	my $rslt = ckstate($fn, $$cs{state});
-	$rslt |= ckbox("far", $$cs{far});
-	$rslt |= ckbox("near", $$cs{near});
+	my ($cs, $ref_cs) = @_;
+
+	my $rslt = 0;
+	$rslt |= cmpbox("far", $$cs{far}, $$ref_cs{far});
+	$rslt |= cmpbox("near", $$cs{near}, $$ref_cs{near});
+	$rslt |= cmpstate($$cs{state}, $$ref_cs{state});
 	return $rslt;
 }
 
@@ -743,6 +757,7 @@ sub printstate($)
 {
 	my ($ss) = @_;
 
+	return if (!$ss);
 	print " [ ".$$ss{max_pulled}.", ".$$ss{max_expired}.", ".$$ss{max_pushed}.",\n   ";
 	my $frst = 1;
 	for my $ent (@{$$ss{entries}}) {
@@ -774,7 +789,8 @@ sub test_impl($$$$)
 	mkchan($sx);
 
 	my ($xc, $ret) = runsync($async, "-Tj", "1-initial.log");
-	if ($xc || ckchan("near/.mbsyncstate.new", $tx)) {
+	my $rtx = readchan("near/.mbsyncstate.new") if (!$xc);
+	if ($xc || cmpchan($rtx, $tx)) {
 		print "Input:\n";
 		printchan($sx);
 		print "Options:\n";
@@ -783,7 +799,7 @@ sub test_impl($$$$)
 			print "Expected result:\n";
 			printchan($tx);
 			print "Actual result:\n";
-			showchan("near/.mbsyncstate.new");
+			printchan($rtx);
 		}
 		print "Debug output:\n";
 		print @$ret;
@@ -792,7 +808,8 @@ sub test_impl($$$$)
 
 	my $nj = readfile("near/.mbsyncstate.journal");
 	my ($jxc, $jret) = runsync($async, "-0 --no-expunge", "2-replay.log");
-	if ($jxc || ckstate("near/.mbsyncstate", $$tx{state})) {
+	my $jrcs = readstate("near/.mbsyncstate") if (!$jxc);
+	if ($jxc || cmpstate($jrcs, $$tx{state})) {
 		print "Journal replay failed.\n";
 		print "Options:\n";
 		print " [ ".join(", ", map('"'.qm($_).'"', @$sfx))." ], [ \"-0\", \"--no-expunge\" ]\n";
@@ -803,7 +820,7 @@ sub test_impl($$$$)
 			print "Expected New State:\n";
 			printstate($$tx{state});
 			print "New State:\n";
-			showstate("near/.mbsyncstate");
+			printstate($jrcs);
 		}
 		print "Debug output:\n";
 		print @$jret;
@@ -811,7 +828,8 @@ sub test_impl($$$$)
 	}
 
 	my ($ixc, $iret) = runsync($async, "", "3-verify.log");
-	if ($ixc || ckchan("near/.mbsyncstate", $tx)) {
+	my $irtx = readchan("near/.mbsyncstate") if (!$ixc);
+	if ($ixc || cmpchan($irtx, $tx)) {
 		print "Idempotence verification run failed.\n";
 		print "Input == Expected result:\n";
 		printchan($tx);
@@ -819,7 +837,7 @@ sub test_impl($$$$)
 		print " [ ".join(", ", map('"'.qm($_).'"', @$sfx))." ]\n";
 		if (!$ixc) {
 			print "Actual result:\n";
-			showchan("near/.mbsyncstate");
+			printchan($irtx);
 		}
 		print "Debug output:\n";
 		print @$iret;
@@ -842,7 +860,8 @@ sub test_impl($$$$)
 		}
 
 		($nxc, $nret) = runsync($async, "-Tj", "5-resume.log");
-		if ($nxc || ckchan("near/.mbsyncstate.new", $tx)) {
+		my $nrtx = readchan("near/.mbsyncstate.new") if (!$nxc);
+		if ($nxc || cmpchan($nrtx, $tx)) {
 			print "Resuming from step $l/$njl failed.\n";
 			print "Input:\n";
 			printchan($sx);
@@ -856,7 +875,7 @@ sub test_impl($$$$)
 				print "Expected result:\n";
 				printchan($tx);
 				print "Actual result:\n";
-				showchan("near/.mbsyncstate.new");
+				printchan($nrtx);
 			}
 			print "Debug output:\n";
 			print @$nret;
