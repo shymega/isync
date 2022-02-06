@@ -40,7 +40,7 @@ static int check_cancel( sync_vars_t *svars );
    new(F), new(N), flags(F), flags(N): load(F) & load(N)
    find_new(x): new(x)
    trash(x): flags(x)
-   close(x): trash(x) & find_new(x) & new(!x) // with expunge
+   close(x): trash(x) & flags(!x) & find_new(x) & new(!x) // with expunge
    cleanup: close(F) & close(N)
 */
 
@@ -1557,6 +1557,10 @@ msgs_flags_set( sync_vars_t *svars, int t )
 
 	sync_ref( svars );
 
+	sync_close( svars, t^1 );
+	if (check_cancel( svars ))
+		goto out;
+
 	if (!(svars->chan->ops[t] & OP_EXPUNGE))
 		goto skip;
 	int remote, only_new;
@@ -1683,7 +1687,7 @@ static void
 sync_close( sync_vars_t *svars, int t )
 {
 	if ((~svars->state[t] & (ST_FOUND_NEW|ST_SENT_TRASH)) || svars->trash_pending[t] ||
-	    !(svars->state[t^1] & ST_SENT_NEW) || svars->new_pending[t^1])
+	    (~svars->state[t^1] & (ST_SENT_NEW | ST_SENT_FLAGS)) || svars->new_pending[t^1] || svars->flags_pending[t^1])
 		return;
 
 	if (svars->state[t] & ST_CLOSING)
