@@ -369,6 +369,19 @@ sub runsync($$$)
 }
 
 
+use constant CHOMP => 1;
+
+sub readfile($;$)
+{
+	my ($file, $chomp) = @_;
+
+	open(FILE, $file) or return;
+	my @nj = <FILE>;
+	close FILE;
+	chomp(@nj) if ($chomp);
+	return \@nj;
+}
+
 # $path
 # Return: $max_uid, { uid => [ seq, flags ] }
 sub readbox($)
@@ -379,10 +392,9 @@ sub readbox($)
 		die "No mailbox '$bn'.\n";
 	(-d $bn."/tmp" and -d $bn."/new" and -d $bn."/cur") or
 		die "Invalid mailbox '$bn'.\n";
-	open(FILE, "<", $bn."/.uidvalidity") or die "Cannot read UID validity of mailbox '$bn'.\n";
-	my $dummy = <FILE>;
-	chomp(my $mu = <FILE>);
-	close FILE;
+	my $uidval = readfile($bn."/.uidvalidity", CHOMP);
+	die "Cannot read UID validity of mailbox '$bn': $!\n" if (!$uidval);
+	my $mu = $$uidval[1];
 	my %ms = ();
 	for my $d ("cur", "new") {
 		opendir(DIR, $bn."/".$d) or next;
@@ -694,16 +706,6 @@ sub printchan($)
 	printbox($$cs[0]);
 	printbox($$cs[1]);
 	printstate($$cs[2]);
-}
-
-sub readfile($)
-{
-	my ($file) = @_;
-
-	open(FILE, $file) or return;
-	my @nj = <FILE>;
-	close FILE;
-	return \@nj;
 }
 
 # $run_async, \@source_state, \@target_state, \@channel_configs
