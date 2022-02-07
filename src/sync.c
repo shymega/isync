@@ -289,7 +289,14 @@ msg_fetched( int sts, void *aux )
 			return;
 		}
 
-		vars->msg->flags = vars->data.flags = sanitize_flags( vars->data.flags, svars, t );
+		vars->data.flags = sanitize_flags( vars->data.flags, svars, t );
+		if (srec && !(srec->status & S_UPGRADE)) {
+			if (vars->data.flags) {
+				srec->pflags = vars->data.flags;
+				JLOG( "%% %u %u %u", (srec->uid[F], srec->uid[N], srec->pflags),
+				      "%sing with flags %s", (str_hl[t], fmt_lone_flags( srec->pflags ).str) );
+			}
+		}
 
 		scr = svars->can_crlf[t^1];
 		tcr = svars->can_crlf[t];
@@ -1405,11 +1412,6 @@ msg_copied( int sts, uint uid, copy_vars_t *vars )
 	sync_rec_t *srec = vars->srec;
 	switch (sts) {
 	case SYNC_OK:
-		if (!(srec->status & S_UPGRADE) && vars->msg->flags != srec->flags) {
-			srec->flags = vars->msg->flags;
-			JLOG( "* %u %u %u", (srec->uid[F], srec->uid[N], srec->flags),
-			      "%sed with flags %s", (str_hl[t], fmt_lone_flags( srec->flags ).str) );
-		}
 		if (!uid)  // Stored to a non-UIDPLUS mailbox
 			svars->state[t] |= ST_FIND_NEW;
 		else

@@ -306,6 +306,7 @@ load_state( sync_vars_t *svars )
 				case '<':
 				case '>':
 				case '*':
+				case '%':
 				case '~':
 					bad = sscanf( buf + 2, "%u %u %u", &t1, &t2, &t3 ) != 3;
 					break;
@@ -392,6 +393,10 @@ load_state( sync_vars_t *svars )
 						debug( "deleted dummy\n" );
 						srec->aflags[F] = srec->aflags[N] = 0;  // Clear F_DELETED
 						srec->status = (srec->status & ~S_PURGE) | S_PURGED;
+						break;
+					case '%':
+						srec->pflags = (uchar)t3;
+						debug( "pending flags now %s\n", fmt_lone_flags( t3 ).str );
 						break;
 					case '~':
 						srec->status = (srec->status & ~S_LOGGED) | t3;
@@ -516,6 +521,10 @@ assign_uid( sync_vars_t *svars, sync_rec_t *srec, int t, uint uid )
 	srec->uid[t] = uid;
 	if (uid == svars->newmaxuid[t] + 1)
 		svars->newmaxuid[t] = uid;
+	if (uid) {
+		if (!(srec->status & S_UPGRADE))
+			srec->flags = srec->pflags;
+	}
 	srec->status &= ~(S_PENDING | S_UPGRADE);
 	srec->tuid[0] = 0;
 }
