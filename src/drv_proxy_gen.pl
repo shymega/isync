@@ -134,38 +134,37 @@ for (@ptypes) {
 		$template = "GETTER";
 		$replace{'fmt'} = type_to_format($cmd_type);
 	} else {
+		my $pass_args;
 		if ($cmd_type eq "void " && $cmd_args =~ s/, void \(\*cb\)\( (.*)void \*aux \), void \*aux$//) {
 			my $cmd_cb_args = $1;
-			if (length($cmd_cb_args)) {
-				$replace{'decl_cb_args'} = $cmd_cb_args;
-				my $r_cmd_cb_args = $cmd_cb_args;
-				$r_cmd_cb_args =~ s/^int sts, // or die("Callback arguments of $cmd_name don't start with sts.\n");
-				$replace{'decl_cb_state'} = $r_cmd_cb_args =~ s/, /\;\n/gr;
-				my $pass_cb_args = make_args($cmd_cb_args);
-				$replace{'save_cb_args'} = $pass_cb_args =~ s/([^,]+), /cmd->$1 = $1\;\n/gr;
-				$pass_cb_args =~ s/([^, ]+)/cmd->$1/g;
-				$replace{'pass_cb_args'} = $pass_cb_args;
-				$replace{'print_pass_cb_args'} = $pass_cb_args =~ s/(.*), $/, $1/r;
-				$replace{'print_fmt_cb_args'} = make_format($cmd_cb_args =~ s/(.*), $/, $1/r);
-				$replace{'gen_cmd_t'} = "gen_sts_cmd_t";
-				$replace{'GEN_CMD'} = "GEN_STS_CMD\n";
-				$replace{'gen_cmd'} = "&cmd->gen.gen";
-			} else {
-				$replace{'gen_cmd_t'} = "gen_cmd_t";
-				$replace{'GEN_CMD'} = "GEN_CMD\n";
-				$replace{'gen_cmd'} = "&cmd->gen";
-			}
+			$replace{'decl_cb_args'} = $cmd_cb_args;
+			$replace{'pass_cb_args'} = make_args($cmd_cb_args);
+			my $cmd_print_cb_args = $cmd_cb_args =~ s/(.*), $/, $1/r;
+			$replace{'print_pass_cb_args'} = make_args($cmd_print_cb_args);
+			$replace{'print_fmt_cb_args'} = make_format($cmd_print_cb_args);
+
+			$pass_args = make_args($cmd_args);
+			$pass_args =~ s/([^, ]+)/cmd->$1/g;
+			my $r_cmd_args = $cmd_args =~ s/, (.*)$/$1, /r;
+			$replace{'decl_state'} = $r_cmd_args =~ s/, /\;\n/gr;
+			my $r_pass_args = make_args($r_cmd_args);
+			$replace{'assign_state'} = $r_pass_args =~ s/([^,]+), /cmd->$1 = $1\;\n/gr;
+
 			$replace{'checked'} = '0';
 			$template = "CALLBACK";
-		} elsif ($cmd_type eq "void ") {
-			$template = "REGULAR_VOID";
 		} else {
-			$template = "REGULAR";
-			$replace{'print_fmt_ret'} = type_to_format($cmd_type);
-			$replace{'print_pass_ret'} = "rv";
+			$pass_args = make_args($cmd_args);
+
+			if ($cmd_type eq "void ") {
+				$template = "REGULAR_VOID";
+			} else {
+				$template = "REGULAR";
+				$replace{'print_fmt_ret'} = type_to_format($cmd_type);
+				$replace{'print_pass_ret'} = "rv";
+			}
 		}
 		$replace{'decl_args'} = $cmd_args;
-		$replace{'print_pass_args'} = $replace{'pass_args'} = make_args($cmd_args);
+		$replace{'print_pass_args'} = $replace{'pass_args'} = $pass_args;
 		$replace{'print_fmt_args'} = make_format($cmd_args);
 	}
 	for (keys %defines) {
