@@ -21,6 +21,40 @@ char FieldDelimiter = ':';
 static store_conf_t *stores;
 
 char *
+expand_strdup( const char *s )
+{
+	struct passwd *pw;
+	const char *p, *q;
+	char *r;
+
+	if (*s == '~') {
+		s++;
+		if (!*s) {
+			p = NULL;
+			q = Home;
+		} else if (*s == '/') {
+			p = s;
+			q = Home;
+		} else {
+			if ((p = strchr( s, '/' ))) {
+				r = nfstrndup( s, (size_t)(p - s) );
+				pw = getpwnam( r );
+				free( r );
+			} else {
+				pw = getpwnam( s );
+			}
+			if (!pw)
+				return NULL;
+			q = pw->pw_dir;
+		}
+		nfasprintf( &r, "%s%s", q, p ? p : "" );
+		return r;
+	} else {
+		return nfstrdup( s );
+	}
+}
+
+char *
 get_arg( conffile_t *cfile, int required, int *comment )
 {
 	char *ret, *p, *t;

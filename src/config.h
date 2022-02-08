@@ -26,6 +26,8 @@ extern char FieldDelimiter;
 #define ARG_OPTIONAL 0
 #define ARG_REQUIRED 1
 
+char *expand_strdup( const char *s );
+
 char *get_arg( conffile_t *cfile, int required, int *comment );
 
 char parse_bool( conffile_t *cfile );

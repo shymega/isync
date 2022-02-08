@@ -184,8 +184,6 @@ int ATTR_PRINTFLIKE(3, 4) nfsnprintf( char *buf, int blen, const char *fmt, ... 
 void ATTR_NORETURN oob( void );
 void ATTR_NORETURN oom( void );
 
-char *expand_strdup( const char *s );
-
 int map_name( const char *arg, char **result, uint reserve, const char *in, const char *out );
 
 #define DEFINE_ARRAY_TYPE(T) \

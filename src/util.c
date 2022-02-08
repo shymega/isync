@@ -480,40 +480,6 @@ cur_user( void )
 }
 */
 
-char *
-expand_strdup( const char *s )
-{
-	struct passwd *pw;
-	const char *p, *q;
-	char *r;
-
-	if (*s == '~') {
-		s++;
-		if (!*s) {
-			p = NULL;
-			q = Home;
-		} else if (*s == '/') {
-			p = s;
-			q = Home;
-		} else {
-			if ((p = strchr( s, '/' ))) {
-				r = nfstrndup( s, (size_t)(p - s) );
-				pw = getpwnam( r );
-				free( r );
-			} else {
-				pw = getpwnam( s );
-			}
-			if (!pw)
-				return NULL;
-			q = pw->pw_dir;
-		}
-		nfasprintf( &r, "%s%s", q, p ? p : "" );
-		return r;
-	} else {
-		return nfstrdup( s );
-	}
-}
-
 /* Return value: 0 = ok, -1 = out found in arg, -2 = in found in arg but no out specified */
 int
 map_name( const char *arg, char **result, uint reserve, const char *in, const char *out )
