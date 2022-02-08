@@ -14,10 +14,6 @@
 #include <errno.h>
 #include <sys/stat.h>
 
-#if !defined(_POSIX_SYNCHRONIZED_IO) || _POSIX_SYNCHRONIZED_IO <= 0
-# define fdatasync fsync
-#endif
-
 #define JOURNAL_VERSION "4"
 
 channel_conf_t global_conf;
@@ -31,37 +27,6 @@ int flags_total[2], flags_done[2];
 int trash_total[2], trash_done[2];
 
 const char *str_fn[] = { "far side", "near side" }, *str_hl[] = { "push", "pull" };
-
-static void
-Fclose( FILE *f, int safe )
-{
-	if ((safe && (fflush( f ) || (UseFSync && fdatasync( fileno( f ) )))) || fclose( f ) == EOF) {
-		sys_error( "Error: cannot close file" );
-		exit( 1 );
-	}
-}
-
-static void ATTR_PRINTFLIKE(2, 0)
-vFprintf( FILE *f, const char *msg, va_list va )
-{
-	int r;
-
-	r = vfprintf( f, msg, va );
-	if (r < 0) {
-		sys_error( "Error: cannot write file" );
-		exit( 1 );
-	}
-}
-
-static void ATTR_PRINTFLIKE(2, 3)
-Fprintf( FILE *f, const char *msg, ... )
-{
-	va_list va;
-
-	va_start( va, msg );
-	vFprintf( f, msg, va );
-	va_end( va );
-}
 
 
 /* Keep the mailbox driver flag definitions in sync: */

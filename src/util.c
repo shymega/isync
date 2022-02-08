@@ -174,6 +174,37 @@ sys_error( const char *msg, ... )
 }
 
 void
+vFprintf( FILE *f, const char *msg, va_list va )
+{
+	int r;
+
+	r = vfprintf( f, msg, va );
+	if (r < 0) {
+		sys_error( "Error: cannot write file" );
+		exit( 1 );
+	}
+}
+
+void
+Fprintf( FILE *f, const char *msg, ... )
+{
+	va_list va;
+
+	va_start( va, msg );
+	vFprintf( f, msg, va );
+	va_end( va );
+}
+
+void
+Fclose( FILE *f, int safe )
+{
+	if ((safe && (fflush( f ) || (UseFSync && fdatasync( fileno( f ) )))) || fclose( f ) == EOF) {
+		sys_error( "Error: cannot close file" );
+		exit( 1 );
+	}
+}
+
+void
 add_string_list_n( string_list_t **list, const char *str, uint len )
 {
 	string_list_t *elem;

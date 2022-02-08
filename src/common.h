@@ -141,6 +141,14 @@ void ATTR_PRINTFLIKE(1, 0) vsys_error( const char *, va_list va );
 void ATTR_PRINTFLIKE(1, 2) sys_error( const char *, ... );
 void flushn( void );
 
+#if !defined(_POSIX_SYNCHRONIZED_IO) || _POSIX_SYNCHRONIZED_IO <= 0
+# define fdatasync fsync
+#endif
+
+void ATTR_PRINTFLIKE(2, 0) vFprintf( FILE *f, const char *msg, va_list va );
+void ATTR_PRINTFLIKE(2, 3) Fprintf( FILE *f, const char *msg, ... );
+void Fclose( FILE *f, int safe );
+
 typedef struct string_list {
 	struct string_list *next;
 	char string[1];
