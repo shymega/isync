@@ -279,18 +279,41 @@ load_state( sync_vars_t *svars )
 				}
 				buf[ll] = 0;
 				char c;
-				int tn;
+				int tn, bad;
 				uint t1, t2, t3, t4;
-				if ((c = buf[0]) == '#' ?
-				      (tn = 0, (sscanf( buf + 2, "%u %u %n", &t1, &t2, &tn ) < 2) || !tn || (ll - (uint)tn != TUIDL + 2)) :
-				      c == '!' ?
-				        (sscanf( buf + 2, "%u", &t1 ) != 1) :
-				        c == 'N' || c == 'F' || c == 'T' || c == '+' || c == '&' || c == '-' || c == '=' || c == '_' || c == '|' ?
-				          (sscanf( buf + 2, "%u %u", &t1, &t2 ) != 2) :
-				          c != '^' ?
-				            (sscanf( buf + 2, "%u %u %u", &t1, &t2, &t3 ) != 3) :
-				            (sscanf( buf + 2, "%u %u %u %u", &t1, &t2, &t3, &t4 ) != 4))
-				{
+				switch ((c = buf[0])) {
+				case '#':
+					tn = 0;
+					bad = (sscanf( buf + 2, "%u %u %n", &t1, &t2, &tn ) < 2) || !tn || (ll - (uint)tn != TUIDL + 2);
+					break;
+				case '!':
+					bad = sscanf( buf + 2, "%u", &t1 ) != 1;
+					break;
+				case 'N':
+				case 'F':
+				case 'T':
+				case '+':
+				case '&':
+				case '-':
+				case '=':
+				case '_':
+				case '|':
+					bad = sscanf( buf + 2, "%u %u", &t1, &t2 ) != 2;
+					break;
+				case '<':
+				case '>':
+				case '*':
+				case '~':
+					bad = sscanf( buf + 2, "%u %u %u", &t1, &t2, &t3 ) != 3;
+					break;
+				case '^':
+					bad = sscanf( buf + 2, "%u %u %u %u", &t1, &t2, &t3, &t4 ) != 4;
+					break;
+				default:
+					error( "Error: unrecognized journal entry at %s:%d\n", svars->jname, line );
+					goto jbail;
+				}
+				if (bad) {
 					error( "Error: malformed journal entry at %s:%d\n", svars->jname, line );
 					goto jbail;
 				}
@@ -373,8 +396,7 @@ load_state( sync_vars_t *svars )
 						srec = upgrade_srec( svars, srec );
 						break;
 					default:
-						error( "Error: unrecognized journal entry at %s:%d\n", svars->jname, line );
-						goto jbail;
+						assert( !"Unhandled journal entry" );
 					}
 				}
 			}
