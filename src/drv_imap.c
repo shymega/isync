@@ -658,11 +658,15 @@ imap_refcounted_new_cmd( imap_cmd_refcounted_state_t *sts )
 	return &cmd->gen;
 }
 
-#define DONE_REFCOUNTED_STATE(sts) \
+#define DONE_REFCOUNTED_STATE_FINALIZE(sts, finalize) \
 	if (!--sts->ref_count) { \
+		finalize \
 		sts->callback( sts->ret_val, sts->callback_aux ); \
 		free( sts ); \
 	}
+
+#define DONE_REFCOUNTED_STATE(sts) \
+	DONE_REFCOUNTED_STATE_FINALIZE(sts, )
 
 #define DONE_REFCOUNTED_STATE_ARGS(sts, finalize, ...) \
 	if (!--sts->ref_count) { \
@@ -3040,6 +3044,8 @@ typedef union {
 		IMAP_CMD_REFCOUNTED_STATE
 		void (*callback)( int sts, void *aux );
 		void *callback_aux;
+		message_t *msg;
+		int add, del;
 	};
 } imap_set_msg_flags_state_t;
 
@@ -3065,23 +3071,16 @@ imap_set_msg_flags( store_t *gctx, message_t *msg, uint uid, int add, int del,
 {
 	imap_store_t *ctx = (imap_store_t *)gctx;
 
-	if (msg) {
-		uid = msg->uid;
-		add &= ~msg->flags;
-		del &= msg->flags;
-		msg->flags |= add;
-		msg->flags &= ~del;
-	}
-	if (add || del) {
-		INIT_REFCOUNTED_STATE(imap_set_msg_flags_state_t, sts, cb, aux)
-		if (add)
-			imap_flags_helper( ctx, uid, '+', add, sts );
-		if (del)
-			imap_flags_helper( ctx, uid, '-', del, sts );
-		imap_set_flags_p3( sts );
-	} else {
-		cb( DRV_OK, aux );
-	}
+	assert( add || del );
+	INIT_REFCOUNTED_STATE(imap_set_msg_flags_state_t, sts, cb, aux)
+	sts->msg = msg;
+	sts->add = add;
+	sts->del = del;
+	if (add)
+		imap_flags_helper( ctx, uid, '+', add, sts );
+	if (del)
+		imap_flags_helper( ctx, uid, '-', del, sts );
+	imap_set_flags_p3( sts );
 }
 
 static void
@@ -3096,7 +3095,10 @@ imap_set_flags_p2( imap_store_t *ctx ATTR_UNUSED, imap_cmd_t *cmd, int response 
 static void
 imap_set_flags_p3( imap_set_msg_flags_state_t *sts )
 {
-	DONE_REFCOUNTED_STATE(sts)
+	DONE_REFCOUNTED_STATE_FINALIZE(sts, {
+		if (sts->msg)
+			sts->msg->flags = (sts->msg->flags & ~sts->del) | sts->add;
+	})
 }
 
 /******************* imap_close_box *******************/
