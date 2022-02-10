@@ -767,7 +767,7 @@ box_opened2( sync_vars_t *svars, int t )
 				}
 				opts[t^1] |= OPEN_OLD;
 			}
-			if (chan->ops[t] & OP_EXPUNGE)  // Don't propagate doomed msgs
+			if ((chan->ops[t] | chan->ops[t^1]) & OP_EXPUNGE)  // Don't propagate doomed msgs
 				opts[t^1] |= OPEN_FLAGS;
 		}
 		if (chan->ops[t] & OP_EXPUNGE) {
@@ -1155,8 +1155,10 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 					debug( "unpropagated old message %u\n", tmsg->uid );
 
 					if (srec->status & S_UPGRADE) {
-						if ((svars->chan->ops[t] & OP_EXPUNGE) &&
-						    ((srec->pflags | srec->aflags[t]) & ~srec->dflags[t] & F_DELETED)) {
+						if (((svars->chan->ops[t] & OP_EXPUNGE) &&
+						     ((srec->pflags | srec->aflags[t]) & ~srec->dflags[t] & F_DELETED)) ||
+						    ((svars->chan->ops[t^1] & OP_EXPUNGE) &&
+						     ((srec->msg[t^1]->flags | srec->aflags[t^1]) & ~srec->dflags[t^1] & F_DELETED))) {
 							// We can't just kill the entry, as we may be propagating flags
 							// (in particular, F_DELETED) towards the real message.
 							// No dummy is actually present, but pretend there is, so the
@@ -1202,7 +1204,7 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 					svars->newmaxuid[t^1] = tmsg->uid;
 				JLOG( "+ %u %u", (srec->uid[F], srec->uid[N]), "fresh" );
 			}
-			if ((svars->chan->ops[t] & OP_EXPUNGE) && (tmsg->flags & F_DELETED)) {
+			if (((svars->chan->ops[t] | svars->chan->ops[t^1]) & OP_EXPUNGE) && (tmsg->flags & F_DELETED)) {
 				// Yes, we may nuke fresh entries, created only for newmaxuid tracking.
 				// It would be lighter on the journal to log a (compressed) skip, but
 				// this rare case does not justify additional complexity.
@@ -1661,7 +1663,7 @@ msgs_flags_set( sync_vars_t *svars, int t )
 				debug( "is deleted dummy\n" );
 				continue;
 			}
-			if (only_new && !(srec->status & (S_PENDING | S_DUMMY(t^1) | S_SKIPPED))) {
+			if (only_new && !(srec->status & (S_DUMMY(t^1) | S_SKIPPED))) {
 				debug( "is not new\n" );
 				continue;
 			}
