@@ -41,6 +41,8 @@ BIT_ENUM(
 #define OP_MASK_TYPE (OP_NEW | OP_RENEW | OP_DELETE | OP_FLAGS)  // Asserted in the target side ops
 #define XOP_MASK_DIR (XOP_PUSH | XOP_PULL)
 
+DECL_BIT_FORMATTER_FUNCTION(ops, OP)
+
 typedef struct channel_conf {
 	struct channel_conf *next;
 	const char *name;

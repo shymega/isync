@@ -186,6 +186,8 @@ add_channel( chan_ent_t ***chanapp, channel_conf_t *chan, int ops[] )
 	merge_actions( chan, ops, XOP_HAVE_CREATE, OP_CREATE, 0 );
 	merge_actions( chan, ops, XOP_HAVE_REMOVE, OP_REMOVE, 0 );
 	merge_actions( chan, ops, XOP_HAVE_EXPUNGE, OP_EXPUNGE, 0 );
+	debug( "channel ops (%s):\n  far: %s\n  near: %s\n",
+	       chan->name, fmt_ops( ops[F] ).str, fmt_ops( ops[N] ).str );
 
 	for (int t = 0; t < 2; t++) {
 		if (chan->ops[t] & OP_MASK_TYPE)

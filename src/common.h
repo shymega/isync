@@ -217,6 +217,13 @@ void fmt_bits( uint bits, uint num_bits, const char *bit_str, const int *bit_off
 	BIT_FORMATTER_RET(name, pfx) \
 	BIT_FORMATTER_IMPL(name, pfx, static)
 
+#define DECL_BIT_FORMATTER_FUNCTION(name, pfx) \
+	BIT_FORMATTER_RET(name, pfx) \
+	BIT_FORMATTER_PROTO(name, pfx, );
+
+#define DEF_BIT_FORMATTER_FUNCTION(name, pfx) \
+	BIT_FORMATTER_IMPL(name, pfx, )
+
 void *nfmalloc( size_t sz );
 void *nfzalloc( size_t sz );
 void *nfrealloc( void *mem, size_t sz );

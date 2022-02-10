@@ -5,6 +5,8 @@
  * mbsync - mailbox synchronizer
  */
 
+#define DEBUG_FLAG DEBUG_MAIN
+
 #include "config.h"
 
 #include "sync.h"
@@ -19,6 +21,8 @@ char FieldDelimiter = ';';
 #else
 char FieldDelimiter = ':';
 #endif
+
+DEF_BIT_FORMATTER_FUNCTION(ops, OP)
 
 char *
 expand_strdup( const char *s, const conffile_t *cfile )
@@ -310,6 +314,10 @@ merge_ops( int cops, int ops[], const char *chan_name )
 	int aops, op;
 	uint i;
 
+	if (!cops && !ops[F] && !ops[N])  // Only to denoise the debug output
+		return 0;
+	debug( "merge ops (%s):\n  common: %s\n  far: %s\n  near: %s\n",
+	       channel_str( chan_name ), fmt_ops( cops ).str, fmt_ops( ops[F] ).str, fmt_ops( ops[N] ).str );
 	aops = ops[F] | ops[N];
 	if (ops[F] & XOP_HAVE_TYPE) {
 		if (aops & OP_MASK_TYPE) {  // PullNew, etc.
@@ -377,6 +385,7 @@ merge_ops( int cops, int ops[], const char *chan_name )
 			ops[N] |= cops & op;
 		}
 	}
+	debug( "  => far: %s\n  => near: %s\n", fmt_ops( ops[F] ).str, fmt_ops( ops[N] ).str );
 	return 0;
 }
 
