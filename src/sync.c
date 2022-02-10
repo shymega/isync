@@ -1036,9 +1036,9 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 					// Consequently, the srec's flags are committed right away as well.
 					srec->flags = (srec->flags | srec->aflags[t]) & ~srec->dflags[t];
 					JLOG( "^ %u %u %u %u", (srec->uid[F], srec->uid[N], srec->pflags, srec->flags),
-					      "upgrading placeholder, dummy's flags %s, srec flags %s",
-					      (fmt_lone_flags( srec->pflags ).str, fmt_lone_flags( srec->flags ).str) );
-					nsrec = upgrade_srec( svars, srec );
+					      "upgrading %s placeholder, dummy's flags %s, srec flags %s",
+					      (str_fn[t], fmt_lone_flags( srec->pflags ).str, fmt_lone_flags( srec->flags ).str) );
+					nsrec = upgrade_srec( svars, srec, t );
 				}
 			}
 			// This is separated, because the upgrade can come from the journal.
@@ -1199,7 +1199,7 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 				           ((srec->status & (S_EXPIRE|S_EXPIRED)) && (srec->msg[N]->flags & F_DELETED))) {
 					/* The message is excess or was already (being) expired. */
 					srec->status |= S_NEXPIRE;
-					debug( "  pair(%u,%u) expired\n", srec->uid[F], srec->uid[N] );
+					debug( "  expiring pair(%u,%u)\n", srec->uid[F], srec->uid[N] );
 					todel--;
 				}
 			}

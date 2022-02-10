@@ -344,7 +344,7 @@ load_state( sync_vars_t *svars )
 					error( "Error: journal entry at %s:%d refers to non-existing sync state entry\n", svars->jname, line );
 					goto jbail;
 				  syncfnd:
-					debugn( "  entry(%u,%u,%u) ", srec->uid[F], srec->uid[N], srec->flags );
+					debugn( "  entry(%u,%u) ", srec->uid[F], srec->uid[N] );
 					switch (c) {
 					case '-':
 						debug( "killed\n" );
@@ -392,11 +392,12 @@ load_state( sync_vars_t *svars )
 						srec->status = S_PENDING | (!srec->uid[F] ? S_DUMMY(F) : S_DUMMY(N));
 						break;
 					case '^':
+						tn = (srec->status & S_DUMMY(F)) ? F : N;
 						srec->pflags = (uchar)t3;
 						srec->flags = (uchar)t4;
-						debug( "is being upgraded, dummy's flags %s, srec flags %s\n",
-						       fmt_lone_flags( t3 ).str, fmt_lone_flags( t4 ).str );
-						srec = upgrade_srec( svars, srec );
+						debug( "upgrading %s placeholder, dummy's flags %s, srec flags %s\n",
+						       str_fn[tn], fmt_lone_flags( t3 ).str, fmt_lone_flags( t4 ).str );
+						srec = upgrade_srec( svars, srec, tn );
 						break;
 					default:
 						assert( !"Unhandled journal entry" );
@@ -564,7 +565,7 @@ match_tuids( sync_vars_t *svars, int t, message_t *msgs )
 }
 
 sync_rec_t *
-upgrade_srec( sync_vars_t *svars, sync_rec_t *srec )
+upgrade_srec( sync_vars_t *svars, sync_rec_t *srec, int t )
 {
 	// Create an entry and append it to the current one.
 	sync_rec_t *nsrec = nfzalloc( sizeof(*nsrec) );
@@ -574,7 +575,6 @@ upgrade_srec( sync_vars_t *svars, sync_rec_t *srec )
 		svars->srecadd = &nsrec->next;
 	svars->nsrecs++;
 	// Move the placeholder to the new entry.
-	int t = (srec->status & S_DUMMY(F)) ? F : N;
 	nsrec->uid[t] = srec->uid[t];
 	srec->uid[t] = 0;
 	if (srec->msg[t]) {  // NULL during journal replay; is assigned later.

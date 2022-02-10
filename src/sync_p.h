@@ -95,4 +95,4 @@ void assign_uid( sync_vars_t *svars, sync_rec_t *srec, int t, uint uid );
 void assign_tuid( sync_vars_t *svars, sync_rec_t *srec );
 int match_tuids( sync_vars_t *svars, int t, message_t *msgs );
 
-sync_rec_t *upgrade_srec( sync_vars_t *svars, sync_rec_t *srec );
+sync_rec_t *upgrade_srec( sync_vars_t *svars, sync_rec_t *srec, int t );
