@@ -680,13 +680,22 @@ box_opened2( sync_vars_t *svars, int t )
 	if (!lock_state( svars ))
 		goto bail;
 
+	int any_dummies[2] = { 0, 0 };
 	int any_purges[2] = { 0, 0 };
 	int any_upgrades[2] = { 0, 0 };
 	int any_new[2] = { 0, 0 };
 	int any_tuids[2] = { 0, 0 };
-	if (svars->replayed) {
+	if (svars->replayed || ((chan->ops[F] | chan->ops[N]) & OP_RENEW)) {
 		for (srec = svars->srecs; srec; srec = srec->next) {
 			if (srec->status & S_DEAD)
+				continue;
+			if (srec->status & S_DUMMY(F))
+				any_dummies[F]++;
+			else if (srec->status & S_DUMMY(N))
+				any_dummies[N]++;
+			else if (srec->status & S_SKIPPED)
+				any_dummies[!srec->uid[F] ? F : N]++;
+			if (!svars->replayed)
 				continue;
 			if (srec->status & S_PURGE) {
 				any_purges[srec->uid[F] ? F : N]++;
@@ -720,6 +729,10 @@ box_opened2( sync_vars_t *svars, int t )
 			opts[t^1] |= OPEN_OLD;
 			if (chan->ops[t] & OP_FLAGS)
 				opts[t^1] |= OPEN_FLAGS;
+		}
+		if (!any_dummies[t] && (chan->ops[t] & OP_RENEW)) {
+			chan->ops[t] &= ~OP_RENEW;
+			debug( "no %s dummies; masking ReNew\n", str_fn[t] );
 		}
 		if ((chan->ops[t] & (OP_NEW | OP_RENEW)) || any_new[t] || any_upgrades[t]) {
 			opts[t] |= OPEN_APPEND;
