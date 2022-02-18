@@ -787,7 +787,7 @@ box_opened2( sync_vars_t *svars, int t )
 	// but it's more natural to treat it as read-only in that case.
 	// OP_RENEW makes sense only for legacy S_SKIPPED entries.
 	if ((chan->ops[N] & (OP_NEW|OP_RENEW|OP_FLAGS)) && chan->max_messages)
-		opts[N] |= OPEN_OLD|OPEN_NEW|OPEN_FLAGS;
+		opts[N] |= OPEN_OLD | OPEN_FLAGS;
 	svars->opts[F] = svars->drv[F]->prepare_load_box( ctx[F], opts[F] );
 	svars->opts[N] = svars->drv[N]->prepare_load_box( ctx[N], opts[N] );
 
