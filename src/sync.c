@@ -792,6 +792,8 @@ box_opened2( sync_vars_t *svars, int t )
 		svars->any_expiring = 1;
 	if (svars->any_expiring) {
 		opts[N] |= OPEN_OLD | OPEN_FLAGS;
+		if (chan->ops[N] & (OP_NEW | OP_RENEW))
+			opts[F] |= OPEN_FLAGS;
 	}
 	svars->opts[F] = svars->drv[F]->prepare_load_box( ctx[F], opts[F] );
 	svars->opts[N] = svars->drv[N]->prepare_load_box( ctx[N], opts[N] );
