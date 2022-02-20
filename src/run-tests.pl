@@ -37,7 +37,6 @@ if (!-d "tmp") {
 }
 chdir "tmp" or die "Cannot enter temp direcory.\n";
 
-sub show($$$);
 sub test($$$$);
 
 ################################################################################
@@ -61,7 +60,6 @@ my @x01 = (
 );
 
 my @O01 = ("", "", "");
-#show("01", "01", "01");
 my @X01 = (
  [ 10,
    A, 1, "F", B, 2, "F", C, 3, "FS", D, 4, "", E, 5, "T", F, 6, "FT", G, 7, "FT", I, 9, "", J, 10, "" ],
@@ -73,7 +71,6 @@ my @X01 = (
 test("full", \@x01, \@X01, \@O01);
 
 my @O02 = ("", "", "Expunge Both\n");
-#show("01", "02", "02");
 my @X02 = (
  [ 10,
    A, 1, "F", B, 2, "F", C, 3, "FS", D, 4, "", I, 9, "", J, 10, "" ],
@@ -85,7 +82,6 @@ my @X02 = (
 test("full + expunge both", \@x01, \@X02, \@O02);
 
 my @O03 = ("", "", "Expunge Near\n");
-#show("01", "03", "03");
 my @X03 = (
  [ 10,
    A, 1, "F", B, 2, "F", C, 3, "FS", D, 4, "", E, 5, "T", F, 6, "FT", G, 7, "FT", I, 9, "", J, 10, "" ],
@@ -97,7 +93,6 @@ my @X03 = (
 test("full + expunge near side", \@x01, \@X03, \@O03);
 
 my @O04 = ("", "", "Sync Pull\n");
-#show("01", "04", "04");
 my @X04 = (
  [ 9,
    A, 1, "F", B, 2, "", C, 3, "FS", D, 4, "", E, 5, "T", F, 6, "F", G, 7, "FT", I, 9, "" ],
@@ -109,7 +104,6 @@ my @X04 = (
 test("pull", \@x01, \@X04, \@O04);
 
 my @O05 = ("", "", "Sync Flags\n");
-#show("01", "05", "05");
 my @X05 = (
  [ 9,
    A, 1, "F", B, 2, "F", C, 3, "FS", D, 4, "", E, 5, "T", F, 6, "F", G, 7, "FT", I, 9, "" ],
@@ -121,7 +115,6 @@ my @X05 = (
 test("flags", \@x01, \@X05, \@O05);
 
 my @O06 = ("", "", "Sync Delete\n");
-#show("01", "06", "06");
 my @X06 = (
  [ 9,
    A, 1, "F", B, 2, "", C, 3, "FS", D, 4, "", E, 5, "T", F, 6, "FT", G, 7, "FT", I, 9, "" ],
@@ -133,7 +126,6 @@ my @X06 = (
 test("deletions", \@x01, \@X06, \@O06);
 
 my @O07 = ("", "", "Sync New\n");
-#show("01", "07", "07");
 my @X07 = (
  [ 10,
    A, 1, "F", B, 2, "", C, 3, "FS", D, 4, "", E, 5, "T", F, 6, "F", G, 7, "FT", I, 9, "", J, 10, "" ],
@@ -145,7 +137,6 @@ my @X07 = (
 test("new", \@x01, \@X07, \@O07);
 
 my @O08 = ("", "", "Sync PushFlags PullDelete\n");
-#show("01", "08", "08");
 my @X08 = (
  [ 9,
    A, 1, "F", B, 2, "F", C, 3, "FS", D, 4, "", E, 5, "T", F, 6, "F", G, 7, "FT", I, 9, "" ],
@@ -168,7 +159,6 @@ my @x10 = (
 );
 
 my @O11 = ("MaxSize 1k\n", "MaxSize 1k\n", "Expunge Near");
-#show("10", "11", "11");
 my @X11 = (
  [ 3,
    A, 1, "", B, 2, "*", C, 3, "?" ],
@@ -188,7 +178,6 @@ my @x22 = (
    3, 1, "<", 1, 2, "", 2, 3, ">" ],
 );
 
-#show("22", "22", "11");
 my @X22 = (
  [ 4,
    A, 1, "", B, 2, "*", C, 3, "T?", C, 4, "F*" ],
@@ -249,7 +238,6 @@ my @x30 = (
 );
 
 my @O31 = ("", "", "MaxMessages 3\n");
-#show("30", "31", "31");
 my @X31 = (
  [ 6,
    A, 1, "F", B, 2, "", C, 3, "S", D, 4, "", E, 5, "S", F, 6, "" ],
@@ -261,7 +249,6 @@ my @X31 = (
 test("max messages", \@x30, \@X31, \@O31);
 
 my @O32 = ("", "", "MaxMessages 3\nExpireUnread yes\n");
-#show("30", "32", "32");
 my @X32 = (
  [ 6,
    A, 1, "F", B, 2, "", C, 3, "S", D, 4, "", E, 5, "S", F, 6, "" ],
@@ -282,7 +269,6 @@ my @x50 = (
 );
 
 my @O51 = ("", "", "MaxMessages 3\nExpunge Both\n");
-#show("50", "51", "51");
 my @X51 = (
  [ 6,
    A, 1, "S", B, 2, "FS", C, 3, "S", D, 4, "", E, 5, "", F, 6, "" ],
@@ -542,61 +528,6 @@ sub readchan(;$)
 		near => readbox("near"),
 		state => readstate($fbss)
 	};
-}
-
-# $boxname
-# Output:
-# [ maxuid,
-#   serial, uid, "flags", ... ],
-sub showbox($)
-{
-	my ($bn) = @_;
-
-	printbox(readbox($bn));
-}
-
-# $filename
-# Output:
-# [ maxuid[F], maxxfuid, maxuid[N],
-#   uid[F], uid[N], "flags", ... ],
-sub showstate($)
-{
-	my ($fn) = @_;
-
-	my $rss = readstate($fn);
-	printstate($rss) if ($rss);
-}
-
-# $filename
-sub showchan($)
-{
-	my ($fn) = @_;
-
-	showbox("far");
-	showbox("near");
-	showstate($fn);
-}
-
-# $source_state_name, $target_state_name, $configs_name
-sub show($$$)
-{
-	my ($sx, $tx, $sfxn) = @_;
-	my ($sp, $sfx);
-	eval "\$sp = \\\@x$sx";
-	eval "\$sfx = \\\@O$sfxn";
-	mkchan($sp);
-	print "my \@x$sx = (\n";
-	showchan("near/.mbsyncstate");
-	print ");\n";
-	writecfg($sfx);
-	runsync(0, "", "");
-	killcfg();
-	print "my \@X$tx = (\n";
-	showchan("near/.mbsyncstate");
-	print ");\n";
-	print "test(\"\", \\\@x$sx, \\\@X$tx, \\\@O$sfxn);\n\n";
-	rmtree "near";
-	rmtree "far";
 }
 
 # $box_name, \%box_state
