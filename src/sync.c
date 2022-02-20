@@ -1534,6 +1534,7 @@ static void
 msgs_flags_set( sync_vars_t *svars, int t )
 {
 	message_t *tmsg;
+	sync_rec_t *srec;
 	trash_vars_t *tv;
 	copy_vars_t *cv;
 
@@ -1542,53 +1543,75 @@ msgs_flags_set( sync_vars_t *svars, int t )
 
 	sync_ref( svars );
 
-	if ((svars->chan->ops[t] & OP_EXPUNGE) &&
-	    (svars->ctx[t]->conf->trash || (svars->ctx[t^1]->conf->trash && svars->ctx[t^1]->conf->trash_remote_new))) {
-		debug( "trashing on %s\n", str_fn[t] );
-		for (tmsg = svars->msgs[t]; tmsg; tmsg = tmsg->next) {
-			if ((tmsg->flags & F_DELETED) && !find_uint_array( svars->trashed_msgs[t].array, tmsg->uid ) &&
-			    (t == F || !tmsg->srec || !(tmsg->srec->status & (S_EXPIRE|S_EXPIRED)))) {
-				if (svars->ctx[t]->conf->trash) {
-					if (!svars->ctx[t]->conf->trash_only_new || !tmsg->srec || (tmsg->srec->status & (S_PENDING | S_SKIPPED))) {
-						debug( "%s: trashing message %u\n", str_fn[t], tmsg->uid );
-						trash_total[t]++;
-						stats();
-						svars->trash_pending[t]++;
-						tv = nfmalloc( sizeof(*tv) );
-						tv->aux = AUX;
-						tv->msg = tmsg;
-						svars->drv[t]->trash_msg( svars->ctx[t], tmsg, msg_trashed, tv );
-						if (check_cancel( svars ))
-							goto out;
-					} else {
-						debug( "%s: not trashing message %u - not new\n", str_fn[t], tmsg->uid );
-					}
-				} else {
-					if (!tmsg->srec || (tmsg->srec->status & (S_PENDING | S_SKIPPED))) {
-						if (tmsg->size <= svars->ctx[t^1]->conf->max_size) {
-							debug( "%s: remote trashing message %u\n", str_fn[t], tmsg->uid );
-							trash_total[t]++;
-							stats();
-							svars->trash_pending[t]++;
-							cv = nfmalloc( sizeof(*cv) );
-							cv->cb = msg_rtrashed;
-							cv->aux = INV_AUX;
-							cv->srec = NULL;
-							cv->msg = tmsg;
-							cv->minimal = 0;
-							copy_msg( cv );
-							if (check_cancel( svars ))
-								goto out;
-						} else {
-							debug( "%s: not remote trashing message %u - too big\n", str_fn[t], tmsg->uid );
-						}
-					} else {
-						debug( "%s: not remote trashing message %u - not new\n", str_fn[t], tmsg->uid );
-					}
-				}
+	if (!(svars->chan->ops[t] & OP_EXPUNGE))
+		goto skip;
+	int remote, only_new;
+	if (svars->ctx[t]->conf->trash) {
+		only_new = svars->ctx[t]->conf->trash_only_new;
+		debug( "trashing %s on %s locally\n", only_new ? "new" : "all", str_fn[t] );
+		remote = 0;
+	} else if (svars->ctx[t^1]->conf->trash && svars->ctx[t^1]->conf->trash_remote_new) {
+		debug( "trashing new on %s remotely\n", str_fn[t] );
+		only_new = 1;
+		remote = 1;
+	} else {
+		goto skip;
+	}
+	for (tmsg = svars->msgs[t]; tmsg; tmsg = tmsg->next) {
+		if (!(tmsg->flags & F_DELETED)) {
+			//debug( "  message %u is not deleted\n", tmsg->uid );  // Too noisy
+			continue;
+		}
+		debugn( "  message %u ", tmsg->uid );
+		if ((srec = tmsg->srec)) {
+			if (t == N && (srec->status & (S_EXPIRE | S_EXPIRED))) {
+				// Don't trash messages that are deleted only due to expiring.
+				// However, this is an unlikely configuration to start with ...
+				debug( "is expired\n" );
+				continue;
+			}
+			if (only_new && !(srec->status & (S_PENDING | S_SKIPPED))) {
+				debug( "is not new\n" );
+				continue;
 			}
 		}
+		if (find_uint_array( svars->trashed_msgs[t].array, tmsg->uid )) {
+			debug( "was already trashed\n" );
+			continue;
+		}
+		if (!remote) {
+			debug( "- trashing\n" );
+			trash_total[t]++;
+			stats();
+			svars->trash_pending[t]++;
+			tv = nfmalloc( sizeof(*tv) );
+			tv->aux = AUX;
+			tv->msg = tmsg;
+			svars->drv[t]->trash_msg( svars->ctx[t], tmsg, msg_trashed, tv );
+		} else {
+			if (tmsg->size > svars->ctx[t^1]->conf->max_size) {
+				// This is questionable, as these messages are actually lost
+				// (no upgradable dummies here).
+				// However, this is an unlikely configuration to start with ...
+				debug( "is too big\n" );
+				continue;
+			}
+			debug( "- trashing\n" );
+			trash_total[t]++;
+			stats();
+			svars->trash_pending[t]++;
+			cv = nfmalloc( sizeof(*cv) );
+			cv->cb = msg_rtrashed;
+			cv->aux = INV_AUX;
+			cv->srec = NULL;
+			cv->msg = tmsg;
+			cv->minimal = 0;
+			copy_msg( cv );
+		}
+		if (check_cancel( svars ))
+			goto out;
 	}
+  skip:
 	svars->state[t] |= ST_SENT_TRASH;
 	sync_close( svars, t );
 
