@@ -12,6 +12,7 @@ $SIG{__WARN__} = \&Carp::cluck;
 $SIG{__DIE__} = \&Carp::confess;
 
 use Cwd;
+use Clone 'clone';
 use File::Path;
 use File::Temp 'tempdir';
 
@@ -37,295 +38,235 @@ if (!-d "tmp") {
 }
 chdir "tmp" or die "Cannot enter temp direcory.\n";
 
-sub test($$$$);
-
-################################################################################
-
-# Format of the test defs: [ far, near, state ]
-# far/near: [ maxuid, { seq, uid, flags }... ]
-# state: [ MaxPulledUid, MaxExpiredFarUid, MaxPushedUid, { muid, suid, flags }... ]
-
 use enum qw(:=1 A..Z);
 sub mn($) { my ($n) = @_; $n == 0 ? "0" : chr(64 + $n) }
 sub mf($) { my ($f) = @_; length($f) ? $f : '-' }
 
-# generic syncing tests
-my @x01 = (
- [ 9,
-   A, 1, "F", B, 2, "", C, 3, "FS", D, 4, "", E, 5, "T", F, 6, "F", G, 7, "FT", I, 9, "" ],
- [ 9,
-   A, 1, "", B, 2, "F", C, 3, "F", D, 4, "", E, 5, "", G, 7, "", H, 8, "", J, 9, "" ],
- [ 8, 0, 0,
-   1, 1, "", 2, 2, "", 3, 3, "", 4, 4, "", 5, 5, "", 6, 6, "", 7, 7, "", 8, 8, "" ],
-);
+my $sync_flags = "<>^~DFPRST";
+my $msg_flags = "DFPRST*?";
 
-my @O01 = ("", "", "");
-my @X01 = (
- [ 10,
-   A, 1, "F", B, 2, "F", C, 3, "FS", D, 4, "", E, 5, "T", F, 6, "FT", G, 7, "FT", I, 9, "", J, 10, "" ],
- [ 10,
-   A, 1, "F", B, 2, "F", C, 3, "FS", D, 4, "", E, 5, "T", G, 7, "FT", H, 8, "T", J, 9, "", I, 10, "" ],
- [ 10, 0, 10,
-   1, 1, "F", 2, 2, "F", 3, 3, "FS", 4, 4, "", 5, 5, "T", 6, 0, "", 7, 7, "FT", 0, 8, "", 10, 9, "", 9, 10, "" ],
-);
-test("full", \@x01, \@X01, \@O01);
-
-my @O02 = ("", "", "Expunge Both\n");
-my @X02 = (
- [ 10,
-   A, 1, "F", B, 2, "F", C, 3, "FS", D, 4, "", I, 9, "", J, 10, "" ],
- [ 10,
-   A, 1, "F", B, 2, "F", C, 3, "FS", D, 4, "", J, 9, "", I, 10, "" ],
- [ 10, 0, 10,
-   1, 1, "F", 2, 2, "F", 3, 3, "FS", 4, 4, "", 10, 9, "", 9, 10, "" ],
-);
-test("full + expunge both", \@x01, \@X02, \@O02);
-
-my @O03 = ("", "", "Expunge Near\n");
-my @X03 = (
- [ 10,
-   A, 1, "F", B, 2, "F", C, 3, "FS", D, 4, "", E, 5, "T", F, 6, "FT", G, 7, "FT", I, 9, "", J, 10, "" ],
- [ 10,
-   A, 1, "F", B, 2, "F", C, 3, "FS", D, 4, "", J, 9, "", I, 10, "" ],
- [ 10, 0, 10,
-   1, 1, "F", 2, 2, "F", 3, 3, "FS", 4, 4, "", 5, 0, "T", 6, 0, "", 7, 0, "T", 10, 9, "", 9, 10, "" ],
-);
-test("full + expunge near side", \@x01, \@X03, \@O03);
-
-my @O04 = ("", "", "Sync Pull\n");
-my @X04 = (
- [ 9,
-   A, 1, "F", B, 2, "", C, 3, "FS", D, 4, "", E, 5, "T", F, 6, "F", G, 7, "FT", I, 9, "" ],
- [ 10,
-   A, 1, "F", B, 2, "F", C, 3, "FS", D, 4, "", E, 5, "T", G, 7, "FT", H, 8, "T", J, 9, "", I, 10, "" ],
- [ 9, 0, 0,
-   1, 1, "F", 2, 2, "", 3, 3, "FS", 4, 4, "", 5, 5, "T", 6, 6, "", 7, 7, "FT", 0, 8, "", 9, 10, "" ],
-);
-test("pull", \@x01, \@X04, \@O04);
-
-my @O05 = ("", "", "Sync Flags\n");
-my @X05 = (
- [ 9,
-   A, 1, "F", B, 2, "F", C, 3, "FS", D, 4, "", E, 5, "T", F, 6, "F", G, 7, "FT", I, 9, "" ],
- [ 9,
-   A, 1, "F", B, 2, "F", C, 3, "FS", D, 4, "", E, 5, "T", G, 7, "FT", H, 8, "", J, 9, "" ],
- [ 8, 0, 0,
-   1, 1, "F", 2, 2, "F", 3, 3, "FS", 4, 4, "", 5, 5, "T", 6, 6, "", 7, 7, "FT", 8, 8, "" ],
-);
-test("flags", \@x01, \@X05, \@O05);
-
-my @O06 = ("", "", "Sync Delete\n");
-my @X06 = (
- [ 9,
-   A, 1, "F", B, 2, "", C, 3, "FS", D, 4, "", E, 5, "T", F, 6, "FT", G, 7, "FT", I, 9, "" ],
- [ 9,
-   A, 1, "", B, 2, "F", C, 3, "F", D, 4, "", E, 5, "", G, 7, "", H, 8, "T", J, 9, "" ],
- [ 8, 0, 0,
-   1, 1, "", 2, 2, "", 3, 3, "", 4, 4, "", 5, 5, "", 6, 0, "", 7, 7, "", 0, 8, "" ],
-);
-test("deletions", \@x01, \@X06, \@O06);
-
-my @O07 = ("", "", "Sync New\n");
-my @X07 = (
- [ 10,
-   A, 1, "F", B, 2, "", C, 3, "FS", D, 4, "", E, 5, "T", F, 6, "F", G, 7, "FT", I, 9, "", J, 10, "" ],
- [ 10,
-   A, 1, "", B, 2, "F", C, 3, "F", D, 4, "", E, 5, "", G, 7, "", H, 8, "", J, 9, "", I, 10, "" ],
- [ 10, 0, 10,
-   1, 1, "", 2, 2, "", 3, 3, "", 4, 4, "", 5, 5, "", 6, 6, "", 7, 7, "", 8, 8, "", 10, 9, "", 9, 10, "" ],
-);
-test("new", \@x01, \@X07, \@O07);
-
-my @O08 = ("", "", "Sync PushFlags PullDelete\n");
-my @X08 = (
- [ 9,
-   A, 1, "F", B, 2, "F", C, 3, "FS", D, 4, "", E, 5, "T", F, 6, "F", G, 7, "FT", I, 9, "" ],
- [ 9,
-   A, 1, "", B, 2, "F", C, 3, "F", D, 4, "", E, 5, "", G, 7, "", H, 8, "T", J, 9, "" ],
- [ 8, 0, 0,
-   1, 1, "", 2, 2, "F", 3, 3, "F", 4, 4, "", 5, 5, "", 6, 6, "", 7, 7, "", 0, 8, "" ],
-);
-test("push flags + pull deletions", \@x01, \@X08, \@O08);
-
-# size restriction tests
-
-my @x10 = (
- [ 2,
-   A, 1, "", B, 2, "*" ],
- [ 1,
-   C, 1, "*" ],
- [ 0, 0, 0,
-    ],
-);
-
-my @O11 = ("MaxSize 1k\n", "MaxSize 1k\n", "Expunge Near");
-my @X11 = (
- [ 3,
-   A, 1, "", B, 2, "*", C, 3, "?" ],
- [ 3,
-   C, 1, "*", A, 2, "", B, 3, "?" ],
- [ 3, 0, 3,
-   3, 1, "<", 1, 2, "", 2, 3, ">" ],
-);
-test("max size", \@x10, \@X11, \@O11);
-
-my @x22 = (
- [ 3,
-   A, 1, "", B, 2, "*", C, 3, "?" ],
- [ 3,
-   C, 1, "F*", A, 2, "", B, 3, "F?" ],
- [ 3, 0, 3,
-   3, 1, "<", 1, 2, "", 2, 3, ">" ],
-);
-
-my @X22 = (
- [ 4,
-   A, 1, "", B, 2, "*", C, 3, "T?", C, 4, "F*" ],
- [ 4,
-   C, 1, "F*", A, 2, "", B, 4, "*" ],
- [ 4, 0, 4,
-   4, 1, "F", 3, 0, "T", 1, 2, "", 2, 4, "" ],
-);
-test("max size + flagging", \@x22, \@X22, \@O11);
-
-my @x23 = (
- [ 2,
-   A, 1, "", B, 2, "F*" ],
- [ 1,
-   C, 1, "F*" ],
- [ 0, 0, 0,
-    ],
-);
-
-my @X23 = (
- [ 3,
-   A, 1, "", B, 2, "F*", C, 3, "F*" ],
- [ 3,
-   C, 1, "F*", A, 2, "", B, 3, "F*" ],
- [ 3, 0, 3,
-   3, 1, "F", 1, 2, "", 2, 3, "F" ]
-);
-test("max size + initial flagging", \@x23, \@X23, \@O11);
-
-my @x24 = (
- [ 3,
-   A, 1, "", B, 2, "*", C, 3, "F*" ],
- [ 1,
-   A, 1, "" ],
- [ 3, 0, 1,
-   1, 1, "", 2, 0, "^", 3, 0, "^" ],
-);
-
-my @X24 = (
- [ 3,
-   A, 1, "", B, 2, "*", C, 3, "F*" ],
- [ 3,
-   A, 1, "", B, 2, "?", C, 3, "F*" ],
- [ 3, 0, 3,
-   1, 1, "", 2, 2, ">", 3, 3, "F" ],
-);
-test("max size (pre-1.4 legacy)", \@x24, \@X24, \@O11);
-
-# expiration tests
-
-my @x30 = (
- [ 6,
-   A, 1, "F", B, 2, "", C, 3, "S", D, 4, "", E, 5, "S", F, 6, "" ],
- [ 0,
-   ],
- [ 0, 0, 0,
-    ],
-);
-
-my @O31 = ("", "", "MaxMessages 3\n");
-my @X31 = (
- [ 6,
-   A, 1, "F", B, 2, "", C, 3, "S", D, 4, "", E, 5, "S", F, 6, "" ],
- [ 5,
-   A, 1, "F", B, 2, "", D, 3, "", E, 4, "S", F, 5, "" ],
- [ 6, 3, 5,
-   1, 1, "F", 2, 2, "", 4, 3, "", 5, 4, "S", 6, 5, "" ],
-);
-test("max messages", \@x30, \@X31, \@O31);
-
-my @O32 = ("", "", "MaxMessages 3\nExpireUnread yes\n");
-my @X32 = (
- [ 6,
-   A, 1, "F", B, 2, "", C, 3, "S", D, 4, "", E, 5, "S", F, 6, "" ],
- [ 4,
-   A, 1, "F", D, 2, "", E, 3, "S", F, 4, "" ],
- [ 6, 3, 4,
-   1, 1, "F", 4, 2, "", 5, 3, "S", 6, 4, "" ],
-);
-test("max messages vs. unread", \@x30, \@X32, \@O32);
-
-my @x50 = (
- [ 6,
-   A, 1, "FS", B, 2, "FS", C, 3, "S", D, 4, "", E, 5, "", F, 6, "" ],
- [ 6,
-   A, 1, "S", B, 2, "ST", D, 4, "", E, 5, "", F, 6, "" ],
- [ 6, 3, 0,
-   1, 1, "FS", 2, 2, "~S", 3, 3, "~S", 4, 4, "", 5, 5, "", 6, 6, "" ],
-);
-
-my @O51 = ("", "", "MaxMessages 3\nExpunge Both\n");
-my @X51 = (
- [ 6,
-   A, 1, "S", B, 2, "FS", C, 3, "S", D, 4, "", E, 5, "", F, 6, "" ],
- [ 6,
-   B, 2, "FS", D, 4, "", E, 5, "", F, 6, "" ],
- [ 6, 3, 6,
-   2, 2, "FS", 4, 4, "", 5, 5, "", 6, 6, "" ],
-);
-test("max messages + expunge", \@x50, \@X51, \@O51);
-
-
-################################################################################
-
-print "OK.\n";
-exit 0;
-
-sub parse_box($)
+sub process_flag_add($$$$$$)
 {
-	my ($rbs) = @_;
+	my ($flgr, $add, $ok_flags, $num, $e, $what) = @_;
 
-	my $mu = $$rbs[0];
-	my %ms;
-	for (my $i = 1; $i < @$rbs; $i += 3) {
-		$ms{$$rbs[$i + 1]} = [ $$rbs[$i], $$rbs[$i + 2] ];
+	return if ($add eq "");
+	for my $flg (split('', $add)) {
+		die("Adding invalid flag '$flg' for $what ".mn($num)." (at $e).\n")
+			if (index($ok_flags, $flg) < 0);
+		my $i = index($$flgr, $flg);
+		die("Adding duplicate flag '$flg' to $what ".mn($num)." (at $e).\n")
+			if ($i >= 0);
+		$$flgr .= $flg;
 	}
-	return {
-		max_uid => $mu,
-		messages => \%ms  #  { uid => [ subject, flags ], ... }
-	};
+	$$flgr = $ok_flags =~ s/[^$$flgr]//gr;  # sort
 }
 
-sub parse_state($)
+sub process_flag_del($$$$$)
 {
-	my ($rss) = @_;
+	my ($flgr, $del, $num, $e, $what) = @_;
 
-	my @ents;
-	for (my $i = 3; $i < @$rss; $i += 3) {
-		push @ents, [ @{$rss}[$i .. $i+2] ];
+	for my $flg (split('', $del)) {
+		my $i = index($$flgr, $flg);
+		die("Removing absent flag '$flg' from $what ".mn($num)." (at $e).\n")
+			if ($i < 0);
+		substr($$flgr, $i, 1) = '';
 	}
-	return {
-		max_pulled => $$rss[0],
-		max_expired => $$rss[1],
-		max_pushed => $$rss[2],
-		entries => \@ents  # [ [ far_uid, near_uid, flags ], ... ]
-	};
 }
 
-sub parse_chan($)
+sub process_flag_update($$$$$$$)
 {
-	my ($cs) = @_;
+	my ($flgr, $add, $del, $ok_flags, $num, $e, $what) = @_;
 
-	return {
-		far => parse_box($$cs[0]),
-		near => parse_box($$cs[1]),
-		state => parse_state($$cs[2])
-	};
+	process_flag_del($flgr, $del, $num, $e, $what);
+	process_flag_add($flgr, $add, $ok_flags, $num, $e, $what);
 }
+
+sub parse_flags($$$$$)
+{
+	my ($rflg, $ok_flags, $num, $e, $what) = @_;
+
+	my $add = $$rflg;
+	$$rflg = "";
+	process_flag_add($rflg, $add, $ok_flags, $num, $e, $what);
+}
+
+sub parse_flag_update($)
+{
+	my ($stsr) = @_;
+
+	my ($add, $del) = ("", "");
+	while ($$stsr =~ s,^([-+])([^-+]+),,) {
+		if ($1 eq "+") {
+			$add .= $2;
+		} else {
+			$del .= $2;
+		}
+	}
+	return ($add, $del);
+}
+
+# Returns UID.
+sub create_msg($$$$$)
+{
+	my ($num, $flg, $bs, $t, $e) = @_;
+
+	my ($mur, $msr, $n2ur) = (\$$bs{max_uid}, $$bs{messages}, $$bs{num2uid});
+	$$mur++;
+	if ($flg ne "_") {
+		parse_flags(\$flg, $msg_flags, $num, $e, "$t side");
+		$$msr{$$mur} = [ $num, $flg ];
+	}
+	push @{$$n2ur{$num}}, $$mur;
+	return $$mur;
+}
+
+# Returns old UID, new UID.
+sub parse_msg($$$$$)
+{
+	my ($num, $sts, $cs, $t, $e) = @_;
+
+	my $bs = $$cs{$t};
+	my ($msr, $n2ur) = ($$bs{messages}, $$bs{num2uid});
+
+	my $ouid;
+	my $uids = \@{$$n2ur{$num}};
+	if ($sts =~ s,^&$,,) {
+		$ouid = 0;
+	} elsif ($sts =~ s,^&(\d+),,) {
+		my $n = int($1);
+		die("Referencing unrecognized instance $n of message ".mn($num)." on $t side (at $e).\n")
+			if (!$n || $n > @$uids);
+		$ouid = $$uids[$n - 1];
+	} else {
+		$ouid = @$uids ? $$uids[-1] : 0;
+	}
+	my $nuid = ($sts =~ s,^\|,,) ? 0 : $ouid;
+	if ($sts eq "_" or $sts =~ s,^\*,,) {
+		die("Adding already present message ".mn($num)." on $t side (at $e).\n")
+			if (defined($$msr{$ouid}));
+		$nuid = create_msg($num, $sts, $bs, $t, $e);
+	} elsif ($sts =~ s,^\^,,) {
+		die("Duplicating absent message ".mn($num)." on $t side (at $e).\n")
+			if (!defined($$msr{$ouid}));
+		$nuid = create_msg($num, $sts, $bs, $t, $e);
+	} elsif ($sts eq "/") {
+		# Note that we don't delete $$n2ur{$num}, as state entries may
+		# refer to expunged messages. Subject re-use is not supported here.
+		die("Deleting absent message ".mn($num)." from $t side (at $e).\n")
+			if (!delete $$msr{$ouid});
+		$nuid = 0;
+	} elsif ($sts ne "") {
+		my ($add, $del) = parse_flag_update(\$sts);
+		die("Unrecognized message command '$sts' for $t side (at $e).\n")
+			if ($sts ne "");
+		die("No message ".mn($num)." present on $t side (at $e).\n")
+			if (!defined($$msr{$ouid}));
+		process_flag_update(\$$msr{$ouid}[1], $add, $del, $msg_flags, $num, $e, "$t side");
+	}
+	return $ouid, $nuid;
+}
+
+# Returns UID.
+sub resolv_msg($$$)
+{
+	my ($num, $cs, $t) = @_;
+
+	return 0 if (!$num);
+	my $uids = \@{$$cs{$t}{num2uid}{$num}};
+	die("No message ".mn($num)." present on $t side (in header).\n")
+		if (!@$uids);
+	return $$uids[-1];
+}
+
+# Returns index, or undef if not found.
+sub find_ent($$$)
+{
+	my ($fu, $nu, $ents) = @_;
+
+	for (my $i = 0; $i < @$ents; $i++) {
+		my $ent = $$ents[$i];
+		return $i if ($$ent[0] == $fu and $$ent[1] == $nu);
+	}
+	return undef;
+}
+
+sub find_ent_chk($$$$$)
+{
+	my ($fu, $nu, $cs, $num, $e) = @_;
+
+	my $enti = find_ent($fu, $nu, $$cs{state}{entries});
+	die("No state entry $fu:$nu present for ".mn($num)." (at $e).\n")
+		if (!defined($enti));
+	return $enti;
+}
+
+sub parse_chan($;$)
+{
+	my ($ics, $ref) = @_;
+
+	my $cs;
+	if ($ref) {
+		$cs = clone($ref);
+	} else {
+		$cs = {
+			# messages: { uid => [ subject, flags ], ... }
+			far => { max_uid => 0, messages => {}, num2uid => {} },
+			near => { max_uid => 0, messages => {}, num2uid => {} },
+			# entries: [ [ far_uid, near_uid, flags ], ... ]
+			state => { entries => [] }
+		};
+	}
+
+	my $ss = $$cs{state};
+	my $ents = $$ss{entries};
+	my $enti;
+	for (my ($i, $e) = (3, 1); $i < @$ics; $i += 4, $e++) {
+		my ($num, $far, $sts, $near) = @{$ics}[$i .. $i+3];
+		my ($ofu, $nfu) = parse_msg($num, $far, $cs, "far", $e);
+		my ($onu, $nnu) = parse_msg($num, $near, $cs, "near", $e);
+		if ($sts =~ s,^\*,,) {
+			$enti = find_ent($nfu, $nnu, $ents);
+			die("State entry $nfu:$nnu already present for ".mn($num)." (at $e).\n")
+				if (defined($enti));
+			parse_flags(\$sts, $sync_flags, $num, $e, "sync entry");
+			push @$ents, [ $nfu, $nnu, $sts ];
+		} elsif ($sts =~ s,^\^,,) {
+			die("No current state entry for ".mn($num)." (at $e).\n")
+				if (!defined($enti));
+			parse_flags(\$sts, $sync_flags, $num, $e, "sync entry");
+			splice @$ents, $enti++, 0, ([ $nfu, $nnu, $sts ]);
+		} elsif ($sts eq "/") {
+			$enti = find_ent_chk($ofu, $onu, $cs, $num, $e);
+			splice @$ents, $enti, 1;
+		} elsif ($sts ne "") {
+			my $t = -1;
+			if ($sts =~ s,^<,,) {
+				$t = 0;
+			} elsif ($sts =~ s,^>,,) {
+				$t = 1;
+			}
+			my ($add, $del) = parse_flag_update(\$sts);
+			die("Unrecognized state command '".$sts."' for ".mn($num)." (at $e).\n")
+				if ($sts ne "");
+			$enti = find_ent_chk($ofu, $onu, $cs, $num, $e);
+			my $ent = $$ents[$enti++];
+			process_flag_update(\$$ent[2], $add, $del, $sync_flags, $num, $e, "sync entry");
+			if ($t >= 0) {
+				my $uid = $t ? $nnu : $nfu;
+				$$ent[$t] = ($uid && $$cs{$t ? "near" : "far"}{messages}{$uid}) ? $uid : 0;
+			}
+		} else {
+			$enti = undef;
+		}
+	}
+
+	$$ss{max_pulled} = resolv_msg($$ics[0], $cs, "far");
+	$$ss{max_expired} = resolv_msg($$ics[1], $cs, "far");
+	$$ss{max_pushed} = resolv_msg($$ics[2], $cs, "near");
+
+	return $cs;
+}
+
 
 sub qm($)
 {
@@ -880,10 +821,263 @@ sub test($$$$)
 	writecfg($sfx);
 
 	my $sx = parse_chan($isx);
-	my $tx = parse_chan($itx);
+	my $tx = parse_chan($itx, $sx);
 
 	test_impl(0, $sx, $tx, $sfx);
 	test_impl(1, $sx, $tx, $sfx);
 
 	killcfg();
 }
+
+################################################################################
+
+# Format of the test defs:
+#   ( max_pulled, max_expired, max_pushed, { subject, far, state, near }... )
+# Everything is a delta; for the input, the reference is the empty state.
+# Common commands:
+#   *f => create with flags, appending at end of list
+#   / => destroy
+#   -f, +f => remove/add flags
+# Far/near:
+#   Special commands:
+#     _ => create phantom message (reserve UID for expunged message)
+#     ^f => create with flags, duplicating the subject
+#     | => use zero UID for state modification, even if msg exists; cmd may follow
+#     & => use zero UID for state identification, even if message exists
+#     &n => use UID of n'th occurence of subject for state id; command may follow
+#   Special flag suffixes:
+#     * => big
+#     ? => placeholder
+# State:
+#   Special commands:
+#     <, > => update far/near message link; flag updates may follow
+#     ^f => create with flags, appending right after last command's entry
+#   Special flag prefixes as in actual state file.
+
+# Generic syncing tests
+
+my @x01 = (
+  I, 0, 0,
+  A, "*F", "*", "*",
+  B, "*", "*", "*F",
+  C, "*FS", "*", "*F",
+  D, "*", "*", "*",
+  E, "*T", "*", "*",
+  G, "*F", "*", "_",
+  H, "*FT", "*", "*",
+  I, "_", "*", "*",
+  K, "*", "", "",
+  M, "", "", "*",
+);
+
+my @O01 = ("", "", "");
+my @X01 = (
+  M, 0, K,
+  A, "", "+F", "+F",
+  B, "+F", "+F", "",
+  C, "", "+FS", "+S",
+  E, "", "+T", "+T",
+  G, "+T", ">", "",
+  H, "", "+FT", "+FT",
+  I, "", "<", "+T",
+  M, "*", "*", "",
+  K, "", "*", "*",
+);
+test("full", \@x01, \@X01, \@O01);
+
+my @O02 = ("", "", "Expunge Both\n");
+my @X02 = (
+  M, 0, K,
+  A, "", "+F", "+F",
+  B, "+F", "+F", "",
+  C, "", "+FS", "+S",
+  E, "/", "/", "/",
+  G, "/", "/", "",
+  H, "/", "/", "/",
+  I, "", "/", "/",
+  M, "*", "*", "",
+  K, "", "*", "*",
+);
+test("full + expunge both", \@x01, \@X02, \@O02);
+
+my @O03 = ("", "", "Expunge Near\n");
+my @X03 = (
+  M, 0, K,
+  A, "", "+F", "+F",
+  B, "+F", "+F", "",
+  C, "", "+FS", "+S",
+  E, "", ">+T", "/",
+  G, "+T", ">", "",
+  H, "", ">+T", "/",
+  I, "", "/", "/",
+  M, "*", "*", "",
+  K, "", "*", "*",
+);
+test("full + expunge near side", \@x01, \@X03, \@O03);
+
+my @O04 = ("", "", "Sync Pull\n");
+my @X04 = (
+  K, 0, 0,
+  A, "", "+F", "+F",
+  C, "", "+FS", "+S",
+  E, "", "+T", "+T",
+  H, "", "+FT", "+FT",
+  I, "", "<", "+T",
+  K, "", "*", "*",
+);
+test("pull", \@x01, \@X04, \@O04);
+
+my @O05 = ("", "", "Sync Flags\n");
+my @X05 = (
+  I, 0, 0,
+  A, "", "+F", "+F",
+  B, "+F", "+F", "",
+  C, "", "+FS", "+S",
+  E, "", "+T", "+T",
+  H, "", "+FT", "+FT",
+);
+test("flags", \@x01, \@X05, \@O05);
+
+my @O06 = ("", "", "Sync Delete\n");
+my @X06 = (
+  I, 0, 0,
+  G, "+T", ">", "",
+  I, "", "<", "+T",
+);
+test("deletions", \@x01, \@X06, \@O06);
+
+my @O07 = ("", "", "Sync New\n");
+my @X07 = (
+  M, 0, K,
+  M, "*", "*", "",
+  K, "", "*", "*",
+);
+test("new", \@x01, \@X07, \@O07);
+
+my @O08 = ("", "", "Sync PushFlags PullDelete\n");
+my @X08 = (
+  I, 0, 0,
+  B, "+F", "+F", "",
+  C, "", "+F", "",
+  I, "", "<", "+T",
+);
+test("push flags + pull deletions", \@x01, \@X08, \@O08);
+
+# Size restriction tests
+
+my @x20 = (
+  0, 0, 0,
+  A, "*", "", "",
+  B, "**", "", "",
+  C, "", "", "**",
+);
+
+my @O21 = ("MaxSize 1k\n", "MaxSize 1k\n", "Expunge Near");
+my @X21 = (
+  C, 0, B,
+  C, "*?", "*<", "",
+  A, "", "*", "*",
+  B, "", "*>", "*?",
+);
+test("max size", \@x20, \@X21, \@O21);
+
+my @x22 = (
+  C, 0, B,
+  A, "*", "", "",
+  B, "**", "", "",
+  C, "*?", "*<", "*F*",
+  A, "", "*", "*",
+  B, "", "*>", "*F?",
+);
+
+my @X22 = (
+  C, 0, B,
+  B, "", ">->", "^*",
+  B, "", "", "&1/",
+  C, "^F*", "<-<+F", "",
+  C, "&1+T", "^T", "&",
+);
+test("max size + flagging", \@x22, \@X22, \@O21);
+
+my @x23 = (
+  0, 0, 0,
+  A, "*", "", "",
+  B, "*F*", "", "",
+  C, "", "", "*F*",
+);
+
+my @X23 = (
+  C, 0, B,
+  C, "*F*", "*F", "",
+  A, "", "*", "*",
+  B, "", "*F", "*F*",
+);
+test("max size + initial flagging", \@x23, \@X23, \@O21);
+
+my @x24 = (
+  C, 0, A,
+  A, "*", "*", "*",
+  B, "**", "*^", "",
+  C, "*F*", "*^", "",
+);
+
+my @X24 = (
+  C, 0, C,
+  B, "", ">-^+>", "*?",
+  C, "", ">-^+F", "*F*",
+);
+test("max size (pre-1.4 legacy)", \@x24, \@X24, \@O21);
+
+# Expiration tests
+
+my @x30 = (
+  0, 0, 0,
+  A, "*F", "", "",
+  B, "*", "", "",
+  C, "*S", "", "",
+  D, "*", "", "",
+  E, "*S", "", "",
+  F, "*", "", "",
+);
+
+my @O31 = ("", "", "MaxMessages 3\n");
+my @X31 = (
+  F, C, F,
+  A, "", "*F", "*F",
+  B, "", "*", "*",
+  D, "", "*", "*",
+  E, "", "*S", "*S",
+  F, "", "*", "*",
+);
+test("max messages", \@x30, \@X31, \@O31);
+
+my @O32 = ("", "", "MaxMessages 3\nExpireUnread yes\n");
+my @X32 = (
+  F, C, F,
+  A, "", "*F", "*F",
+  D, "", "*", "*",
+  E, "", "*S", "*S",
+  F, "", "*", "*",
+);
+test("max messages vs. unread", \@x30, \@X32, \@O32);
+
+my @x38 = (
+  F, C, 0,
+  A, "*FS", "*FS", "*S",
+  B, "*FS", "*~S", "*ST",
+  C, "*S", "*~S", "_",
+  D, "*", "*", "*",
+  E, "*", "*", "*",
+  F, "*", "*", "*",
+);
+
+my @O38 = ("", "", "MaxMessages 3\nExpunge Both\n");
+my @X38 = (
+  F, C, F,
+  A, "-F", "/", "/",
+  B, "", "-~+F", "-T+F",
+  C, "", "/", "",
+);
+test("max messages + expunge", \@x38, \@X38, \@O38);
+
+print "OK.\n";
