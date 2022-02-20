@@ -519,14 +519,11 @@ sub mkbox($$)
 	}
 }
 
-# \@chan_state
-sub mkchan($)
+# \@state
+sub mkstate($)
 {
-	my ($cs) = @_;
+	my ($t) = @_;
 
-	my ($f, $n, $t) = @$cs;
-	mkbox("far", $f);
-	mkbox("near", $n);
 	open(FILE, ">", "near/.mbsyncstate") or
 		die "Cannot create sync state.\n";
 	print FILE "FarUidValidity 1\nMaxPulledUid ".$$t[0]."\n".
@@ -535,6 +532,17 @@ sub mkchan($)
 		print FILE $$t[$i]." ".$$t[$i + 1]." ".$$t[$i + 2]."\n";
 	}
 	close FILE;
+}
+
+# \@chan_state
+sub mkchan($)
+{
+	my ($cs) = @_;
+
+	my ($f, $n, $t) = @$cs;
+	mkbox("far", $f);
+	mkbox("near", $n);
+	mkstate($t);
 }
 
 # $box_name, \@box_state
