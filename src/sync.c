@@ -813,7 +813,7 @@ box_opened2( sync_vars_t *svars, int t )
 					continue;  // No message; other state is irrelevant
 				if (srec->uid[F] >= minwuid)
 					continue;  // Message is in non-expired range
-				if ((svars->opts[F] & OPEN_NEW) && srec->uid[F] >= svars->maxuid[F])
+				if ((svars->opts[F] & OPEN_NEW) && srec->uid[F] > svars->maxuid[F])
 					continue;  // Message is in expired range, but new range overlaps that
 				if (!srec->uid[N] && !(srec->status & S_PENDING))
 					continue;  // Only actually paired up messages matter
