@@ -9,6 +9,8 @@ is now the file's containing directory.
 Placeholders will be now created for messages exceeding MaxSize even if
 they are flagged on the source side.
 
+MaxMessages and MaxSize can be used together now.
+
 The unfiltered list of mailboxes in each Store can be printed now.
 
 A proper summary is now printed prior to exiting.

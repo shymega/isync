@@ -799,7 +799,9 @@ box_opened2( sync_vars_t *svars, int t )
 		svars->any_expiring = 1;
 	if (svars->any_expiring) {
 		opts[N] |= OPEN_OLD | OPEN_FLAGS;
-		if (chan->ops[N] & (OP_NEW | OP_RENEW))
+		if (any_dummies[N])
+			opts[F] |= OPEN_OLD | OPEN_FLAGS;
+		else if (chan->ops[N] & (OP_NEW | OP_RENEW))
 			opts[F] |= OPEN_FLAGS;
 	}
 	svars->opts[F] = svars->drv[F]->prepare_load_box( ctx[F], opts[F] );
@@ -1284,9 +1286,29 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 				// to expire in the first place.
 				if (!srec->msg[N])
 					continue;
-				nflags = (srec->msg[N]->flags | srec->aflags[N]) & ~srec->dflags[N];
+				nflags = srec->msg[N]->flags;
+				if (srec->status & S_DUMMY(N)) {
+					if (!srec->msg[F])
+						continue;
+					// We need to pull in the real Flagged and Seen even if flag
+					// propagation was not requested, as the placeholder's ones are
+					// useless (except for un-seeing).
+					// This results in the somewhat weird situation that messages
+					// which are not visibly flagged remain unexpired.
+					sflags = srec->msg[F]->flags;
+					aflags = (sflags & ~srec->flags) & (F_SEEN | F_FLAGGED);
+					dflags = (~sflags & srec->flags) & F_SEEN;
+					nflags = (nflags & (~(F_SEEN | F_FLAGGED) | (srec->flags & F_SEEN)) & ~dflags) | aflags;
+				}
+				nflags = (nflags | srec->aflags[N]) & ~srec->dflags[N];
 			} else {
-				nflags = srec->msg[F]->flags;
+				if (srec->status & S_UPGRADE) {
+					// The dummy's F & S flags are mostly masked out anyway,
+					// but we may be pulling in the real ones.
+					nflags = (srec->pflags | srec->aflags[N]) & ~srec->dflags[N];
+				} else {
+					nflags = srec->msg[F]->flags;
+				}
 			}
 			if (!(nflags & F_DELETED) || (srec->status & (S_EXPIRE | S_EXPIRED))) {
 				// The message is not deleted, or it is, but only due to being expired.
