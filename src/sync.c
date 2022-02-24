@@ -1054,7 +1054,7 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 				if ((svars->chan->ops[t] & OP_RENEW) && (srec->status & S_DUMMY(t)) && srec->uid[t^1] && srec->msg[t]) {
 					sflags = srec->msg[t]->flags;
 					if (sflags & F_FLAGGED) {
-						sflags &= ~(F_SEEN | F_FLAGGED);  // As below.
+						sflags &= ~(F_SEEN | F_FLAGGED) | (srec->flags & F_SEEN);  // As below.
 						// We save away the dummy's flags, because after an
 						// interruption it may be already gone.
 						srec->pflags = sflags;
@@ -1136,9 +1136,10 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 						}
 						if (srec->status & S_DUMMY(t^1)) {
 							// From placeholders, don't propagate:
-							// - Seen, because the real contents were obviously not seen yet
+							// - Seen, because the real contents were obviously not seen yet.
+							//   However, we do propagate un-seeing.
 							// - Flagged, because it's just a request to upgrade
-							sflags &= ~(F_SEEN|F_FLAGGED);
+							sflags &= ~(F_SEEN | F_FLAGGED) | (srec->flags & F_SEEN);
 						} else if (srec->status & S_DUMMY(t)) {
 							// Don't propagate Flagged to placeholders, as that would be
 							// misunderstood as a request to upgrade next time around. We
