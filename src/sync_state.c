@@ -298,7 +298,6 @@ load_state( sync_vars_t *svars )
 				case '+':
 				case '&':
 				case '-':
-				case '=':
 				case '_':
 				case '|':
 					bad = sscanf( buf + 2, "%u %u", &t1, &t2 ) != 2;
@@ -362,12 +361,6 @@ load_state( sync_vars_t *svars )
 					switch (c) {
 					case '-':
 						debug( "killed\n" );
-						srec->status = S_DEAD;
-						break;
-					case '=':
-						debug( "aborted\n" );
-						if (svars->maxxfuid < srec->uid[F])
-							svars->maxxfuid = srec->uid[F];
 						srec->status = S_DEAD;
 						break;
 					case '#':

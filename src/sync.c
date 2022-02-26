@@ -1319,14 +1319,14 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 				}
 			} else {
 				if (srec->status & S_NEXPIRE) {
-					JLOG( "= %u %u", (srec->uid[F], srec->uid[N]), "expire unborn" );
+					srec->status = S_EXPIRE | S_EXPIRED;
+					JLOG( "~ %u %u %u", (srec->uid[F], srec->uid[N], srec->status), "expire unborn" );
 					// If we have so many new messages that some of them are instantly expired,
 					// but some are still propagated because they are important, we need to
 					// ensure explicitly that the bulk fetch limit is upped.
 					if (svars->maxxfuid < srec->uid[F])
 						svars->maxxfuid = srec->uid[F];
 					srec->msg[F]->srec = NULL;
-					srec->status = S_DEAD;
 				}
 			}
 		}
