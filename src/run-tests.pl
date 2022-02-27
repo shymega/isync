@@ -39,7 +39,8 @@ if (!-d "tmp") {
 chdir "tmp" or die "Cannot enter temp direcory.\n";
 
 use enum qw(:=1 A..Z);
-sub mn($) { my ($n) = @_; $n == 0 ? "0" : chr(64 + $n) }
+use enum qw(:A=27 A..Z);
+sub mn($) { my $n = shift; $n == 0 ? "0" : $n > 26 ? "A".chr(64 - 26 + $n) : chr(64 + $n) }
 sub mf($) { my ($f) = @_; length($f) ? $f : '-' }
 
 my $sync_flags = "<>^~DFPRST";
