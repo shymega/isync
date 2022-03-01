@@ -834,7 +834,7 @@ sub test_impl($$$$)
 	for (my $l = 1; $l <= $njl; $l++) {
 		mkchan($sx);
 
-		my ($nxc, $nret) = runsync($async, "-Tj$l", "4-interrupt.log");
+		my ($nxc, $nret) = runsync($async, "-Ts$l", "4-interrupt.log");
 		if ($nxc != (100 + ($l & 1)) << 8) {
 			print "Interrupting at step $l/$njl failed.\n";
 			print "Debug output:\n";

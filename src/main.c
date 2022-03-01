@@ -430,6 +430,8 @@ main( int argc, char **argv )
 					break;
 				case 'j':
 					DFlags |= KEEPJOURNAL;
+					break;
+				case 's':
 					JLimit = strtol( ochar, &ochar, 10 );
 					break;
 				case 'z':
