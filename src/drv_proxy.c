@@ -212,6 +212,7 @@ proxy_@name@_cb( @decl_cb_args@void *aux )
 	@name@_cmd_t *cmd = (@name@_cmd_t *)aux;
 	proxy_store_t *ctx = cmd->ctx;
 
+	@count_step@
 	@print_cb_args_tpl@
 	cmd->callback( @pass_cb_args@cmd->callback_aux );
 	debug( "%s[% 2d] Callback leave @name@\n", ctx->label, cmd->tag );
@@ -250,6 +251,10 @@ static @type@proxy_@name@( store_t *gctx@decl_args@, void (*cb)( @decl_cb_args@v
 	for (string_list_t *box = boxes; box; box = box->next)
 		debug( "  %s\n", box->string );
 //# END
+
+//# DEFINE create_box_counted 1
+
+//# DEFINE delete_box_counted 1
 
 //# DEFINE prepare_load_box_print_fmt_args , opts=%s
 //# DEFINE prepare_load_box_print_pass_args , fmt_opts( opts ).str
@@ -313,13 +318,18 @@ static @type@proxy_@name@( store_t *gctx@decl_args@, void (*cb)( @decl_cb_args@v
 		fflush( stdout );
 	}
 //# END
+//# DEFINE store_msg_counted 1
 
 //# DEFINE set_msg_flags_checked 1
 //# DEFINE set_msg_flags_print_fmt_args , uid=%u, add=%s, del=%s
 //# DEFINE set_msg_flags_print_pass_args , cmd->uid, fmt_flags( cmd->add ).str, fmt_flags( cmd->del ).str
+//# DEFINE set_msg_flags_counted 1
 
 //# DEFINE trash_msg_print_fmt_args , uid=%u
 //# DEFINE trash_msg_print_pass_args , cmd->msg->uid
+//# DEFINE trash_msg_counted 1
+
+//# DEFINE close_box_counted 1
 
 //# DEFINE commit_cmds_print_args
 	proxy_flush_checked_cmds( ctx );

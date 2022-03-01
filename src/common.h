@@ -124,7 +124,7 @@ BIT_ENUM(
 // Global options
 extern int Verbosity;
 extern int DFlags;
-extern int JLimit;
+extern int JLimit, JCount;
 extern int UseFSync;
 
 // Global constants (inited by main())
@@ -132,6 +132,7 @@ extern int Pid;
 extern char Hostname[256];
 extern const char *Home;
 
+void countStep( void );
 void stats( void );
 
 /* util.c */

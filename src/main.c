@@ -132,6 +132,13 @@ crashHandler( int n )
 }
 #endif
 
+void
+countStep( void )
+{
+	if (!--JLimit)
+		exit( 100 );
+}
+
 int
 main( int argc, char **argv )
 {

@@ -439,8 +439,6 @@ jFprintf( sync_vars_t *svars, const char *msg, ... )
 {
 	va_list va;
 
-	if (JLimit && !--JLimit)
-		exit( 101 );
 	if (!svars->jfp) {
 		create_state( svars );
 		if (!(svars->jfp = fopen( svars->jname, svars->replayed ? "a" : "w" ))) {
@@ -454,8 +452,8 @@ jFprintf( sync_vars_t *svars, const char *msg, ... )
 	va_start( va, msg );
 	vFprintf( svars->jfp, msg, va );
 	va_end( va );
-	if (JLimit && !--JLimit)
-		exit( 100 );
+	countStep();
+	JCount++;
 }
 
 void

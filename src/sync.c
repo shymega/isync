@@ -1719,9 +1719,15 @@ box_closed_p2( sync_vars_t *svars, int t )
 	if (!(svars->state[t^1] & ST_CLOSED))
 		return;
 
-	// All the journalling done in this function is merely for the autotest -
-	// the operations are idempotent, and we're about to commit the new state
-	// right afterwards anyway.
+	// All logging done in this function is merely for the journal replay
+	// autotest - the operations are idempotent, and we're about to commit
+	// the new state right afterwards anyway. Therefore, it would also
+	// make no sense to cover it by the interrupt-resume autotest (which
+	// would also add unreasonable complexity, as the maxuid bumps and entry
+	// purge must be consistent).
+
+	if (DFlags & KEEPJOURNAL)
+		printf( "### %d steps, %d entries ###\n", -JLimit, JCount );
 
 	for (t = 0; t < 2; t++) {
 		// Committing maxuid is delayed until all messages were propagated, to

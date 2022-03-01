@@ -15,7 +15,7 @@
 
 int Verbosity = TERSE;
 int DFlags;
-int JLimit;
+int JLimit, JCount;
 int UseFSync = 1;
 
 int Pid;

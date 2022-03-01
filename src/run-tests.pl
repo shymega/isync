@@ -783,10 +783,19 @@ sub test_impl($$$$)
 		exit 1;
 	}
 
-	my ($nj, $njl) = (undef, 0);
+	my ($nj, $njl, $nje) = (undef, 0, 0);
 	if ($$rtx{state} != $$sx{state}) {
 		$nj = readfile("near/.mbsyncstate.journal");
-		$njl = (@$nj - 1) * 2;
+		STEPS: {
+			for (reverse @$ret) {
+				if (/^### (\d+) steps, (\d+) entries ###$/) {
+					$njl = int($1) - 1;
+					$nje = int($2);
+					last STEPS;
+				}
+			}
+			die("Cannot extract step count.\n");
+		}
 
 		my ($jxc, $jret) = runsync($async, "-0 --no-expunge", "2-replay.log");
 		my $jrcs = readstate() if (!$jxc);
@@ -835,12 +844,14 @@ sub test_impl($$$$)
 		mkchan($sx);
 
 		my ($nxc, $nret) = runsync($async, "-Ts$l", "4-interrupt.log");
-		if ($nxc != (100 + ($l & 1)) << 8) {
+		if ($nxc != 100 << 8) {
 			print "Interrupting at step $l/$njl failed.\n";
 			print "Debug output:\n";
 			print @$nret;
 			exit 1;
 		}
+
+		my $pnnj = readfile("near/.mbsyncstate.journal");
 
 		($nxc, $nret) = runsync($async, "-Tj", "5-resume.log");
 		my $nrtx = readchan($$sx{state}) if (!$nxc);
@@ -851,9 +862,9 @@ sub test_impl($$$$)
 			print "Options:\n";
 			print " [ ".join(", ", map('"'.qm($_).'"', @$sfx))." ]\n";
 			my $nnj = readfile("near/.mbsyncstate.journal");
-			my $ln = int($l / 2);
+			my $ln = $#$pnnj;
 			print "Journal:\n".join("", @$nnj[0..$ln])."-------\n".join("", @$nnj[($ln + 1)..$#$nnj])."\n";
-			print "Full journal:\n".join("", @$nj)."\n";
+			print "Full journal:\n".join("", @$nj[0..$nje])."=======\n".join("", @$nj[($nje + 1)..$#$nj])."\n";
 			if (!$nxc) {
 				print "Expected result:\n";
 				printchan($tx);

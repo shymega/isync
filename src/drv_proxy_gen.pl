@@ -176,7 +176,13 @@ for (@ptypes) {
 		$replace{'print_fmt_args'} = make_format($cmd_args);
 	}
 	for (keys %defines) {
-		$replace{$1} = delete $defines{$_} if (/^${cmd_name}_(.*)$/);
+		next if (!/^${cmd_name}_(.*)$/);
+		my ($key, $val) = ($1, delete $defines{$_});
+		if ($key eq 'counted') {
+			$replace{count_step} = "countStep();\n";
+		} else {
+			$replace{$key} = $val;
+		}
 	}
 	my %used;
 	my $text = $templates{$template};
