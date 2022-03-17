@@ -1754,7 +1754,8 @@ sync_close( sync_vars_t *svars, int t )
 		return;
 	svars->state[t] |= ST_CLOSING;
 
-	if ((svars->chan->ops[t] & OP_EXPUNGE) /*&& !(svars->state[t] & ST_TRASH_BAD)*/) {
+	if ((svars->chan->ops[t] & OP_EXPUNGE) && !(DFlags & FAKEEXPUNGE)
+	    /*&& !(svars->state[t] & ST_TRASH_BAD)*/) {
 		debug( "expunging %s\n", str_fn[t] );
 		svars->drv[t]->close_box( svars->ctx[t], box_closed, AUX );
 	} else {

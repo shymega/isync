@@ -444,6 +444,9 @@ main( int argc, char **argv )
 				case 's':
 					JLimit = strtol( ochar, &ochar, 10 );
 					break;
+				case 'x':
+					DFlags |= FAKEEXPUNGE;
+					break;
 				case 'z':
 					DFlags |= ZERODELAY;
 					break;

@@ -765,7 +765,8 @@ sub test_impl($$$$)
 
 	mkchan($sx);
 
-	my ($xc, $ret) = runsync($async, "-Tj -TJ", "1-initial.log");
+	my ($xopt, $xsopt) = @$sfx > 3 ? ($$sfx[3], " ".$$sfx[3]) : ("", "");
+	my ($xc, $ret) = runsync($async, "-Tj -TJ".$xsopt, "1-initial.log");
 	my $rtx = readchan($$sx{state}) if (!$xc);
 	if ($xc || cmpchan($rtx, $tx)) {
 		print "Input:\n";
@@ -797,7 +798,7 @@ sub test_impl($$$$)
 			die("Cannot extract step count.\n");
 		}
 
-		my ($jxc, $jret) = runsync($async, "-0 --no-expunge", "2-replay.log");
+		my ($jxc, $jret) = runsync($async, "-0 --no-expunge".$xsopt, "2-replay.log");
 		my $jrcs = readstate() if (!$jxc);
 		if ($jxc || cmpstate({ far => $$tx{far}, near => $$tx{near}, state => $jrcs }, $tx)) {
 			print "Journal replay failed.\n";
@@ -818,7 +819,7 @@ sub test_impl($$$$)
 		}
 	}
 
-	my ($ixc, $iret) = runsync($async, "", "3-verify.log");
+	my ($ixc, $iret) = runsync($async, $xopt, "3-verify.log");
 	my $irtx = readchan() if (!$ixc);
 	if ($ixc || cmpchan($irtx, $tx)) {
 		print "Idempotence verification run failed.\n";
@@ -843,7 +844,7 @@ sub test_impl($$$$)
 	for (my $l = 1; $l <= $njl; $l++) {
 		mkchan($sx);
 
-		my ($nxc, $nret) = runsync($async, "-Ts$l", "4-interrupt.log");
+		my ($nxc, $nret) = runsync($async, "-Ts$l".$xsopt, "4-interrupt.log");
 		if ($nxc != 100 << 8) {
 			print "Interrupting at step $l/$njl failed.\n";
 			print "Debug output:\n";
@@ -853,7 +854,7 @@ sub test_impl($$$$)
 
 		my $pnnj = readfile("near/.mbsyncstate.journal");
 
-		($nxc, $nret) = runsync($async, "-Tj", "5-resume.log");
+		($nxc, $nret) = runsync($async, "-Tj".$xsopt, "5-resume.log");
 		my $nrtx = readchan($$sx{state}) if (!$nxc);
 		if ($nxc || cmpchan($nrtx, $tx)) {
 			print "Resuming from step $l/$njl failed.\n";
@@ -1192,6 +1193,26 @@ my @X61 = (
 );
 test("maxuid topping", \@x60, \@X61, \@O61);
 
+# Messages that would be instantly expunged on the target side.
+
+my @x90 = (
+  C, 0, C,
+  A, "*DRT*", "*>D", "*DFP?",
+  B, "*DR*", "*>D", "*DFPT?",
+  C, "*", "*", "*",
+  D, "*T", "", "",
+);
+
+my @O91 = ("", "", "Expunge Near\n", "-Tx");
+my @X91 = (
+  D, 0, C,
+  A, "+P", ">+P", "|",
+  A, "&", "^", "+T",
+  B, "+PT", ">+PT", "|",
+  B, "&", "^", "",
+);
+test("doomed", \@x90, \@X91, \@O91);
+
 # Trashing
 
 my @x10 = (
@@ -1203,6 +1224,8 @@ my @x10 = (
   E, "*", "*", "_",
   F, "**", "*>", "*T?",
   G, "*T?", "*<", "**",
+  H, "**", "*>", "*FT?",
+  I, "*FT?", "*<", "**",
   J, "**", "*>", "*F?",
   K, "*F?", "*<", "**",
   L, "*T", "", "",
@@ -1222,6 +1245,8 @@ my @X11 = (
   E, "#/", "/", "",
   F, "#/", "/", "/",
   G, "/", "/", "#/",
+  H, "#/", "/", "/",
+  I, "/", "/", "#/",
   J, "", ">->", "^*",
   J, "", "", "&1/",
   K, "^*", "<-<", "",
@@ -1244,6 +1269,8 @@ my @X12 = (
   E, "#/", "/", "",
   F, "#/", "/", "/",
   G, "/", "/", "#/",
+  H, "#/", "/", "/",
+  I, "/", "/", "#/",
   J, "", ">->", "^*",
   J, "", "", "&1/",
   K, "^*", "<-<", "",
@@ -1266,6 +1293,8 @@ my @X13 = (
   E, "#/", "/", "",
   F, "#/", "/", "/",
   G, "#/", "/", "/",
+  H, "#/", "/", "/",
+  I, "#/", "/", "/",
   J, "", ">->", "^*",
   J, "", "", "&1/",
   K, "^*", "<-<", "",
