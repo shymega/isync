@@ -680,26 +680,62 @@ box_opened2( sync_vars_t *svars, int t )
 	if (!lock_state( svars ))
 		goto bail;
 
+	int any_purges[2] = { 0, 0 };
+	int any_upgrades[2] = { 0, 0 };
+	int any_new[2] = { 0, 0 };
+	int any_tuids[2] = { 0, 0 };
+	if (svars->replayed) {
+		for (srec = svars->srecs; srec; srec = srec->next) {
+			if (srec->status & S_DEAD)
+				continue;
+			if (srec->status & S_PURGE) {
+				any_purges[srec->uid[F] ? F : N]++;
+			} else if (srec->status & S_PENDING) {
+				t = !srec->uid[F] ? F : N;
+				if (srec->status & S_UPGRADE)
+					any_upgrades[t]++;
+				else
+					any_new[t]++;
+				if (srec->tuid[0])
+					any_tuids[t]++;
+			}
+		}
+	}
+
 	opts[F] = opts[N] = 0;
 	if (fails)
 		opts[F] = opts[N] = OPEN_OLD|OPEN_OLD_IDS;
 	for (t = 0; t < 2; t++) {
+		if (any_purges[t]) {
+			debug( "resuming %d %s purge(s)\n", any_purges[t], str_fn[t] );
+			opts[t] |= OPEN_SETFLAGS;
+		}
+		if (any_tuids[t]) {
+			debug( "finding %d %sed message(s)\n", any_tuids[t], str_hl[t] );
+			opts[t] |= OPEN_NEW | OPEN_FIND;
+			svars->state[t] |= ST_FIND_OLD;
+		}
 		if (chan->ops[t] & (OP_DELETE|OP_FLAGS)) {
 			opts[t] |= OPEN_SETFLAGS;
 			opts[t^1] |= OPEN_OLD;
 			if (chan->ops[t] & OP_FLAGS)
 				opts[t^1] |= OPEN_FLAGS;
 		}
-		if (chan->ops[t] & (OP_NEW|OP_RENEW)) {
+		if ((chan->ops[t] & (OP_NEW | OP_RENEW)) || any_new[t] || any_upgrades[t]) {
 			opts[t] |= OPEN_APPEND;
-			if (chan->ops[t] & OP_NEW) {
+			if ((chan->ops[t] & OP_NEW) || any_new[t]) {
+				debug( "resuming %s of %d new message(s)\n", str_hl[t], any_new[t] );
 				opts[t^1] |= OPEN_NEW;
 				if (chan->stores[t]->max_size != UINT_MAX)
 					opts[t^1] |= OPEN_FLAGS | OPEN_NEW_SIZE;
 			}
-			if (chan->ops[t] & OP_RENEW) {
-				opts[t] |= OPEN_OLD|OPEN_FLAGS|OPEN_SETFLAGS;
-				opts[t^1] |= OPEN_OLD | OPEN_FLAGS;
+			if ((chan->ops[t] & OP_RENEW) || any_upgrades[t]) {
+				debug( "resuming %s of %d upgrade(s)\n", str_hl[t], any_upgrades[t] );
+				if (chan->ops[t] & OP_RENEW) {
+					opts[t] |= OPEN_OLD | OPEN_FLAGS | OPEN_SETFLAGS;
+					opts[t^1] |= OPEN_FLAGS;
+				}
+				opts[t^1] |= OPEN_OLD;
 			}
 			if (chan->ops[t] & OP_EXPUNGE)  // Don't propagate doomed msgs
 				opts[t^1] |= OPEN_FLAGS;
@@ -722,33 +758,6 @@ box_opened2( sync_vars_t *svars, int t )
 	// OP_RENEW makes sense only for legacy S_SKIPPED entries.
 	if ((chan->ops[N] & (OP_NEW|OP_RENEW|OP_FLAGS)) && chan->max_messages)
 		opts[N] |= OPEN_OLD|OPEN_NEW|OPEN_FLAGS;
-	if (svars->replayed) {
-		for (srec = svars->srecs; srec; srec = srec->next) {
-			if (srec->status & S_DEAD)
-				continue;
-			if (srec->tuid[0]) {
-				if (!srec->uid[F])
-					opts[F] |= OPEN_NEW|OPEN_FIND, svars->state[F] |= ST_FIND_OLD;
-				else if (!srec->uid[N])
-					opts[N] |= OPEN_NEW|OPEN_FIND, svars->state[N] |= ST_FIND_OLD;
-				else
-					warn( "Warning: sync record (%u,%u) has stray TUID. Ignoring.\n", srec->uid[F], srec->uid[N] );
-			}
-			if (srec->status & S_PURGE) {
-				t = srec->uid[F] ? F : N;
-				opts[t] |= OPEN_SETFLAGS;
-			} else if (srec->status & S_PENDING) {
-				t = !srec->uid[F] ? F : N;
-				opts[t] |= OPEN_APPEND;
-				if (srec->status & S_UPGRADE)
-					opts[t^1] |= OPEN_OLD;
-				else
-					opts[t^1] |= OPEN_NEW;
-				if (chan->ops[t] & OP_EXPUNGE)  // Don't propagate doomed msgs
-					opts[t^1] |= OPEN_FLAGS;
-			}
-		}
-	}
 	svars->opts[F] = svars->drv[F]->prepare_load_box( ctx[F], opts[F] );
 	svars->opts[N] = svars->drv[N]->prepare_load_box( ctx[N], opts[N] );
 
