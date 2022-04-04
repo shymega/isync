@@ -16,6 +16,7 @@ use File::Path;
 use File::Temp 'tempdir';
 
 my $use_vg = $ENV{USE_VALGRIND};
+my $use_st = $ENV{USE_STRACE};
 my $mbsync = getcwd()."/mbsync";
 
 my (@match, $start);
@@ -349,6 +350,8 @@ sub runsync($$$)
 	my $cmd;
 	if ($use_vg) {
 		$cmd = "valgrind -q --error-exitcode=1 ";
+	} elsif ($use_st) {
+		$cmd = "strace ";
 	} else {
 		$flags .= " -D";
 	}
