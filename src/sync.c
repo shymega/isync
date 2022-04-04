@@ -1770,7 +1770,7 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 				} else {
 					// Pretend that the source message has the adjusted flags of the dummy.
 					tmsg->flags = srec->pflags;
-					tmsg->status = M_FLAGS;
+					tmsg->status |= M_FLAGS;
 					any_new[t] = 1;
 				}
 			}
