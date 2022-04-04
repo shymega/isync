@@ -21,6 +21,7 @@ BIT_ENUM(
 	S_DELETE,       // ephemeral: flags propagation is a deletion
 	S_UPGRADE,      // ephemeral: upgrading placeholder, do not apply MaxSize
 	S_PURGE,        // ephemeral: placeholder is being nuked
+	S_PURGED,       // ephemeral: placeholder was nuked
 )
 
 // This is the persistent status of the sync record, with regard to the journal.

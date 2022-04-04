@@ -292,6 +292,7 @@ load_state( sync_vars_t *svars )
 				case 'N':
 				case 'F':
 				case 'T':
+				case 'P':
 				case '+':
 				case '&':
 				case '-':
@@ -378,8 +379,11 @@ load_state( sync_vars_t *svars )
 					case '*':
 						debug( "flags now %u\n", t3 );
 						srec->flags = (uchar)t3;
-						srec->aflags[F] = srec->aflags[N] = 0;  // Clear F_DELETED from purge
-						srec->status &= ~S_PURGE;
+						break;
+					case 'P':
+						debug( "deleted dummy\n" );
+						srec->aflags[F] = srec->aflags[N] = 0;  // Clear F_DELETED
+						srec->status = (srec->status & ~S_PURGE) | S_PURGED;
 						break;
 					case '~':
 						srec->status = (srec->status & ~S_LOGGED) | t3;

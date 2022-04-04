@@ -1498,7 +1498,10 @@ flags_set( int sts, void *aux )
 static void
 flags_set_p2( sync_vars_t *svars, sync_rec_t *srec, int t )
 {
-	if (srec->status & S_DELETE) {
+	if (srec->status & S_PURGE) {
+		JLOG( "P %u %u", (srec->uid[F], srec->uid[N]), "deleted dummy" );
+		srec->status = (srec->status & ~S_PURGE) | S_PURGED;
+	} else if (srec->status & S_DELETE) {
 		JLOG( "%c %u %u 0", ("><"[t], srec->uid[F], srec->uid[N]), "%sed deletion", str_hl[t] );
 		srec->uid[t^1] = 0;
 	} else {
@@ -1568,6 +1571,17 @@ msgs_flags_set( sync_vars_t *svars, int t )
 				// Don't trash messages that are deleted only due to expiring.
 				// However, this is an unlikely configuration to start with ...
 				debug( "is expired\n" );
+				continue;
+			}
+			if (srec->status & S_DUMMY(t)) {
+				// This is mostly academical, as trashing being done on the side
+				// where placeholders reside is rather unlikely.
+				debug( "is dummy\n" );
+				continue;
+			}
+			if (srec->status & S_PURGED) {
+				// As above.
+				debug( "is deleted dummy\n" );
 				continue;
 			}
 			if (only_new && !(srec->status & (S_PENDING | S_DUMMY(t^1) | S_SKIPPED))) {
