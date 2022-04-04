@@ -128,6 +128,8 @@ sub parse_msg($$$$$)
 	my $bs = $$cs{$t};
 	my ($msr, $n2ur) = ($$bs{messages}, $$bs{num2uid});
 
+	$$cs{"${t}_trash"}{$num} = 1
+		if ($sts =~ s,^#,,);
 	my $ouid;
 	my $uids = \@{$$n2ur{$num}};
 	if ($sts =~ s,^&$,,) {
@@ -212,6 +214,9 @@ sub parse_chan($;$)
 			# messages: { uid => [ subject, flags ], ... }
 			far => { max_uid => 0, messages => {}, num2uid => {} },
 			near => { max_uid => 0, messages => {}, num2uid => {} },
+			# trashed messages: { subject => is_placeholder, ... }
+			far_trash => { },
+			near_trash => { },
 			# entries: [ [ far_uid, near_uid, flags ], ... ]
 			state => { entries => [] }
 		};
@@ -352,30 +357,17 @@ sub readfile($;$)
 }
 
 # $path
-sub readbox($)
+sub readbox_impl($$)
 {
-	my $bn = shift;
+	my ($bn, $cb) = @_;
 
-	(-d $bn) or
-		die "No mailbox '$bn'.\n";
 	(-d $bn."/tmp" and -d $bn."/new" and -d $bn."/cur") or
 		die "Invalid mailbox '$bn'.\n";
-	my $uidval = readfile($bn."/.uidvalidity", CHOMP);
-	die "Cannot read UID validity of mailbox '$bn': $!\n" if (!$uidval);
-	my $mu = $$uidval[1];
-	my %ms = ();
 	for my $d ("cur", "new") {
 		opendir(DIR, $bn."/".$d) or next;
 		for my $f (grep(!/^\.\.?$/, readdir(DIR))) {
-			my ($uid, $flg, $ph, $num);
-			if ($f =~ /^\d+\.\d+_\d+\.[-[:alnum:]]+,U=(\d+):2,(.*)$/) {
-				($uid, $flg) = (int($1), $2);
-			} else {
-				print STDERR "unrecognided file name '$f' in '$bn'.\n";
-				exit 1;
-			}
 			open(FILE, "<", $bn."/".$d."/".$f) or die "Cannot read message '$f' in '$bn'.\n";
-			my $sz = 0;
+			my ($sz, $num, $ph) = (0);
 			while (<FILE>) {
 				/^Subject: (\[placeholder\] )?(\d+)$/ && ($ph = defined($1), $num = int($2));
 				$sz += length($_);
@@ -385,10 +377,47 @@ sub readbox($)
 				print STDERR "message '$f' in '$bn' has no identifier.\n";
 				exit 1;
 			}
-			@{ $ms{$uid} } = ($num, $flg.($sz>1000?"*":"").($ph?"?":""));
+			$cb->($num, $ph, $sz, $f);
 		}
 	}
+}
+
+# $path
+sub readbox($)
+{
+	my $bn = shift;
+
+	(-d $bn) or
+		die "No mailbox '$bn'.\n";
+	my %ms;
+	readbox_impl($bn, sub {
+		my ($num, $ph, $sz, $f) = @_;
+		if ($f !~ /^\d+\.\d+_\d+\.[-[:alnum:]]+,U=(\d+):2,(.*)$/) {
+			print STDERR "unrecognided file name '$f' in '$bn'.\n";
+			exit 1;
+		}
+		my ($uid, $flg) = (int($1), $2);
+		@{$ms{$uid}} = ($num, $flg.($sz > 1000 ? "*" : "").($ph ? "?" : ""));
+	});
+	my $uidval = readfile($bn."/.uidvalidity", CHOMP);
+	die "Cannot read UID validity of mailbox '$bn': $!\n" if (!$uidval);
+	my $mu = $$uidval[1];
 	return { max_uid => $mu, messages => \%ms };
+}
+
+# $path
+sub readtrash($)
+{
+	my $bn = shift;
+
+	(-d $bn) or
+		return {};
+	my %ms;
+	readbox_impl($bn, sub {
+		my ($num, $ph, undef, undef) = @_;
+		$ms{$num} = $ph;
+	});
+	return \%ms;
 }
 
 # \%fallback_sync_state
@@ -467,6 +496,8 @@ sub readchan(;$)
 	return {
 		far => readbox("far"),
 		near => readbox("near"),
+		far_trash => readtrash("far_trash"),
+		near_trash => readtrash("near_trash"),
 		state => readstate($fbss)
 	};
 }
@@ -517,6 +548,8 @@ sub mkchan($)
 
 	mkbox("far", $$cs{far});
 	mkbox("near", $$cs{near});
+	rmtree("far_trash");
+	rmtree("near_trash");
 	mkstate($$cs{state});
 }
 
@@ -554,6 +587,28 @@ sub cmpbox($$$)
 	for my $uid (sort { $a <=> $b } keys %$ms) {
 		if (!defined($$ref_ms{$uid})) {
 			print STDERR "Excess message $bn:$uid:".mn($$ms{$uid}[0])."\n";
+			$ret = 1;
+		}
+	}
+	return $ret;
+}
+
+# $box_name, \%actual_box_state, \%reference_box_state
+sub cmptrash($$$)
+{
+	my ($bn, $ms, $ref_ms) = @_;
+
+	my $ret = 0;
+	for my $num (sort { $a <=> $b } keys %$ref_ms) {
+		my $ph = $$ms{$num};
+		if (!defined($ph)) {
+			print STDERR "Missing message $bn:".mn($num)."\n";
+			$ret = 1;
+		}
+	}
+	for my $num (sort { $a <=> $b } keys %$ms) {
+		if (!defined($$ref_ms{$num})) {
+			print STDERR "Excess message $bn:".mn($num)."\n";
 			$ret = 1;
 		}
 	}
@@ -640,6 +695,8 @@ sub cmpchan($$)
 	my $rslt = 0;
 	$rslt |= cmpbox("far", $$cs{far}, $$ref_cs{far});
 	$rslt |= cmpbox("near", $$cs{near}, $$ref_cs{near});
+	$rslt |= cmptrash("far_trash", $$cs{far_trash}, $$ref_cs{far_trash});
+	$rslt |= cmptrash("near_trash", $$cs{near_trash}, $$ref_cs{near_trash});
 	$rslt |= cmpstate($cs, $ref_cs);
 	return $rslt;
 }
@@ -763,6 +820,8 @@ sub test_impl($$$$)
 
 	rmtree "near";
 	rmtree "far";
+	rmtree "near_trash";
+	rmtree "far_trash";
 
 	for (my $l = 1; $l <= $njl; $l++) {
 		mkchan($sx);
@@ -800,6 +859,8 @@ sub test_impl($$$$)
 
 		rmtree "near";
 		rmtree "far";
+		rmtree "near_trash";
+		rmtree "far_trash";
 	}
 }
 
@@ -842,6 +903,7 @@ sub test($$$$)
 #   Special commands:
 #     _ => create phantom message (reserve UID for expunged message)
 #     ^f => create with flags, duplicating the subject
+#     # => create in trash; deletion may follow
 #     | => use zero UID for state modification, even if msg exists; cmd may follow
 #     & => use zero UID for state identification, even if message exists
 #     &n => use UID of n'th occurence of subject for state id; command may follow
@@ -1079,5 +1141,68 @@ my @X38 = (
   C, "", "/", "",
 );
 test("max messages + expunge", \@x38, \@X38, \@O38);
+
+# Trashing
+
+my @x10 = (
+  E, A, E,
+  A, "*", "*~", "*T",
+  B, "*T", "*^", "",
+  C, "*T", "*", "*T",
+  D, "_", "*", "*",
+  E, "*", "*", "_",
+  L, "*T", "", "",
+  M, "", "", "*T",
+  R, "", "", "*",  # Force maxuid in the interrupt-resume test.
+  S, "*", "", "",
+);
+
+my @O11 = ("Trash far_trash\n", "Trash near_trash\n",
+           "MaxMessages 20\nExpireUnread yes\nMaxSize 1k\nExpunge Both\n");
+my @X11 = (
+  R, A, S,
+  A, "", "/", "/",
+  B, "#/", "/", "",
+  C, "#/", "/", "#/",
+  D, "", "/", "#/",
+  E, "#/", "/", "",
+  L, "#/", "", "",
+  M, "", "", "#/",
+  R, "*", "*", "",
+  S, "", "*", "*",
+);
+test("trash", \@x10, \@X11, \@O11);
+
+my @O12 = ("Trash far_trash\n", "Trash near_trash\nTrashNewOnly true\n",
+           "MaxMessages 20\nExpireUnread yes\nMaxSize 1k\nExpunge Both\n");
+my @X12 = (
+  R, A, S,
+  A, "", "/", "/",
+  B, "#/", "/", "",
+  C, "#/", "/", "/",
+  D, "", "/", "/",
+  E, "#/", "/", "",
+  L, "#/", "", "",
+  M, "", "", "#/",
+  R, "*", "*", "",
+  S, "", "*", "*",
+);
+test("trash only new", \@x10, \@X12, \@O12);
+
+my @O13 = ("Trash far_trash\nTrashRemoteNew true\n", "",
+           "MaxMessages 20\nExpireUnread yes\nMaxSize 1k\nExpunge Both\n");
+my @X13 = (
+  R, A, S,
+  A, "", "/", "/",
+  B, "#/", "/", "",
+  C, "#/", "/", "/",
+  D, "", "/", "/",
+  E, "#/", "/", "",
+  L, "#/", "", "",
+  M, "#", "", "/",
+  R, "*", "*", "",
+  S, "", "*", "*",
+);
+test("trash new remotely", \@x10, \@X13, \@O13);
 
 print "OK.\n";
