@@ -1477,34 +1477,35 @@ maildir_rescan( maildir_store_t *ctx )
 	ctx->fresh[0] = ctx->fresh[1] = 0;
 	if (maildir_scan( ctx, &msglist ) != DRV_OK)
 		return DRV_BOX_BAD;
+	debug( "Maildir processing rescan of %s:\n", ctx->path );
 	for (msgapp = &ctx->msgs, i = 0; (msg = *msgapp) || i < msglist.array.size; ) {
 		if (!msg) {
 #if 0
-			debug( "adding new message %u\n", msglist.array.data[i].uid );
+			debug( "  adding new message %u\n", msglist.array.data[i].uid );
 			maildir_app_msg( ctx, &msgapp, msglist.array.data + i );
 #else
-			debug( "ignoring new message %u\n", msglist.array.data[i].uid );
+			debug( "  ignoring new message %u\n", msglist.array.data[i].uid );
 #endif
 			i++;
 		} else if (i >= msglist.array.size) {
-			debug( "purging deleted message %u\n", msg->uid );
+			debug( "  purging deleted message %u\n", msg->uid );
 			msg->status = M_DEAD;
 			msgapp = &msg->next;
 		} else if (msglist.array.data[i].uid < msg->uid) {
 			/* this should not happen, actually */
 #if 0
-			debug( "adding new message %u\n", msglist.array.data[i].uid );
+			debug( "  adding new message %u\n", msglist.array.data[i].uid );
 			maildir_app_msg( ctx, &msgapp, msglist.array.data + i );
 #else
-			debug( "ignoring new message %u\n", msglist.array.data[i].uid );
+			debug( "  ignoring new message %u\n", msglist.array.data[i].uid );
 #endif
 			i++;
 		} else if (msglist.array.data[i].uid > msg->uid) {
-			debug( "purging deleted message %u\n", msg->uid );
+			debug( "  purging deleted message %u\n", msg->uid );
 			msg->status = M_DEAD;
 			msgapp = &msg->next;
 		} else {
-			debug( "updating message %u\n", msg->uid );
+			debug( "  updating message %u\n", msg->uid );
 			msg->status &= ~(M_FLAGS|M_RECENT);
 			free( msg->base );
 			free( msg->msgid );
