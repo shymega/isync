@@ -117,7 +117,7 @@ static void sync_deref( sync_vars_t *svars );
 static int check_cancel( sync_vars_t *svars );
 
 #define AUX &svars->t[t]
-#define INV_AUX &svars->t[1-t]
+#define INV_AUX &svars->t[t^1]
 #define DECL_SVARS \
 	int t; \
 	sync_vars_t *svars
@@ -394,7 +394,7 @@ copy_msg_convert( int in_cr, int out_cr, copy_vars_t *vars, int t )
 			}
 		}
 		warn( "Warning: message %u from %s has incomplete header; skipping.\n",
-		      vars->msg->uid, str_fn[1-t] );
+		      vars->msg->uid, str_fn[t^1] );
 		free( in_buf );
 		return 0;
 	  oke:
@@ -438,7 +438,7 @@ copy_msg_convert( int in_cr, int out_cr, copy_vars_t *vars, int t )
 	vars->data.len = in_len + extra;
 	if (vars->data.len > INT_MAX) {
 		warn( "Warning: message %u from %s is too big after conversion; skipping.\n",
-		      vars->msg->uid, str_fn[1-t] );
+		      vars->msg->uid, str_fn[t^1] );
 		free( in_buf );
 		return 0;
 	}
@@ -502,7 +502,7 @@ msg_fetched( int sts, void *aux )
 
 		vars->msg->flags = vars->data.flags = sanitize_flags( vars->data.flags, svars, t );
 
-		scr = (svars->drv[1-t]->get_caps( svars->ctx[1-t] ) / DRV_CRLF) & 1;
+		scr = (svars->drv[t^1]->get_caps( svars->ctx[t^1] ) / DRV_CRLF) & 1;
 		tcr = (svars->drv[t]->get_caps( svars->ctx[t] ) / DRV_CRLF) & 1;
 		if (vars->srec || scr != tcr) {
 			if (!copy_msg_convert( scr, tcr, vars, t )) {
@@ -542,7 +542,7 @@ msg_stored( int sts, uint uid, void *aux )
 		INIT_SVARS(vars->aux);
 		(void)svars;
 		warn( "Warning: %s refuses to store message %u from %s.\n",
-		      str_fn[t], vars->msg->uid, str_fn[1-t] );
+		      str_fn[t], vars->msg->uid, str_fn[t^1] );
 		vars->cb( SYNC_NOGOOD, 0, vars );
 		break;
 	default:  // DRV_BOX_BAD
@@ -580,7 +580,7 @@ cancel_done( void *aux )
 	DECL_INIT_SVARS(aux);
 
 	svars->state[t] |= ST_CANCELED;
-	if (svars->state[1-t] & ST_CANCELED) {
+	if (svars->state[t^1] & ST_CANCELED) {
 		if (svars->nfp) {
 			Fclose( svars->nfp, 0 );
 			Fclose( svars->jfp, 0 );
@@ -1191,13 +1191,13 @@ static void
 box_confirmed2( sync_vars_t *svars, int t )
 {
 	svars->state[t] |= ST_CONFIRMED;
-	if (!(svars->state[1-t] & ST_CONFIRMED))
+	if (!(svars->state[t^1] & ST_CONFIRMED))
 		return;
 
 	sync_ref( svars );
 	for (t = 0; ; t++) {
 		if (!(svars->state[t] & ST_PRESENT)) {
-			if (!(svars->state[1-t] & ST_PRESENT)) {
+			if (!(svars->state[t^1] & ST_PRESENT)) {
 				if (!svars->existing) {
 					error( "Error: channel %s: both far side %s and near side %s cannot be opened.\n",
 					       svars->chan->name, svars->orig_name[F], svars->orig_name[N] );
@@ -1215,18 +1215,18 @@ box_confirmed2( sync_vars_t *svars, int t )
 				break;
 			}
 			if (svars->existing) {
-				if (!(svars->chan->ops[1-t] & OP_REMOVE)) {
+				if (!(svars->chan->ops[t^1] & OP_REMOVE)) {
 					error( "Error: channel %s: %s box %s cannot be opened.\n",
 					       svars->chan->name, str_fn[t], svars->orig_name[t] );
 					goto bail;
 				}
-				if (svars->drv[1-t]->confirm_box_empty( svars->ctx[1-t] ) != DRV_OK) {
+				if (svars->drv[t^1]->confirm_box_empty( svars->ctx[t^1] ) != DRV_OK) {
 					warn( "Warning: channel %s: %s box %s cannot be opened and %s box %s is not empty.\n",
-					      svars->chan->name, str_fn[t], svars->orig_name[t], str_fn[1-t], svars->orig_name[1-t] );
+					      svars->chan->name, str_fn[t], svars->orig_name[t], str_fn[t^1], svars->orig_name[t^1] );
 					goto done;
 				}
-				info( "Deleting %s box %s...\n", str_fn[1-t], svars->orig_name[1-t] );
-				svars->drv[1-t]->delete_box( svars->ctx[1-t], box_deleted, INV_AUX );
+				info( "Deleting %s box %s...\n", str_fn[t^1], svars->orig_name[t^1] );
+				svars->drv[t^1]->delete_box( svars->ctx[t^1], box_deleted, INV_AUX );
 			} else {
 				if (!(svars->chan->ops[t] & OP_CREATE)) {
 					box_opened( DRV_BOX_BAD, UIDVAL_BAD, AUX );
@@ -1302,7 +1302,7 @@ box_opened2( sync_vars_t *svars, int t )
 	uint opts[2], fails, minwuid;
 
 	svars->state[t] |= ST_SELECTED;
-	if (!(svars->state[1-t] & ST_SELECTED))
+	if (!(svars->state[t^1] & ST_SELECTED))
 		return;
 	ctx[0] = svars->ctx[0];
 	ctx[1] = svars->ctx[1];
@@ -1331,23 +1331,23 @@ box_opened2( sync_vars_t *svars, int t )
 	for (t = 0; t < 2; t++) {
 		if (chan->ops[t] & (OP_DELETE|OP_FLAGS)) {
 			opts[t] |= OPEN_SETFLAGS;
-			opts[1-t] |= OPEN_OLD;
+			opts[t^1] |= OPEN_OLD;
 			if (chan->ops[t] & OP_FLAGS)
-				opts[1-t] |= OPEN_FLAGS;
+				opts[t^1] |= OPEN_FLAGS;
 		}
 		if (chan->ops[t] & (OP_NEW|OP_RENEW)) {
 			opts[t] |= OPEN_APPEND;
 			if (chan->ops[t] & OP_NEW) {
-				opts[1-t] |= OPEN_NEW;
+				opts[t^1] |= OPEN_NEW;
 				if (chan->stores[t]->max_size != UINT_MAX)
-					opts[1-t] |= OPEN_FLAGS|OPEN_NEW_SIZE;
+					opts[t^1] |= OPEN_FLAGS | OPEN_NEW_SIZE;
 			}
 			if (chan->ops[t] & OP_RENEW) {
 				opts[t] |= OPEN_OLD|OPEN_FLAGS|OPEN_SETFLAGS;
-				opts[1-t] |= OPEN_OLD|OPEN_FLAGS;
+				opts[t^1] |= OPEN_OLD | OPEN_FLAGS;
 			}
 			if (chan->ops[t] & OP_EXPUNGE)  // Don't propagate doomed msgs
-				opts[1-t] |= OPEN_FLAGS;
+				opts[t^1] |= OPEN_FLAGS;
 		}
 		if (chan->ops[t] & OP_EXPUNGE) {
 			opts[t] |= OPEN_EXPUNGE;
@@ -1355,7 +1355,7 @@ box_opened2( sync_vars_t *svars, int t )
 				if (!chan->stores[t]->trash_only_new)
 					opts[t] |= OPEN_OLD;
 				opts[t] |= OPEN_NEW|OPEN_FLAGS;
-			} else if (chan->stores[1-t]->trash && chan->stores[1-t]->trash_remote_new) {
+			} else if (chan->stores[t^1]->trash && chan->stores[t^1]->trash_remote_new) {
 				opts[t] |= OPEN_NEW|OPEN_FLAGS;
 			}
 		}
@@ -1386,7 +1386,7 @@ box_opened2( sync_vars_t *svars, int t )
 			if (srec->wstate & W_UPGRADE) {
 				t = !srec->uid[F] ? F : N;
 				opts[t] |= OPEN_APPEND;
-				opts[1-t] |= OPEN_OLD;
+				opts[t^1] |= OPEN_OLD;
 			}
 		}
 	}
@@ -1538,7 +1538,7 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 	}
 	free( srecmap );
 
-	if (!(svars->state[1-t] & ST_LOADED))
+	if (!(svars->state[t^1] & ST_LOADED))
 		return;
 
 	for (t = 0; t < 2; t++) {
@@ -1556,9 +1556,9 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 				// Present paired messages require re-validation.
 				if (!srec->msg[t]->msgid)
 					continue;  // Messages without ID are useless for re-validation.
-				if (!srec->msg[1-t])
+				if (!srec->msg[t^1])
 					continue;  // Partner disappeared.
-				if (!srec->msg[1-t]->msgid || strcmp( srec->msg[F]->msgid, srec->msg[N]->msgid )) {
+				if (!srec->msg[t^1]->msgid || strcmp( srec->msg[F]->msgid, srec->msg[N]->msgid )) {
 					error( "Error: channel %s, %s box %s: UIDVALIDITY genuinely changed (at UID %u).\n",
 					       svars->chan->name, str_fn[t], svars->orig_name[t], srec->uid[t] );
 				  uvchg:
@@ -1636,7 +1636,7 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 					// is nothing to update.
 					// Note: the opposite UID must be valid, as otherwise the entry would
 					// have been pruned already.
-				} else if (del[1-t]) {
+				} else if (del[t^1]) {
 					// The source was newly expunged, so possibly propagate the deletion.
 					// The target may be in an unknown state (not fetched).
 					if ((t == F) && (srec->status & (S_EXPIRE|S_EXPIRED))) {
@@ -1658,20 +1658,20 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 							debug( "  not %sing delete\n", str_hl[t] );
 						}
 					}
-				} else if (!srec->msg[1-t]) {
+				} else if (!srec->msg[t^1]) {
 					// We have no source to work with, because it was never stored,
 					// it was previously expunged, or we did not fetch it.
-					debug( "  no %s\n", str_fn[1-t] );
+					debug( "  no %s\n", str_fn[t^1] );
 				} else {
 					// We have a source. The target may be in an unknown state.
 					if (svars->chan->ops[t] & OP_FLAGS) {
-						sflags = sanitize_flags( srec->msg[1-t]->flags, svars, t );
+						sflags = sanitize_flags( srec->msg[t^1]->flags, svars, t );
 						if ((t == F) && (srec->status & (S_EXPIRE|S_EXPIRED))) {
 							/* Don't propagate deletion resulting from expiration. */
 							debug( "  near side expiring\n" );
 							sflags &= ~F_DELETED;
 						}
-						if (srec->status & S_DUMMY(1-t)) {
+						if (srec->status & S_DUMMY(t^1)) {
 							// For placeholders, don't propagate:
 							// - Seen, because the real contents were obviously not seen yet
 							// - Flagged, because it's just a request to upgrade
@@ -1710,7 +1710,7 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 			// This is separated, because the upgrade can come from the journal.
 			if (srec->wstate & W_UPGRADE) {
 				t = !srec->uid[F] ? F : N;
-				tmsg = srec->msg[1-t];
+				tmsg = srec->msg[t^1];
 				if ((svars->chan->ops[t] & OP_EXPUNGE) && (srec->pflags & F_DELETED)) {
 					JLOG( "- %u %u", (srec->uid[F], srec->uid[N]), "killing upgrade - would be expunged anyway" );
 					tmsg->srec = NULL;
@@ -1727,15 +1727,15 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 	}
 
 	for (t = 0; t < 2; t++) {
-		debug( "synchronizing new messages on %s\n", str_fn[1-t] );
-		for (tmsg = svars->msgs[1-t]; tmsg; tmsg = tmsg->next) {
+		debug( "synchronizing new messages on %s\n", str_fn[t^1] );
+		for (tmsg = svars->msgs[t^1]; tmsg; tmsg = tmsg->next) {
 			srec = tmsg->srec;
 			if (srec) {
 				if (srec->status & S_SKIPPED) {
 					// Pre-1.4 legacy only: The message was skipped due to being too big.
 					// We must have already seen the UID, but we might have been interrupted.
-					if (svars->maxuid[1-t] < tmsg->uid)
-						svars->maxuid[1-t] = tmsg->uid;
+					if (svars->maxuid[t^1] < tmsg->uid)
+						svars->maxuid[t^1] = tmsg->uid;
 					if (!(svars->chan->ops[t] & OP_RENEW))
 						continue;
 					srec->status = S_PENDING;
@@ -1755,8 +1755,8 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 					// - whose propagation was completed, but not logged yet
 					// - that aren't actually new, but a result of syncing, and the instant
 					//   maxuid upping was prevented by the presence of actually new messages
-					if (svars->maxuid[1-t] < tmsg->uid)
-						svars->maxuid[1-t] = tmsg->uid;
+					if (svars->maxuid[t^1] < tmsg->uid)
+						svars->maxuid[t^1] = tmsg->uid;
 					if (!(srec->status & S_PENDING))
 						continue;  // Nothing to do - the message is paired or expired
 					// Propagation was scheduled, but we got interrupted
@@ -1772,14 +1772,14 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 			} else {
 				if (!(svars->chan->ops[t] & OP_NEW))
 					continue;
-				if (tmsg->uid <= svars->maxuid[1-t]) {
+				if (tmsg->uid <= svars->maxuid[t^1]) {
 					// The message should be already paired. It's not, so it was:
 					// - previously paired, but the entry was expired and pruned => ignore
 					// - attempted, but failed => ignore (the wisdom of this is debatable)
 					// - ignored, as it would have been expunged anyway => ignore (even if undeleted)
 					continue;
 				}
-				svars->maxuid[1-t] = tmsg->uid;
+				svars->maxuid[t^1] = tmsg->uid;
 				debug( "new message %u\n", tmsg->uid );
 
 				if ((svars->chan->ops[t] & OP_EXPUNGE) && (tmsg->flags & F_DELETED)) {
@@ -1792,8 +1792,8 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 				svars->srecadd = &srec->next;
 				svars->nsrecs++;
 				srec->status = S_PENDING;
-				srec->uid[1-t] = tmsg->uid;
-				srec->msg[1-t] = tmsg;
+				srec->uid[t^1] = tmsg->uid;
+				srec->msg[t^1] = tmsg;
 				tmsg->srec = srec;
 				JLOG( "+ %u %u", (srec->uid[F], srec->uid[N]), "fresh" );
 			}
@@ -1993,7 +1993,7 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 			// fsync'ing the UIDNEXT bump is not strictly necessary, but advantageous.
 			svars->finduid[t] = svars->drv[t]->get_uidnext( svars->ctx[t] );
 			JLOG( "F %d %u", (t, svars->finduid[t]), "save UIDNEXT of %s", str_fn[t] );
-			svars->new_msgs[t] = svars->msgs[1-t];
+			svars->new_msgs[t] = svars->msgs[t^1];
 		} else {
 			svars->state[t] |= ST_SENT_NEW;
 		}
@@ -2096,7 +2096,7 @@ msgs_copied( sync_vars_t *svars, int t )
 	if (svars->new_pending[t])
 		goto out;
 
-	sync_close( svars, 1-t );
+	sync_close( svars, t^1 );
 	if (check_cancel( svars ))
 		goto out;
 
@@ -2155,7 +2155,7 @@ flags_set_p2( sync_vars_t *svars, sync_rec_t *srec, int t )
 {
 	if (srec->wstate & W_DELETE) {
 		JLOG( "%c %u %u 0", ("><"[t], srec->uid[F], srec->uid[N]), "%sed deletion", str_hl[t] );
-		srec->uid[1-t] = 0;
+		srec->uid[t^1] = 0;
 	} else {
 		uchar nflags = (srec->flags | srec->aflags[t]) & ~srec->dflags[t];
 		if (srec->flags != nflags) {
@@ -2196,7 +2196,7 @@ msgs_flags_set( sync_vars_t *svars, int t )
 	sync_ref( svars );
 
 	if ((svars->chan->ops[t] & OP_EXPUNGE) &&
-	    (svars->ctx[t]->conf->trash || (svars->ctx[1-t]->conf->trash && svars->ctx[1-t]->conf->trash_remote_new))) {
+	    (svars->ctx[t]->conf->trash || (svars->ctx[t^1]->conf->trash && svars->ctx[t^1]->conf->trash_remote_new))) {
 		debug( "trashing on %s\n", str_fn[t] );
 		for (tmsg = svars->msgs[t]; tmsg; tmsg = tmsg->next) {
 			if ((tmsg->flags & F_DELETED) && !find_uint_array( svars->trashed_msgs[t].array, tmsg->uid ) &&
@@ -2218,7 +2218,7 @@ msgs_flags_set( sync_vars_t *svars, int t )
 					}
 				} else {
 					if (!tmsg->srec || (tmsg->srec->status & (S_PENDING | S_SKIPPED))) {
-						if (tmsg->size <= svars->ctx[1-t]->conf->max_size) {
+						if (tmsg->size <= svars->ctx[t^1]->conf->max_size) {
 							debug( "%s: remote trashing message %u\n", str_fn[t], tmsg->uid );
 							trash_total[t]++;
 							stats();
@@ -2282,7 +2282,7 @@ msg_rtrashed( int sts, uint uid ATTR_UNUSED, copy_vars_t *vars )
 		return;
 	}
 	t ^= 1;
-	JLOG( "T %d %u", (t, vars->msg->uid), "trashed remotely on %s", str_fn[1-t] );
+	JLOG( "T %d %u", (t, vars->msg->uid), "trashed remotely on %s", str_fn[t^1] );
 	free( vars );
 	trash_done[t]++;
 	stats();
@@ -2297,7 +2297,7 @@ static void
 sync_close( sync_vars_t *svars, int t )
 {
 	if ((~svars->state[t] & (ST_FOUND_NEW|ST_SENT_TRASH)) || svars->trash_pending[t] ||
-	    !(svars->state[1-t] & ST_SENT_NEW) || svars->new_pending[1-t])
+	    !(svars->state[t^1] & ST_SENT_NEW) || svars->new_pending[t^1])
 		return;
 
 	if (svars->state[t] & ST_CLOSING)
@@ -2326,7 +2326,7 @@ box_closed_p2( sync_vars_t *svars, int t )
 	sync_rec_t *srec;
 
 	svars->state[t] |= ST_CLOSED;
-	if (!(svars->state[1-t] & ST_CLOSED))
+	if (!(svars->state[t^1] & ST_CLOSED))
 		return;
 
 	// All the journalling done in this function is merely for the autotest -
