@@ -382,7 +382,7 @@ socket_start_deflate( conn_t *conn )
 {
 	int result;
 
-	conn->in_z = nfcalloc( sizeof(*conn->in_z) );
+	conn->in_z = nfzalloc( sizeof(*conn->in_z) );
 	result = inflateInit2(
 			conn->in_z,
 			-15 /* Use raw deflate */
@@ -392,7 +392,7 @@ socket_start_deflate( conn_t *conn )
 		abort();
 	}
 
-	conn->out_z = nfcalloc( sizeof(*conn->out_z) );
+	conn->out_z = nfzalloc( sizeof(*conn->out_z) );
 	result = deflateInit2(
 			conn->out_z,
 			Z_DEFAULT_COMPRESSION, /* Compression level */
@@ -454,7 +454,7 @@ init_addrinfo( struct hostent *he )
 	uint naddr = 0;
 	for (char **addr = he->h_addr_list; *addr; addr++)
 		naddr++;
-	struct addr_info *caddr = nfcalloc( naddr * sizeof(struct addrinfo) );
+	struct addr_info *caddr = nfzalloc( naddr * sizeof(struct addrinfo) );
 	struct addr_info *ret, **caddrp = &ret;
 	for (char **addr = he->h_addr_list; *addr; addr++, caddr++) {
 		caddr->ai_addr->sin_family = AF_INET;

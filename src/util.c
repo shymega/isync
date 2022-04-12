@@ -405,7 +405,7 @@ nfmalloc( size_t sz )
 }
 
 void *
-nfcalloc( size_t sz )
+nfzalloc( size_t sz )
 {
 	void *ret;
 

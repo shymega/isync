@@ -174,7 +174,7 @@ time_t timegm( struct tm *tm );
 #endif
 
 void *nfmalloc( size_t sz );
-void *nfcalloc( size_t sz );
+void *nfzalloc( size_t sz );
 void *nfrealloc( void *mem, size_t sz );
 char *nfstrndup( const char *str, size_t nchars );
 char *nfstrdup( const char *str );

@@ -208,7 +208,7 @@ maildir_alloc_store( store_conf_t *gconf, const char *label ATTR_UNUSED )
 {
 	maildir_store_t *ctx;
 
-	ctx = nfcalloc( sizeof(*ctx) );
+	ctx = nfzalloc( sizeof(*ctx) );
 	ctx->driver = &maildir_driver;
 	ctx->gen.conf = gconf;
 	ctx->uvfd = -1;
@@ -1870,7 +1870,7 @@ maildir_parse_store( conffile_t *cfg, store_conf_t **storep )
 
 	if (strcasecmp( "MaildirStore", cfg->cmd ))
 		return 0;
-	store = nfcalloc( sizeof(*store) );
+	store = nfzalloc( sizeof(*store) );
 	store->info_delimiter = FieldDelimiter;
 	store->driver = &maildir_driver;
 	store->name = nfstrdup( cfg->val );

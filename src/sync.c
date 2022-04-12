@@ -662,7 +662,7 @@ static sync_rec_t *
 upgrade_srec( sync_vars_t *svars, sync_rec_t *srec )
 {
 	// Create an entry and append it to the current one.
-	sync_rec_t *nsrec = nfcalloc( sizeof(*nsrec) );
+	sync_rec_t *nsrec = nfzalloc( sizeof(*nsrec) );
 	nsrec->next = srec->next;
 	srec->next = nsrec;
 	if (svars->srecadd == &srec->next)
@@ -870,7 +870,7 @@ load_state( sync_vars_t *svars )
 				error( "Error: invalid sync state entry at %s:%d\n", svars->dname, line );
 				goto jbail;
 			}
-			srec = nfcalloc( sizeof(*srec) );
+			srec = nfzalloc( sizeof(*srec) );
 			srec->uid[F] = t1;
 			srec->uid[N] = t2;
 			s = fbuf;
@@ -991,7 +991,7 @@ load_state( sync_vars_t *svars )
 					svars->uidval[F] = t1;
 					svars->uidval[N] = t2;
 				} else if (c == '+') {
-					srec = nfcalloc( sizeof(*srec) );
+					srec = nfzalloc( sizeof(*srec) );
 					srec->uid[F] = t1;
 					srec->uid[N] = t2;
 					debug( "  new entry(%u,%u)\n", t1, t2 );
@@ -1105,7 +1105,7 @@ sync_boxes( store_t *ctx[], const char * const names[], int present[], channel_c
 	sync_vars_t *svars;
 	int t;
 
-	svars = nfcalloc( sizeof(*svars) );
+	svars = nfzalloc( sizeof(*svars) );
 	svars->t[1] = 1;
 	svars->ref_count = 1;
 	svars->cb = cb;
@@ -1504,7 +1504,7 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 
 	debug( "matching messages on %s against sync records\n", str_fn[t] );
 	hashsz = bucketsForSize( svars->nsrecs * 3 );
-	srecmap = nfcalloc( hashsz * sizeof(*srecmap) );
+	srecmap = nfzalloc( hashsz * sizeof(*srecmap) );
 	for (srec = svars->srecs; srec; srec = srec->next) {
 		if (srec->status & S_DEAD)
 			continue;
@@ -1787,7 +1787,7 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 					continue;
 				}
 
-				srec = nfcalloc( sizeof(*srec) );
+				srec = nfzalloc( sizeof(*srec) );
 				*svars->srecadd = srec;
 				svars->srecadd = &srec->next;
 				svars->nsrecs++;

@@ -395,7 +395,7 @@ load_config( const char *where )
 			}
 		}
 		if (!strcasecmp( "Channel", cfile.cmd )) {
-			channel = nfcalloc( sizeof(*channel) );
+			channel = nfzalloc( sizeof(*channel) );
 			channel->name = nfstrdup( cfile.val );
 			channel->max_messages = global_conf.max_messages;
 			channel->expire_unread = global_conf.expire_unread;

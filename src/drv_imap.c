@@ -1208,7 +1208,7 @@ parse_fetch_rsp( imap_store_t *ctx, list_t *list, char *s ATTR_UNUSED )
 		// Workaround for server not sending UIDNEXT and/or APPENDUID.
 		ctx->uidnext = uid + 1;
 	} else if (ctx->fetch_sts == FetchMsgs) {
-		cur = nfcalloc( sizeof(*cur) );
+		cur = nfzalloc( sizeof(*cur) );
 		*ctx->msgapp = cur;
 		ctx->msgapp = &cur->next;
 		cur->uid = uid;
@@ -1933,7 +1933,7 @@ imap_alloc_store( store_conf_t *conf, const char *label )
 	}
 
 	/* Finally, schedule opening a new server connection. */
-	ctx = nfcalloc( sizeof(*ctx) );
+	ctx = nfzalloc( sizeof(*ctx) );
 	ctx->driver = &imap_driver;
 	ctx->ref_count = 1;
 	socket_init( &ctx->conn, &srvc->sconf,
@@ -3502,7 +3502,7 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep )
 	int require_cram = -1;
 
 	if (!strcasecmp( "IMAPAccount", cfg->cmd )) {
-		server = nfcalloc( sizeof(*server) );
+		server = nfzalloc( sizeof(*server) );
 		name = server->name = nfstrdup( cfg->val );
 		*serverapp = server;
 		serverapp = &server->next;
@@ -3510,7 +3510,7 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep )
 		*storep = NULL;
 		type = "IMAP account";
 	} else if (!strcasecmp( "IMAPStore", cfg->cmd )) {
-		store = nfcalloc( sizeof(*store) );
+		store = nfzalloc( sizeof(*store) );
 		store->driver = &imap_driver;
 		name = store->name = nfstrdup( cfg->val );
 		store->use_namespace = 1;

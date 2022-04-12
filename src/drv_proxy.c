@@ -389,7 +389,7 @@ proxy_alloc_store( store_t *real_ctx, const char *label )
 {
 	proxy_store_t *ctx;
 
-	ctx = nfcalloc( sizeof(*ctx) );
+	ctx = nfzalloc( sizeof(*ctx) );
 	ctx->driver = &proxy_driver;
 	ctx->gen.conf = real_ctx->conf;
 	ctx->ref_count = 1;

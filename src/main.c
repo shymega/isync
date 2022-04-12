@@ -284,7 +284,7 @@ typedef struct chan_ent {
 static chan_ent_t *
 add_channel( chan_ent_t ***chanapp, channel_conf_t *chan, int ops[] )
 {
-	chan_ent_t *ce = nfcalloc( sizeof(*ce) );
+	chan_ent_t *ce = nfzalloc( sizeof(*ce) );
 	ce->conf = chan;
 
 	merge_actions( chan, ops, XOP_HAVE_TYPE, OP_MASK_TYPE, OP_MASK_TYPE );
