@@ -742,6 +742,8 @@ box_opened2( sync_vars_t *svars, int t )
 				t = !srec->uid[F] ? F : N;
 				opts[t] |= OPEN_APPEND;
 				opts[t^1] |= OPEN_OLD;
+				if (chan->ops[t] & OP_EXPUNGE)  // Don't propagate doomed msgs
+					opts[t^1] |= OPEN_FLAGS;
 			}
 		}
 	}
