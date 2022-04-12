@@ -1579,27 +1579,16 @@ msgs_flags_set( sync_vars_t *svars, int t )
 			debug( "was already trashed\n" );
 			continue;
 		}
+		debug( "- trashing\n" );
+		trash_total[t]++;
+		stats();
+		svars->trash_pending[t]++;
 		if (!remote) {
-			debug( "- trashing\n" );
-			trash_total[t]++;
-			stats();
-			svars->trash_pending[t]++;
 			tv = nfmalloc( sizeof(*tv) );
 			tv->aux = AUX;
 			tv->msg = tmsg;
 			svars->drv[t]->trash_msg( svars->ctx[t], tmsg, msg_trashed, tv );
 		} else {
-			if (tmsg->size > svars->ctx[t^1]->conf->max_size) {
-				// This is questionable, as these messages are actually lost
-				// (no upgradable dummies here).
-				// However, this is an unlikely configuration to start with ...
-				debug( "is too big\n" );
-				continue;
-			}
-			debug( "- trashing\n" );
-			trash_total[t]++;
-			stats();
-			svars->trash_pending[t]++;
 			cv = nfmalloc( sizeof(*cv) );
 			cv->cb = msg_rtrashed;
 			cv->aux = INV_AUX;
