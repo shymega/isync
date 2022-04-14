@@ -615,7 +615,7 @@ upgrade_srec( sync_vars_t *svars, sync_rec_t *srec, int t )
 	// Mark the original entry for upgrade.
 	srec->status = (srec->status & ~(S_DUMMY(F) | S_DUMMY(N))) | S_PENDING | S_UPGRADE;
 	// Mark the placeholder for nuking.
-	nsrec->status = S_PURGE;
+	nsrec->status = S_PURGE | (srec->status & (S_DEL(F) | S_DEL(N)));
 	nsrec->aflags[t] = F_DELETED;
 	return nsrec;
 }
