@@ -1239,7 +1239,6 @@ maildir_init_msg( maildir_store_t *ctx, maildir_message_t *msg, msg_t *entry )
 	msg->msgid = entry->msgid;
 	entry->msgid = NULL; /* prevent deletion */
 	msg->size = entry->size;
-	msg->srec = NULL;
 	memcpy( msg->tuid, entry->tuid, TUIDL );
 	if (entry->recent)
 		msg->status |= M_RECENT;
@@ -1259,6 +1258,7 @@ maildir_app_msg( maildir_store_t *ctx, maildir_message_t ***msgapp, msg_t *entry
 	*msgapp = &msg->next;
 	msg->uid = entry->uid;
 	msg->status = 0;
+	msg->srec = NULL;
 	maildir_init_msg( ctx, msg, entry );
 }
 
