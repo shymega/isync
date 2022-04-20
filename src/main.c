@@ -42,7 +42,8 @@ PACKAGE " " VERSION " - mailbox synchronizer\n"
 "  -H, --push		propagate from near to far side\n"
 "  -C, --create		propagate creations of mailboxes\n"
 "  -R, --remove		propagate deletions of mailboxes\n"
-"  -X, --expunge		expunge	deleted messages\n"
+"  -X, --expunge		expunge deleted messages\n"
+"  -x, --expunge-solo	expunge deleted messages that are not paired\n"
 "  -c, --config CONFIG	read an alternate config file (default: ~/." EXE "rc)\n"
 "  -D, --debug		debugging modes (see manual)\n"
 "  -V, --verbose		display what is happening\n"
@@ -52,7 +53,8 @@ PACKAGE " " VERSION " - mailbox synchronizer\n"
 "\nIf neither --pull nor --push are specified, both are active.\n"
 "If neither --new, --gone, --flags, nor --upgrade are specified, all are\n"
 "active. Direction and operation can be concatenated like --pull-new, etc.\n"
-"--create, --remove, and --expunge can be suffixed with -far/-near.\n"
+"--create, --remove, --expunge, and --expunge-solo can be suffixed with"
+"-far/-near.\n"
 "See the man page for details.\n"
 "\nSupported mailbox formats are: IMAP4rev1, Maildir\n"
 "\nCompile time options:\n"
@@ -235,15 +237,21 @@ main( int argc, char **argv )
 						mvars->ops[N] |= op, ms_warn = 1;
 					else
 						goto badopt;
-					mvars->ops[F] |= op & (XOP_HAVE_CREATE | XOP_HAVE_REMOVE | XOP_HAVE_EXPUNGE);
+					mvars->ops[F] |= op & (XOP_HAVE_CREATE | XOP_HAVE_REMOVE | XOP_HAVE_EXPUNGE | XOP_HAVE_EXPUNGE_SOLO);
 				} else if (starts_with( opt, -1, "remove", 6 )) {
 					opt += 6;
 					op = OP_REMOVE|XOP_HAVE_REMOVE;
+					goto lcop;
+				} else if (starts_with( opt, -1, "expunge-solo", 12 )) {
+					opt += 12;
+					op = OP_EXPUNGE_SOLO | XOP_HAVE_EXPUNGE_SOLO;
 					goto lcop;
 				} else if (starts_with( opt, -1, "expunge", 7 )) {
 					opt += 7;
 					op = OP_EXPUNGE|XOP_HAVE_EXPUNGE;
 					goto lcop;
+				} else if (!strcmp( opt, "no-expunge-solo" )) {
+					mvars->ops[F] |= XOP_EXPUNGE_SOLO_NOOP | XOP_HAVE_EXPUNGE_SOLO;
 				} else if (!strcmp( opt, "no-expunge" )) {
 					mvars->ops[F] |= XOP_EXPUNGE_NOOP | XOP_HAVE_EXPUNGE;
 				} else if (!strcmp( opt, "no-create" )) {
@@ -340,10 +348,13 @@ main( int argc, char **argv )
 				ochar++;
 			else
 				cops |= op;
-			mvars->ops[F] |= op & (XOP_HAVE_CREATE | XOP_HAVE_REMOVE | XOP_HAVE_EXPUNGE);
+			mvars->ops[F] |= op & (XOP_HAVE_CREATE | XOP_HAVE_REMOVE | XOP_HAVE_EXPUNGE | XOP_HAVE_EXPUNGE_SOLO);
 			break;
 		case 'R':
 			op = OP_REMOVE|XOP_HAVE_REMOVE;
+			goto cop;
+		case 'x':
+			op = OP_EXPUNGE_SOLO | XOP_HAVE_EXPUNGE_SOLO;
 			goto cop;
 		case 'X':
 			op = OP_EXPUNGE|XOP_HAVE_EXPUNGE;

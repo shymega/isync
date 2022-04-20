@@ -20,6 +20,8 @@ A proper summary is now printed prior to exiting.
 
 Added new sync operation 'Old'.
 
+Added support for mirroring deletions more accurately.
+
 [1.4.0]
 
 The 'isync' compatibility wrapper was removed.

@@ -1806,7 +1806,7 @@ maildir_close_box( store_t *gctx,
 		retry = 0;
 		basel = nfsnprintf( buf, sizeof(buf), "%s/", ctx->path );
 		for (msg = ctx->msgs; msg; msg = msg->next) {
-			if (!(msg->status & M_DEAD) && (msg->flags & F_DELETED)) {
+			if (!(msg->status & M_DEAD) && (msg->status & M_EXPUNGE)) {
 				nfsnprintf( buf + basel, _POSIX_PATH_MAX - basel, "%s/%s", subdirs[msg->status & M_RECENT], msg->base );
 				if (unlink( buf )) {
 					if (errno == ENOENT)

@@ -1816,4 +1816,104 @@ my @X13 = (
 );
 test("trash new remotely", \@x10, \@X13, \@O13);
 
+# Test "mirroring" expunges.
+
+my @xa0 = (
+  M, 0, M,
+  # pair
+  A, "*", "*", "*",
+  # expire
+  B, "*", "*", "*S",
+  # expire with del
+  C, "*T", "*", "*S",
+  # pair flag del
+  D, "*T", "*", "*",
+  E, "*", "*", "*T",
+  # pair flag undel
+  F, "*", "*T", "*T",
+  G, "*T", "*T", "*",
+  # pair gone
+  H, "_", "*", "*",
+  I, "*", "*", "_",
+  # upgrade
+  J, "**", "*>", "*F?",
+  K, "*F?", "*<", "**",
+  # doomed upgrade
+  L, "*T*", "*>", "*F?",
+  M, "*F?", "*<", "*T*",
+  # doomed new
+  N, "", "", "*T",
+  O, "*T", "", "",
+);
+
+my @Oa1 = ("", "", "ExpungeSolo Both\nMaxMessages 1\nExpireUnread false\n");
+my @Xa1 = (
+  N, B, O,
+  B, "+S", "/", "/",
+  C, "+S", "+ST", "+T",  # This is weird, but it's not worth handling.
+  D, "", "+T", "+T",
+  E, "+T", "+T", "",
+  F, "", "-T", "-T",
+  G, "-T", "-T", "",
+  H, "", "/", "/",
+  I, "/", "/", "",
+  J, "", ">->", "^*",
+  J, "", "", "&1/",
+  K, "^*", "<-<", "",
+  K, "&1/", "", "",
+  L, "", ">->+T", "^*T",
+  L, "", "", "&1/",
+  M, "^*T", "<-<+T", "",
+  M, "&1/", "", "",
+  N, "*T", "*T", "",
+  O, "", "*T", "*T",
+);
+test("expunge solo both", \@xa0, \@Xa1, \@Oa1);
+
+my @Oa2 = ("", "", "ExpungeSolo Near\nMaxMessages 1\nExpireUnread false\n");
+my @Xa2 = (
+  N, B, O,
+  B, "+S", "/", "/",
+  C, "+S", "+ST", "+T",  # As above.
+  D, "", "+T", "+T",
+  E, "+T", "+T", "",
+  F, "", "-T", "-T",
+  G, "-T", "-T", "",
+  H, "", "/", "/",
+  I, "+T", ">", "",
+  J, "", ">->", "^*",
+  J, "", "", "&1/",
+  K, "^*", "<-<", "",
+  K, "&1+T", "^", "|",
+  L, "", ">->+T", "^*T",
+  L, "", "", "&1/",
+  M, "^*T", "<-<+T", "",
+  M, "&1+T", "^", "|",
+  N, "*T", "*T", "",
+  O, "", "*T", "*T",
+);
+test("expunge solo near", \@xa0, \@Xa2, \@Oa2);
+
+my @Oa3 = ("", "", "Expunge Far\nExpungeSolo Near\nMaxMessages 1\nExpireUnread false\n");
+my @Xa3 = (
+  K, B, J,
+  B, "+S", "/", "/",
+  C, "/", "/", "/",
+  D, "/", "/", "/",
+  E, "/", "/", "/",
+  F, "", "-T", "-T",
+  G, "-T", "-T", "",
+  H, "", "/", "/",
+  I, "/", "/", "",
+  J, "", ">->", "^*",
+  J, "", "", "&1/",
+  K, "^*", "<-<", "",
+  K, "&1/", "", "",
+  L, "/", "/", "/",
+  M, "/", "/", "/",
+  N, "", "", "/",
+  O, "/", "", "",
+);
+test("expunge far & solo near", \@xa0, \@Xa3, \@Oa3);
+
 print "OK.\n";

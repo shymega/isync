@@ -186,13 +186,20 @@ add_channel( chan_ent_t ***chanapp, channel_conf_t *chan, int ops[] )
 	merge_actions( chan, ops, XOP_HAVE_CREATE, OP_CREATE, 0 );
 	merge_actions( chan, ops, XOP_HAVE_REMOVE, OP_REMOVE, 0 );
 	merge_actions( chan, ops, XOP_HAVE_EXPUNGE, OP_EXPUNGE, 0 );
+	merge_actions( chan, ops, XOP_HAVE_EXPUNGE_SOLO, OP_EXPUNGE_SOLO, 0 );
 	debug( "channel ops (%s):\n  far: %s\n  near: %s\n",
 	       chan->name, fmt_ops( ops[F] ).str, fmt_ops( ops[N] ).str );
 
 	for (int t = 0; t < 2; t++) {
+		if (!(~ops[t] & (OP_EXPUNGE | OP_EXPUNGE_SOLO))) {
+			error( "Specified both Expunge and ExpungeSolo for %s of Channel '%s'.\n",
+			       str_fn[t], chan->stores[t]->name );
+			free( ce );
+			return NULL;
+		}
 		if (chan->ops[t] & OP_MASK_TYPE)
 			ops_any[t] = 1;
-		if ((chan->ops[t] & OP_EXPUNGE) &&
+		if ((chan->ops[t] & (OP_EXPUNGE | OP_EXPUNGE_SOLO)) &&
 		    (chan->stores[t]->trash ||
 		     (chan->stores[t^1]->trash && chan->stores[t^1]->trash_remote_new)))
 			trash_any[t] = 1;
@@ -253,6 +260,8 @@ add_named_channel( chan_ent_t ***chanapp, char *channame, int ops[] )
 	}
 
 	chan_ent_t *ce = add_channel( chanapp, chan, ops );
+	if (!ce)
+		return NULL;
 	ce->boxes = boxes;
 	ce->boxlist = boxlist;
 	return ce;
@@ -297,7 +306,8 @@ sync_chans( core_vars_t *cvars, char **argv )
 
 	if (cvars->all) {
 		for (channel_conf_t *chan = channels; chan; chan = chan->next) {
-			add_channel( &chanapp, chan, cvars->ops );
+			if (!add_channel( &chanapp, chan, cvars->ops ))
+				cvars->ret = 1;
 			if (!chan->patterns)
 				boxes_total++;
 		}

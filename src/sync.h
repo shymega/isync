@@ -21,6 +21,7 @@ BIT_ENUM(
 	OP_GONE,
 	OP_FLAGS,
 	OP_EXPUNGE,
+	OP_EXPUNGE_SOLO,
 	OP_CREATE,
 	OP_REMOVE,
 
@@ -29,12 +30,14 @@ BIT_ENUM(
 	XOP_HAVE_TYPE,  // Aka mode; have at least one of dir and type (see below)
 	// The following must all have the same bit shift from the corresponding OP_* flags.
 	XOP_HAVE_EXPUNGE,
+	XOP_HAVE_EXPUNGE_SOLO,
 	XOP_HAVE_CREATE,
 	XOP_HAVE_REMOVE,
 	// ... until here.
 	XOP_TYPE_NOOP,
 	// ... and here again from scratch.
 	XOP_EXPUNGE_NOOP,
+	XOP_EXPUNGE_SOLO_NOOP,
 	XOP_CREATE_NOOP,
 	XOP_REMOVE_NOOP,
 )

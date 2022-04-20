@@ -174,6 +174,7 @@ static const struct {
 	const char *name;
 } boxOps[] = {
 	{ OP_EXPUNGE, "Expunge" },
+	{ OP_EXPUNGE_SOLO, "ExpungeSolo" },
 	{ OP_CREATE, "Create" },
 	{ OP_REMOVE, "Remove" },
 };

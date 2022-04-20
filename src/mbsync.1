@@ -659,7 +659,21 @@ Note that for safety, non-empty mailboxes are never deleted.
 \fBExpunge\fR {\fBNone\fR|\fBFar\fR|\fBNear\fR|\fBBoth\fR}
 Permanently remove all messages [on the far/near side] which are marked
 for deletion.
+Mutually exclusive with \fBExpungeSolo\fR for the same side.
 See \fBRECOMMENDATIONS\fR below.
+(Global default: \fBNone\fR)
+.
+.TP
+\fBExpungeSolo\fR {\fBNone\fR|\fBFar\fR|\fBNear\fR|\fBBoth\fR}
+Permanently remove all messages [on the far/near side] which are both
+marked for deletion and have no corresponding message in the opposite
+Store.
+Together with \fBSync Gone\fR, this allows actual mirroring of
+expunges. Note, however, that this makes sense only if nothing else
+expunges the other messages which are marked for deletion.
+Also note that this does not work for IMAP Stores which do not support
+the UIDPLUS extension.
+Mutually exclusive with \fBExpunge\fR for the same side.
 (Global default: \fBNone\fR)
 .
 .TP
@@ -673,7 +687,7 @@ date\fR) is actually the arrival time, but it is usually close enough.
 (Global default: \fBno\fR)
 .
 .P
-\fBSync\fR, \fBCreate\fR, \fBRemove\fR, \fBExpunge\fR,
+\fBSync\fR, \fBCreate\fR, \fBRemove\fR, \fBExpunge\fR, \fBExpungeSolo\fR,
 \fBMaxMessages\fR, \fBExpireUnread\fR, and \fBCopyArrivalDate\fR
 can be used before any section for a global effect.
 The global settings are overridden by Channel-specific options,

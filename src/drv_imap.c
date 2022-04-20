@@ -3122,7 +3122,7 @@ imap_close_box( store_t *gctx,
 
 		for (msg = ctx->msgs.head; ; ) {
 			for (bl = 0; msg && bl < 960; msg = msg->next) {
-				if ((msg->status & M_DEAD) || !(msg->flags & F_DELETED))
+				if ((msg->status & M_DEAD) || !(msg->status & M_EXPUNGE))
 					continue;
 				if (bl)
 					buf[bl++] = ',';
@@ -3136,7 +3136,7 @@ imap_close_box( store_t *gctx,
 					} else {
 						if (nmsg->seq > 1)
 							break;
-						if (!(nmsg->flags & F_DELETED))
+						if (!(nmsg->flags & M_EXPUNGE))
 							break;
 					}
 				}

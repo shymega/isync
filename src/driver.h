@@ -54,6 +54,7 @@ flag_str_t ATTR_OPTIMIZE /* force RVO */ fmt_lone_flags( uchar flags );
 BIT_ENUM(
 	M_RECENT,   // unsyncable flag; maildir_*() depend on this being bit 0
 	M_DEAD,     // expunged
+	M_EXPUNGE,  // for driver_t->close_box()
 	M_FLAGS,    // flags are valid
 	// The following are only for IMAP FETCH response parsing
 	M_DATE,

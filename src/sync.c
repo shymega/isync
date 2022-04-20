@@ -788,9 +788,12 @@ box_opened2( sync_vars_t *svars, int t )
 			if ((chan->ops[t] | chan->ops[t^1]) & OP_EXPUNGE)  // Don't propagate doomed msgs
 				opts[t^1] |= OPEN_FLAGS;
 		}
-		if (chan->ops[t] & OP_EXPUNGE) {
+		if (chan->ops[t] & (OP_EXPUNGE | OP_EXPUNGE_SOLO)) {
 			opts[t] |= OPEN_EXPUNGE;
-			if (chan->stores[t]->trash) {
+			if (chan->ops[t] & OP_EXPUNGE_SOLO) {
+				opts[t] |= OPEN_OLD | OPEN_NEW | OPEN_FLAGS | OPEN_UID_EXPUNGE;
+				opts[t^1] |= OPEN_OLD;
+			} else if (chan->stores[t]->trash) {
 				if (!chan->stores[t]->trash_only_new)
 					opts[t] |= OPEN_OLD;
 				opts[t] |= OPEN_NEW | OPEN_FLAGS | OPEN_UID_EXPUNGE;
@@ -816,6 +819,11 @@ box_opened2( sync_vars_t *svars, int t )
 	for (t = 0; t < 2; t++) {
 		svars->opts[t] = svars->drv[t]->prepare_load_box( ctx[t], opts[t] );
 		if (opts[t] & ~svars->opts[t] & OPEN_UID_EXPUNGE) {
+			if (chan->ops[t] & OP_EXPUNGE_SOLO) {
+				error( "Error: Store %s does not support ExpungeSolo.\n",
+				       svars->chan->stores[t]->name );
+				goto bail;
+			}
 			if (!ctx[t]->racy_trash) {
 				ctx[t]->racy_trash = 1;
 				notice( "Notice: Trashing in Store %s is prone to race conditions.\n",
@@ -1490,7 +1498,8 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 						dflags |= F_DELETED;
 				}
 			}
-			if ((svars->chan->ops[t] & OP_EXPUNGE) && (((srec->msg[t] ? srec->msg[t]->flags : 0) | aflags) & ~dflags & F_DELETED) &&
+			if ((svars->chan->ops[t] & OP_EXPUNGE) &&
+			    (((srec->msg[t] ? srec->msg[t]->flags : 0) | aflags) & ~dflags & F_DELETED) &&
 			    (!svars->ctx[t]->conf->trash || svars->ctx[t]->conf->trash_only_new))
 			{
 				/* If the message is going to be expunged, don't propagate anything but the deletion. */
@@ -1748,8 +1757,54 @@ msgs_flags_set( sync_vars_t *svars, int t )
 	if (check_cancel( svars ))
 		goto out;
 
-	if (!(svars->chan->ops[t] & OP_EXPUNGE))
+	int only_solo;
+	if (svars->chan->ops[t] & OP_EXPUNGE_SOLO)
+		only_solo = 1;
+	else if (svars->chan->ops[t] & OP_EXPUNGE)
+		only_solo = 0;
+	else
 		goto skip;
+	int expunge_other = (svars->chan->ops[t^1] & OP_EXPUNGE);
+	// Driver-wise, this makes sense only if (svars->opts[t] & OPEN_UID_EXPUNGE),
+	// but the trashing loop uses the result as well.
+	debug( "preparing expunge of %s on %s, %sexpunging %s\n",
+	       only_solo ? "solo" : "all", str_fn[t], expunge_other ? "" : "NOT ", str_fn[t^1] );
+	for (tmsg = svars->msgs[t]; tmsg; tmsg = tmsg->next) {
+		if (tmsg->status & M_DEAD)
+			continue;
+		if (!(tmsg->flags & F_DELETED)) {
+			//debug( "  message %u is not deleted\n", tmsg->uid );  // Too noisy
+			continue;
+		}
+		debugn( "  message %u ", tmsg->uid );
+		if (only_solo) {
+			if ((srec = tmsg->srec)) {
+				if (!srec->uid[t^1]) {
+					debugn( "(solo) " );
+				} else if (srec->status & S_GONE(t^1)) {
+					debugn( "(orphaned) " );
+				} else if (expunge_other && (srec->status & S_DEL(t^1))) {
+					debugn( "(orphaning) " );
+				} else if (t == N && (srec->status & (S_EXPIRE | S_EXPIRED))) {
+					// Expiration overrides mirroring, as otherwise the combination
+					// makes no sense at all.
+					debugn( "(expire) " );
+				} else {
+					debug( "is not solo\n" );
+					continue;
+				}
+				if (srec->status & S_PENDING) {
+					debug( "is being paired\n" );
+					continue;
+				}
+			} else {
+				debugn( "(isolated) " );
+			}
+		}
+		debug( "- expunging\n" );
+		tmsg->status |= M_EXPUNGE;
+	}
+
 	int remote, only_new;
 	if (svars->ctx[t]->conf->trash) {
 		only_new = svars->ctx[t]->conf->trash_only_new;
@@ -1765,8 +1820,8 @@ msgs_flags_set( sync_vars_t *svars, int t )
 	for (tmsg = svars->msgs[t]; tmsg; tmsg = tmsg->next) {
 		if (tmsg->status & M_DEAD)
 			continue;
-		if (!(tmsg->flags & F_DELETED)) {
-			//debug( "  message %u is not deleted\n", tmsg->uid );  // Too noisy
+		if (!(tmsg->status & M_EXPUNGE)) {
+			//debug( "  message %u is not being expunged\n", tmsg->uid );  // Too noisy
 			continue;
 		}
 		debugn( "  message %u ", tmsg->uid );
@@ -1881,7 +1936,7 @@ sync_close( sync_vars_t *svars, int t )
 		return;
 	svars->state[t] |= ST_CLOSING;
 
-	if ((svars->chan->ops[t] & OP_EXPUNGE) && !(DFlags & FAKEEXPUNGE)
+	if ((svars->chan->ops[t] & (OP_EXPUNGE | OP_EXPUNGE_SOLO)) && !(DFlags & FAKEEXPUNGE)
 	    /*&& !(svars->state[t] & ST_TRASH_BAD)*/) {
 		debug( "expunging %s\n", str_fn[t] );
 		svars->drv[t]->close_box( svars->ctx[t], box_closed, AUX );
