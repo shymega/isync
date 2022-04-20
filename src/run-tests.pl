@@ -981,6 +981,9 @@ my @X01 = (
 );
 test("full", \@x01, \@X01, \@O01);
 
+my @O01a = ("", "", "", "-Tu");
+test("full (non-UIDPLUS)", \@x01, \@X01, \@O01a);
+
 my @O02 = ("", "", "Expunge Both\n");
 my @X02 = (
   M, 0, K,

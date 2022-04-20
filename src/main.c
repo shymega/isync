@@ -461,6 +461,9 @@ main( int argc, char **argv )
 				case 's':
 					JLimit = strtol( ochar, &ochar, 10 );
 					break;
+				case 'u':
+					DFlags |= FAKEDUMBSTORE;
+					break;
 				case 'x':
 					DFlags |= FAKEEXPUNGE;
 					break;

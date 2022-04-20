@@ -240,7 +240,10 @@ struct driver {
 	 * Messages up to pairuid need to have the Message-Id populated when OPEN_PAIRED_IDS is set.
 	 * Messages up to newuid need to have the size populated when OPEN_OLD_SIZE is set;
 	 * likewise messages above newuid when OPEN_NEW_SIZE is set.
-	 * The returned message list remains owned by the driver. */
+	 * The returned message list remains owned by the driver and remains valid
+	 * until a new box is selected or the store is freed. New messages within
+	 * the specified range may be added to the list as a result of invoking
+	 * other driver functions. */
 	void (*load_box)( store_t *ctx, uint minuid, uint maxuid, uint finduid, uint pairuid, uint newuid, uint_array_t excs,
 	                  void (*cb)( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux ), void *aux );
 

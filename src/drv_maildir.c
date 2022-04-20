@@ -73,6 +73,7 @@ typedef union maildir_store {
 		// but mailbox totals. also, don't trust them beyond the initial load.
 		int total_msgs, recent_msgs;
 		maildir_message_t *msgs;
+		maildir_message_t **app_msgs;  // Only for testing find_new()
 		wakeup_t lcktmr;
 
 		void (*expunge_callback)( message_t *msg, void *aux );
@@ -1227,6 +1228,7 @@ maildir_select_box( store_t *gctx, const char *name )
 
 	maildir_cleanup( gctx );
 	ctx->msgs = NULL;
+	ctx->app_msgs = &ctx->msgs;
 	ctx->excs.data = NULL;
 	ctx->uvfd = -1;
 #ifdef USE_DB
@@ -1426,6 +1428,7 @@ maildir_load_box( store_t *gctx, uint minuid, uint maxuid, uint finduid, uint pa
 	ARRAY_SQUEEZE( &excs );
 	ctx->excs = excs;
 
+	assert( !ctx->msgs );
 	if (maildir_scan( ctx, &msglist ) != DRV_OK) {
 		cb( DRV_BOX_BAD, NULL, 0, 0, aux );
 		return;
@@ -1433,6 +1436,7 @@ maildir_load_box( store_t *gctx, uint minuid, uint maxuid, uint finduid, uint pa
 	msgapp = &ctx->msgs;
 	for (i = 0; i < msglist.array.size; i++)
 		maildir_app_msg( ctx, &msgapp, msglist.array.data + i );
+	ctx->app_msgs = msgapp;
 	maildir_free_scan( &msglist );
 
 	cb( DRV_OK, &ctx->msgs->gen, ctx->total_msgs, ctx->recent_msgs, aux );
@@ -1451,12 +1455,8 @@ maildir_rescan( maildir_store_t *ctx )
 	debug( "Maildir processing rescan of %s:\n", ctx->path );
 	for (msgapp = &ctx->msgs, i = 0; (msg = *msgapp) || i < msglist.array.size; ) {
 		if (!msg) {
-#if 0
 			debug( "  adding new message %u\n", msglist.array.data[i].uid );
 			maildir_app_msg( ctx, &msgapp, msglist.array.data + i );
-#else
-			debug( "  ignoring new message %u\n", msglist.array.data[i].uid );
-#endif
 			i++;
 		} else if (i >= msglist.array.size) {
 			debug( "  purging deleted message %u\n", msg->uid );
@@ -1465,12 +1465,8 @@ maildir_rescan( maildir_store_t *ctx )
 			msgapp = &msg->next;
 		} else if (msglist.array.data[i].uid < msg->uid) {
 			/* this should not happen, actually */
-#if 0
 			debug( "  adding new message %u\n", msglist.array.data[i].uid );
 			maildir_app_msg( ctx, &msgapp, msglist.array.data + i );
-#else
-			debug( "  ignoring new message %u\n", msglist.array.data[i].uid );
-#endif
 			i++;
 		} else if (msglist.array.data[i].uid > msg->uid) {
 			debug( "  purging deleted message %u\n", msg->uid );
@@ -1655,7 +1651,22 @@ maildir_store_msg( store_t *gctx, msg_data_t *data, int to_trash,
 		cb( DRV_BOX_BAD, 0, aux );
 		return;
 	}
+	if (DFlags & FAKEDUMBSTORE)
+		uid = 0;
 	cb( DRV_OK, uid, aux );
+}
+
+static void
+maildir_find_new_msgs( store_t *gctx, uint newuid,
+                       void (*cb)( int sts, message_t *msgs, void *aux ), void *aux )
+{
+	maildir_store_t *ctx = (maildir_store_t *)gctx;
+
+	assert( DFlags & FAKEDUMBSTORE );
+	ctx->opts |= OPEN_FIND;
+	ctx->finduid = newuid;
+	int ret = maildir_rescan( ctx );
+	cb( ret, &(*ctx->app_msgs)->gen, aux );
 }
 
 static void
@@ -1940,7 +1951,7 @@ struct driver maildir_driver = {
 	maildir_load_box,
 	maildir_fetch_msg,
 	maildir_store_msg,
-	NULL,  // find_new_msgs
+	maildir_find_new_msgs,
 	maildir_set_msg_flags,
 	maildir_trash_msg,
 	maildir_close_box,
