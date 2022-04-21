@@ -813,8 +813,16 @@ box_opened2( sync_vars_t *svars, int t )
 		else if (chan->ops[N] & (OP_OLD | OP_NEW | OP_UPGRADE))
 			opts[F] |= OPEN_FLAGS;
 	}
-	svars->opts[F] = svars->drv[F]->prepare_load_box( ctx[F], opts[F] );
-	svars->opts[N] = svars->drv[N]->prepare_load_box( ctx[N], opts[N] );
+	for (t = 0; t < 2; t++) {
+		svars->opts[t] = svars->drv[t]->prepare_load_box( ctx[t], opts[t] );
+		if (opts[t] & ~svars->opts[t] & OPEN_UID_EXPUNGE) {
+			if (!ctx[t]->racy_trash) {
+				ctx[t]->racy_trash = 1;
+				notice( "Notice: Trashing in Store %s is prone to race conditions.\n",
+				        svars->chan->stores[t]->name );
+			}
+		}
+	}
 
 	ARRAY_INIT( &mexcs );
 	if ((svars->opts[F] & OPEN_PAIRED) && !(svars->opts[F] & OPEN_OLD) && chan->max_messages) {

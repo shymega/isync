@@ -107,7 +107,8 @@ BIT_ENUM(
 #define STORE(store) \
 	store *next; \
 	driver_t *driver; \
-	store##_conf *conf;  /* foreign */
+	store##_conf *conf;  /* foreign */ \
+	uchar racy_trash;
 
 typedef struct store {
 	STORE(struct store)
