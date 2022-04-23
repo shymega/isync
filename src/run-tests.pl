@@ -1235,6 +1235,17 @@ my @X33 = (
 );
 test("max messages + expire - full", \@x33, \@X33, \@O31);
 
+my @O34 = ("", "", "Sync New\nMaxMessages 3\n");
+my @X34 = (
+  I, F, I,
+  B, "", "+~", "+T",
+  E, "", "+~", "+T",
+  F, "", "+~", "+T",
+  H, "", "*", "*",
+  I, "", "*", "*",
+);
+test("max messages + expire - new", \@x33, \@X34, \@O34);
+
 my @x38 = (
   F, C, 0,
   A, "*FS", "*FS", "*S",

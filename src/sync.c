@@ -865,6 +865,21 @@ load_box( sync_vars_t *svars, int t, uint minwuid, uint_array_t mexcs )
 }
 
 typedef struct {
+	sync_rec_t *srec;
+	uchar flags;
+} alive_srec_t;
+
+static int
+cmp_srec_far( const void *a, const void *b )
+{
+	uint au = (*(const alive_srec_t *)a).srec->uid[F];
+	uint bu = (*(const alive_srec_t *)b).srec->uid[F];
+	assert( au && bu );
+	assert( au != bu );
+	return au > bu ? 1 : -1;  // Can't subtract, the result might not fit into signed int.
+}
+
+typedef struct {
 	void *aux;
 	sync_rec_t *srec;
 	int aflags, dflags;
@@ -883,7 +898,7 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 	sync_rec_t *srec, **srecmap;
 	message_t *tmsg;
 	flag_vars_t *fv;
-	int no[2], del[2], alive, todel;
+	int no[2], del[2];
 	uchar sflags, nflags, aflags, dflags;
 	uint hashsz, idx;
 
@@ -1238,79 +1253,68 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 		/* Expire excess messages. Important (flagged, unread, or unpropagated) messages
 		 * older than the first not expired message are not counted towards the total. */
 		debug( "preparing message expiration\n" );
-		// Due to looping only over the far side, we completely ignore unpaired
-		// near-side messages. This is correct, as we cannot expire them without
-		// data loss anyway; consequently, we also don't count them.
-		// Note that we also ignore near-side messages we're currently propagating,
-		// which delays expiration of some messages by one cycle. Otherwise, we'd have
-		// to sequence flag propagation after message propagation to avoid a race
-		// with 3rd-party expunging, and that seems unreasonably expensive.
-		alive = 0;
-		for (tmsg = svars->msgs[F]; tmsg; tmsg = tmsg->next) {
-			if (tmsg->status & M_DEAD)
+		alive_srec_t *arecs = nfmalloc( sizeof(*arecs) * svars->nsrecs );
+		int alive = 0;
+		for (srec = svars->srecs; srec; srec = srec->next) {
+			if (srec->status & S_DEAD)
 				continue;
-			// We ignore unpaired far-side messages, as there is obviously nothing
-			// to expire in the first place.
-			if (!(srec = tmsg->srec))
+			// We completely ignore unpaired near-side messages, as we cannot expire
+			// them without data loss; consequently, we also don't count them.
+			// Note that we also ignore near-side messages we're currently propagating,
+			// which delays expiration of some messages by one cycle. Otherwise, we'd
+			// have to sequence flag updating after message propagation to avoid a race
+			// with external expunging, and that seems unreasonably expensive.
+			if (!srec->uid[F])
 				continue;
 			if (!(srec->status & S_PENDING)) {
-				if (!srec->msg[N])
-					continue;  // Already expired or skipped.
-				nflags = (srec->msg[N]->flags | srec->aflags[N]) & ~srec->dflags[N];
-			} else {
-				nflags = tmsg->flags;
-			}
-			if (!(nflags & F_DELETED) || (srec->status & (S_EXPIRE | S_EXPIRED))) {
-				// The message is not deleted, or it is, but only due to being expired.
-				alive++;
-			}
-		}
-		todel = alive - svars->chan->max_messages;
-		debug( "%d alive messages, %d excess - expiring\n", alive, todel );
-		alive = 0;
-		for (tmsg = svars->msgs[F]; tmsg; tmsg = tmsg->next) {
-			if (tmsg->status & M_DEAD)
-				continue;
-			if (!(srec = tmsg->srec))
-				continue;
-			if (!(srec->status & S_PENDING)) {
+				// We ignore unpaired far-side messages, as there is obviously nothing
+				// to expire in the first place.
 				if (!srec->msg[N])
 					continue;
 				nflags = (srec->msg[N]->flags | srec->aflags[N]) & ~srec->dflags[N];
 			} else {
-				nflags = tmsg->flags;
+				nflags = srec->msg[F]->flags;
 			}
-			if (!(nflags & F_DELETED) || (srec->status & (S_EXPIRE|S_EXPIRED))) {
-				if ((nflags & F_FLAGGED) ||
-				    !((nflags & F_SEEN) || ((void)(todel > 0 && alive++), svars->chan->expire_unread > 0))) {
-					// Important messages are always fetched/kept.
-					debug( "  pair(%u,%u) is important\n", srec->uid[F], srec->uid[N] );
-					todel--;
-				} else if (todel > 0 ||
-				           ((srec->status & (S_EXPIRE|S_EXPIRED)) == (S_EXPIRE|S_EXPIRED)) ||
-				           ((srec->status & (S_EXPIRE|S_EXPIRED)) && (srec->msg[N]->flags & F_DELETED))) {
-					/* The message is excess or was already (being) expired. */
-					srec->status |= S_NEXPIRE;
-					debug( "  expiring pair(%u,%u)\n", srec->uid[F], srec->uid[N] );
-					todel--;
-				}
+			if (!(nflags & F_DELETED) || (srec->status & (S_EXPIRE | S_EXPIRED))) {
+				// The message is not deleted, or it is, but only due to being expired.
+				arecs[alive++] = (alive_srec_t){ srec, nflags };
+			}
+		}
+		// Sort such that the messages which have been in the
+		// complete store longest expire first.
+		qsort( arecs, alive, sizeof(*arecs), cmp_srec_far );
+		int todel = alive - svars->chan->max_messages;
+		debug( "%d alive messages, %d excess - expiring\n", alive, todel );
+		int unseen = 0;
+		for (int sri = 0; sri < alive; sri++) {
+			srec = arecs[sri].srec;
+			nflags = arecs[sri].flags;
+			if ((nflags & F_FLAGGED) ||
+			    !((nflags & F_SEEN) || ((void)(todel > 0 && unseen++), svars->chan->expire_unread > 0))) {
+				// Important messages are always fetched/kept.
+				debug( "  pair(%u,%u) is important\n", srec->uid[F], srec->uid[N] );
+				todel--;
+			} else if (todel > 0 ||
+			           ((srec->status & (S_EXPIRE | S_EXPIRED)) == (S_EXPIRE | S_EXPIRED)) ||
+			           ((srec->status & (S_EXPIRE | S_EXPIRED)) && (srec->msg[N]->flags & F_DELETED))) {
+				/* The message is excess or was already (being) expired. */
+				srec->status |= S_NEXPIRE;
+				debug( "  expiring pair(%u,%u)\n", srec->uid[F], srec->uid[N] );
+				todel--;
 			}
 		}
 		debug( "%d excess messages remain\n", todel );
-		if (svars->chan->expire_unread < 0 && alive * 2 > svars->chan->max_messages) {
+		if (svars->chan->expire_unread < 0 && unseen * 2 > svars->chan->max_messages) {
 			error( "%s: %d unread messages in excess of MaxMessages (%d).\n"
 			       "Please set ExpireUnread to decide outcome. Skipping mailbox.\n",
-			       svars->orig_name[N], alive, svars->chan->max_messages );
+			       svars->orig_name[N], unseen, svars->chan->max_messages );
 			svars->ret |= SYNC_FAIL;
 			cancel_sync( svars );
 			return;
 		}
-		for (srec = svars->srecs; srec; srec = srec->next) {
-			if (srec->status & S_DEAD)
-				continue;
+		for (int sri = 0; sri < alive; sri++) {
+			srec = arecs[sri].srec;
 			if (!(srec->status & S_PENDING)) {
-				if (!srec->msg[N])
-					continue;
 				uchar nex = (srec->status / S_NEXPIRE) & 1;
 				if (nex != ((srec->status / S_EXPIRED) & 1)) {
 					/* The record needs a state change ... */
@@ -1340,6 +1344,7 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 				}
 			}
 		}
+		free( arecs );
 	}
 
 	sync_ref( svars );
