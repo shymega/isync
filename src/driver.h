@@ -283,8 +283,9 @@ struct driver {
 
 	/* Expunge deleted messages from the current mailbox and close it.
 	 * There is no need to explicitly close a mailbox if no expunge is needed. */
+	// If reported is true, the expunge callback was called reliably.
 	void (*close_box)( store_t *ctx,
-	                   void (*cb)( int sts, void *aux ), void *aux );
+	                   void (*cb)( int sts, int reported, void *aux ), void *aux );
 
 	/* Cancel queued commands which are not in flight yet; they will have their
 	 * callbacks invoked with DRV_CANCELED. Afterwards, wait for the completion of

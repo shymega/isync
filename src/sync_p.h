@@ -18,7 +18,7 @@ BIT_ENUM(
 	S_DUMMY(2),     // f/n message is only a placeholder
 	S_SKIPPED,      // pre-1.4 legacy: the entry was not propagated (message is too big)
 	S_GONE(2),      // ephemeral: f/n message has been expunged
-	S_DEL(2),       // ephemeral: f/n message would be subject to expunge
+	S_DEL(2),       // ephemeral: f/n message would be subject to non-selective expunge
 	S_DELETE,       // ephemeral: flags propagation is a deletion
 	S_UPGRADE,      // ephemeral: upgrading placeholder, do not apply MaxSize
 	S_PURGE,        // ephemeral: placeholder is being nuked

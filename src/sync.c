@@ -58,7 +58,6 @@ BIT_ENUM(
 	ST_SENT_TRASH,
 	ST_CLOSING,
 	ST_CLOSED,
-	ST_DID_EXPUNGE,
 	ST_SENT_CANCEL,
 	ST_CANCELED,
 )
@@ -465,6 +464,7 @@ message_expunged( message_t *msg, void *aux )
 	(void)svars;
 
 	if (msg->srec) {
+		msg->srec->status |= S_GONE(t);
 		msg->srec->msg[t] = NULL;
 		msg->srec = NULL;
 	}
@@ -1867,7 +1867,7 @@ msg_rtrashed( int sts, uint uid ATTR_UNUSED, copy_vars_t *vars )
 	sync_close( svars, t );
 }
 
-static void box_closed( int sts, void *aux );
+static void box_closed( int sts, int reported, void *aux );
 static void box_closed_p2( sync_vars_t *svars, int t );
 
 static void
@@ -1891,10 +1891,23 @@ sync_close( sync_vars_t *svars, int t )
 }
 
 static void
-box_closed( int sts, void *aux )
+box_closed( int sts, int reported, void *aux )
 {
 	SVARS_CHECK_RET;
-	svars->state[t] |= ST_DID_EXPUNGE;
+	if (!reported) {
+		for (sync_rec_t *srec = svars->srecs; srec; srec = srec->next) {
+			if (srec->status & S_DEAD)
+				continue;
+			// Note that this logic is somewhat optimistic - theoretically, it's
+			// possible that a message was concurrently undeleted before we tried
+			// to expunge it. Such a message would be subsequently re-propagated
+			// by a refresh, and in the extremely unlikely case of this happening
+			// on both sides, we'd even get a duplicate. That's why this is only
+			// a fallback.
+			if (srec->status & S_DEL(t))
+				srec->status |= S_GONE(t);
+		}
+	}
 	box_closed_p2( svars, t );
 }
 
@@ -1931,10 +1944,6 @@ box_closed_p2( sync_vars_t *svars, int t )
 	for (srec = svars->srecs; srec; srec = srec->next) {
 		if (srec->status & S_DEAD)
 			continue;
-		if ((srec->status & S_DEL(F)) && (svars->state[F] & ST_DID_EXPUNGE))
-			srec->status |= S_GONE(F);
-		if ((srec->status & S_DEL(N)) && (svars->state[N] & ST_DID_EXPUNGE))
-			srec->status |= S_GONE(N);
 		if (!srec->uid[N] || (srec->status & S_GONE(N))) {
 			if (!srec->uid[F] || (srec->status & S_GONE(F)) ||
 				((srec->status & S_EXPIRED) && svars->maxuid[F] >= srec->uid[F] && svars->maxxfuid >= srec->uid[F])) {

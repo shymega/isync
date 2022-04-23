@@ -3082,21 +3082,33 @@ imap_set_flags_p3( imap_set_msg_flags_state_t *sts )
 
 /******************* imap_close_box *******************/
 
+#define IMAP_CMD_EXPUNGE \
+	void (*callback)( int sts, int reported, void *aux ); \
+	void *callback_aux;
+
 typedef union {
 	imap_cmd_refcounted_state_t gen;
 	struct {
 		IMAP_CMD_REFCOUNTED_STATE
-		void (*callback)( int sts, void *aux );
-		void *callback_aux;
+		IMAP_CMD_EXPUNGE
 	};
 } imap_expunge_state_t;
 
+typedef union {
+	imap_cmd_t gen;
+	struct {
+		IMAP_CMD
+		IMAP_CMD_EXPUNGE
+	};
+} imap_cmd_close_t;
+
 static void imap_close_box_p2( imap_store_t *, imap_cmd_t *, int );
 static void imap_close_box_p3( imap_expunge_state_t * );
+static void imap_close_box_simple_p2( imap_store_t *, imap_cmd_t *, int );
 
 static void
 imap_close_box( store_t *gctx,
-                void (*cb)( int sts, void *aux ), void *aux )
+                void (*cb)( int sts, int reported, void *aux ), void *aux )
 {
 	imap_store_t *ctx = (imap_store_t *)gctx;
 
@@ -3132,8 +3144,8 @@ imap_close_box( store_t *gctx,
 		// Note that, to save bandwidth, we don't use EXPUNGE. Also, in many
 		// cases, we wouldn't be able to map the EXPUNGE responses' seq numbers
 		// anyway, due to not having fetched the messages.
-		INIT_IMAP_CMD(imap_cmd_simple_t, cmd, cb, aux)
-		imap_exec( ctx, &cmd->gen, imap_done_simple_box, "CLOSE" );
+		INIT_IMAP_CMD(imap_cmd_close_t, cmd, cb, aux)
+		imap_exec( ctx, &cmd->gen, imap_close_box_simple_p2, "CLOSE" );
 	}
 }
 
@@ -3149,7 +3161,17 @@ imap_close_box_p2( imap_store_t *ctx ATTR_UNUSED, imap_cmd_t *cmd, int response 
 static void
 imap_close_box_p3( imap_expunge_state_t *sts )
 {
-	DONE_REFCOUNTED_STATE(sts)
+	DONE_REFCOUNTED_STATE_ARGS(sts, , 1)
+}
+
+static void
+imap_close_box_simple_p2( imap_store_t *ctx ATTR_UNUSED,
+                          imap_cmd_t *cmd, int response )
+{
+	imap_cmd_close_t *cmdp = (imap_cmd_close_t *)cmd;
+
+	transform_box_response( &response );
+	cmdp->callback( response, 0, cmdp->callback_aux );
 }
 
 /******************* imap_trash_msg *******************/

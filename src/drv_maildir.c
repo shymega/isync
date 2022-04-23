@@ -1795,7 +1795,7 @@ maildir_trash_msg( store_t *gctx, message_t *gmsg,
 
 static void
 maildir_close_box( store_t *gctx,
-                   void (*cb)( int sts, void *aux ), void *aux )
+                   void (*cb)( int sts, int reported, void *aux ), void *aux )
 {
 	maildir_store_t *ctx = (maildir_store_t *)gctx;
 	maildir_message_t *msg;
@@ -1819,7 +1819,7 @@ maildir_close_box( store_t *gctx,
 					ctx->expunge_callback( &msg->gen, ctx->callback_aux );
 #ifdef USE_DB
 					if (ctx->db && (ret = maildir_purge_msg( ctx, msg->base )) != DRV_OK) {
-						cb( ret, aux );
+						cb( ret, 1, aux );
 						return;
 					}
 #endif /* USE_DB */
@@ -1827,11 +1827,11 @@ maildir_close_box( store_t *gctx,
 			}
 		}
 		if (!retry) {
-			cb( DRV_OK, aux );
+			cb( DRV_OK, 1, aux );
 			return;
 		}
 		if ((ret = maildir_rescan( ctx )) != DRV_OK) {
-			cb( ret, aux );
+			cb( ret, 1, aux );
 			return;
 		}
 	}
