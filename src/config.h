@@ -21,6 +21,8 @@ typedef struct {
 	char *cmd, *val, *rest;
 } conffile_t;
 
+extern char FieldDelimiter;
+
 #define ARG_OPTIONAL 0
 #define ARG_REQUIRED 1
 

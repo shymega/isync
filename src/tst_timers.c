@@ -10,10 +10,6 @@
 #include <stdlib.h>
 #include <time.h>
 
-/* Just to satisfy the references in util.c */
-int DFlags;
-const char *Home;
-
 typedef struct {
 	int id;
 	int first, other, morph_at, morph_to;

@@ -30,6 +30,12 @@ channel_conf_t global_conf;
 channel_conf_t *channels;
 group_conf_t *groups;
 
+uint BufferLimit = 10 * 1024 * 1024;
+
+int new_total[2], new_done[2];
+int flags_total[2], flags_done[2];
+int trash_total[2], trash_done[2];
+
 const char *str_fn[] = { "far side", "near side" }, *str_hl[] = { "push", "pull" };
 
 static void ATTR_PRINTFLIKE(1, 2)

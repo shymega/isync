@@ -17,6 +17,14 @@
 #include <ctype.h>
 #include <pwd.h>
 
+int DFlags;
+int JLimit;
+int UseFSync = 1;
+
+int Pid;
+char Hostname[256];
+const char *Home;
+
 static int need_nl;
 
 void

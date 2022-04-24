@@ -19,26 +19,8 @@
 # include <sys/prctl.h>
 #endif
 
-int DFlags;
-int JLimit;
-int UseFSync = 1;
-#if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__) || defined(__CYGWIN__)
-char FieldDelimiter = ';';
-#else
-char FieldDelimiter = ':';
-#endif
-
-int Pid;		/* for maildir and imap */
-char Hostname[256];	/* for maildir */
-const char *Home;	/* for config */
-
-uint BufferLimit = 10 * 1024 * 1024;
-
 static int chans_total, chans_done;
 static int boxes_total, boxes_done;
-int new_total[2], new_done[2];
-int flags_total[2], flags_done[2];
-int trash_total[2], trash_done[2];
 
 static void ATTR_NORETURN
 version( void )

@@ -96,20 +96,15 @@ typedef unsigned long ulong;
 #define DEBUG_ANY (DEBUG_MAILDIR | DEBUG_NET | DEBUG_SYNC | DEBUG_MAIN | DEBUG_DRV)
 #define DEBUG_ALL (DEBUG_ANY | DEBUG_CRASH)
 
+// Global options
 extern int DFlags;
 extern int JLimit;
 extern int UseFSync;
-extern char FieldDelimiter;
 
+// Global constants (inited by main())
 extern int Pid;
 extern char Hostname[256];
 extern const char *Home;
-
-extern uint BufferLimit;
-
-extern int new_total[2], new_done[2];
-extern int flags_total[2], flags_done[2];
-extern int trash_total[2], trash_done[2];
 
 void stats( void );
 

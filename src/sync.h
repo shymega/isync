@@ -53,6 +53,12 @@ extern channel_conf_t global_conf;
 extern channel_conf_t *channels;
 extern group_conf_t *groups;
 
+extern uint BufferLimit;
+
+extern int new_total[2], new_done[2];
+extern int flags_total[2], flags_done[2];
+extern int trash_total[2], trash_done[2];
+
 extern const char *str_fn[2], *str_hl[2];
 
 #define SYNC_OK       0 /* assumed to be 0 */
