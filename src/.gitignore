@@ -2,8 +2,11 @@
 /drv_proxy.inc
 /mbsync
 /mdconvert
+/tst_imap_msgs
 /tst_timers
 /tmp
 
 .deps/
+*.log
 *.o
+*.trs

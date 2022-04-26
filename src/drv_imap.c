@@ -6,7 +6,7 @@
  * mbsync - mailbox synchronizer
  */
 
-#include "driver.h"
+#include "imap_p.h"
 
 #include "socket.h"
 
@@ -58,14 +58,6 @@ typedef union imap_store_conf {
 	};
 } imap_store_conf_t;
 
-typedef union imap_message {
-	message_t gen;
-	struct {
-		MESSAGE(union imap_message)
-		// uint seq; will be needed when expunges are tracked
-	};
-} imap_message_t;
-
 #define NIL	(void*)0x1
 #define LIST	(void*)0x2
 
@@ -112,8 +104,8 @@ union imap_store {
 		// but mailbox totals.
 		int total_msgs, recent_msgs;
 		uint uidvalidity, uidnext;
-		imap_message_t **msgapp, *msgs;  // FETCH results
-		uint msgcnt;
+		imap_messages_t msgs;
+		uint fetch_seq;  // FETCH results
 		uint caps;  // CAPABILITY results
 		string_list_t *auth_mechs;
 		parse_list_state_t parse_list_sts;
@@ -139,8 +131,9 @@ union imap_store {
 		int sasl_cont;
 #endif
 
+		void (*expunge_callback)( message_t *msg, void *aux );
 		void (*bad_callback)( void *aux );
-		void *bad_callback_aux;
+		void *drv_callback_aux;
 
 		conn_t conn;  // This is BIG, so put it last
 	};
@@ -1206,10 +1199,9 @@ parse_fetch_rsp( imap_store_t *ctx, list_t *list, char *s ATTR_UNUSED )
 		// Workaround for server not sending UIDNEXT and/or APPENDUID.
 		ctx->uidnext = uid + 1;
 	} else if (ctx->fetch_sts == FetchMsgs) {
-		cur = nfzalloc( sizeof(*cur) );
-		*ctx->msgapp = cur;
-		ctx->msgapp = &cur->next;
-		ctx->msgcnt++;
+		imap_ensure_absolute( &ctx->msgs );  // In case of interleaved EXPUNGE
+		cur = imap_new_msg( & ctx->msgs );
+		cur->seq = ctx->fetch_seq;
 		cur->uid = uid;
 		cur->flags = mask;
 		cur->status = status;
@@ -1524,6 +1516,14 @@ prepare_trash( char **buf, const imap_store_t *ctx )
 	return prepare_name( buf, ctx, ctx->prefix, ctx->conf->trash );
 }
 
+static void
+record_expunge( imap_store_t *ctx, uint seq )
+{
+	imap_message_t *eptr = imap_expunge_msg( &ctx->msgs, seq );
+	if (eptr)
+		ctx->expunge_callback( &eptr->gen, ctx->drv_callback_aux );
+}
+
 typedef union {
 	imap_cmd_t gen;
 	struct {
@@ -1542,6 +1542,7 @@ imap_socket_read( void *aux )
 	imap_cmd_t *cmdp, **pcmdp;
 	char *cmd, *arg, *arg1, *p;
 	int resp, resp2, tag;
+	uint seq;
 	conn_iovec_t iov[2];
 
 	for (;;) {
@@ -1622,10 +1623,19 @@ imap_socket_read( void *aux )
 				if (!strcmp( "EXISTS", arg1 )) {
 					ctx->total_msgs = atoi( arg );
 				} else if (!strcmp( "EXPUNGE", arg1 )) {
+					if (!(seq = strtoul( arg, &arg1, 10 )) || *arg1) {
+					  badseq:
+						error( "IMAP error: malformed sequence number '%s'\n", arg );
+						break;
+					}
+					record_expunge( ctx, seq );
 					ctx->total_msgs--;
 				} else if (!strcmp( "RECENT", arg1 )) {
 					ctx->recent_msgs = atoi( arg );
 				} else if (!strcmp( "FETCH", arg1 )) {
+					if (!(seq = strtoul( arg, &arg1, 10 )) || *arg1)
+						goto badseq;
+					ctx->fetch_seq = seq;
 					resp = parse_list( ctx, cmd, parse_fetch_rsp );
 					goto listret;
 				}
@@ -1777,7 +1787,7 @@ imap_cancel_store( store_t *gctx )
 	cancel_pending_imap_cmds( ctx );
 	free( ctx->ns_prefix );
 	free_string_list( ctx->auth_mechs );
-	free_generic_messages( &ctx->msgs->gen );
+	free_generic_messages( &ctx->msgs.head->gen );
 	free_string_list( ctx->boxes );
 	imap_deref( ctx );
 }
@@ -1793,19 +1803,20 @@ imap_deref( imap_store_t *ctx )
 }
 
 static void
-imap_set_callbacks( store_t *gctx, void (*exp_cb)( message_t *, void * ) ATTR_UNUSED,
-                    void (*cb)( void * ), void *aux )
+imap_set_callbacks( store_t *gctx, void (*exp_cb)( message_t *, void * ),
+                    void (*bad_cb)( void * ), void *aux )
 {
 	imap_store_t *ctx = (imap_store_t *)gctx;
 
-	ctx->bad_callback = cb;
-	ctx->bad_callback_aux = aux;
+	ctx->expunge_callback = exp_cb;
+	ctx->bad_callback = bad_cb;
+	ctx->drv_callback_aux = aux;
 }
 
 static void
 imap_invoke_bad_callback( imap_store_t *ctx )
 {
-	ctx->bad_callback( ctx->bad_callback_aux );
+	ctx->bad_callback( ctx->drv_callback_aux );
 }
 
 /******************* imap_free_store *******************/
@@ -1838,8 +1849,7 @@ imap_free_store( store_t *gctx )
 		return;
 	}
 
-	free_generic_messages( &ctx->msgs->gen );
-	ctx->msgs = NULL;
+	reset_imap_messages( &ctx->msgs );
 	imap_set_callbacks( gctx, NULL, imap_cancel_unowned, gctx );
 	ctx->next = unowned;
 	unowned = ctx;
@@ -2630,10 +2640,7 @@ imap_select_box( store_t *gctx, const char *name )
 
 	assert( !ctx->pending && !ctx->in_progress && !ctx->wait_check );
 
-	free_generic_messages( &ctx->msgs->gen );
-	ctx->msgs = NULL;
-	ctx->msgapp = &ctx->msgs;
-	ctx->msgcnt = 0;
+	reset_imap_messages( &ctx->msgs );
 
 	ctx->name = name;
 	return DRV_OK;
@@ -2922,47 +2929,6 @@ imap_load_box( store_t *gctx, uint minuid, uint maxuid, uint finduid, uint pairu
 	}
 }
 
-static int
-imap_sort_msgs_comp( const void *a_, const void *b_ )
-{
-	const message_t *a = *(const message_t * const *)a_;
-	const message_t *b = *(const message_t * const *)b_;
-
-	if (a->uid < b->uid)
-		return -1;
-	if (a->uid > b->uid)
-		return 1;
-	return 0;
-}
-
-static void
-imap_sort_msgs( imap_store_t *ctx )
-{
-	uint count = ctx->msgcnt;
-	if (count <= 1)
-		return;
-
-	imap_message_t **t = nfmalloc( sizeof(*t) * count );
-
-	imap_message_t *m = ctx->msgs;
-	for (uint i = 0; i < count; i++) {
-		t[i] = m;
-		m = m->next;
-	}
-
-	qsort( t, count, sizeof(*t), imap_sort_msgs_comp );
-
-	ctx->msgs = t[0];
-
-	uint j;
-	for (j = 0; j < count - 1; j++)
-		t[j]->next = t[j + 1];
-	ctx->msgapp = &t[j]->next;
-	*ctx->msgapp = NULL;
-
-	free( t );
-}
-
 static void imap_submit_load_p2( imap_store_t *, imap_cmd_t *, int );
 
 static void
@@ -2994,8 +2960,8 @@ imap_submit_load_p3( imap_store_t *ctx, imap_load_box_state_t *sts )
 	DONE_REFCOUNTED_STATE_ARGS(sts, {
 		ctx->fetch_sts = FetchNone;
 		if (sts->ret_val == DRV_OK)
-			imap_sort_msgs( ctx );
-	}, &ctx->msgs->gen, ctx->total_msgs, ctx->recent_msgs)
+			imap_ensure_relative( &ctx->msgs );
+	}, &ctx->msgs.head->gen, ctx->total_msgs, ctx->recent_msgs)
 }
 
 /******************* imap_fetch_msg *******************/
@@ -3023,7 +2989,9 @@ imap_fetch_msg_p2( imap_store_t *ctx, imap_cmd_t *gcmd, int response )
 	imap_cmd_fetch_msg_t *cmd = (imap_cmd_fetch_msg_t *)gcmd;
 
 	if (response == RESP_OK && !cmd->msg_data->data) {
-		/* The FETCH succeeded, but there is no message with this UID. */
+		// The UID FETCH succeeded, but there is no message with this UID.
+		// The corresponding EXPUNGE response has been received by this time,
+		// so the message is already marked as dead.
 		response = RESP_NO;
 	}
 	imap_done_simple_msg( ctx, gcmd, response );
@@ -3140,9 +3108,9 @@ imap_close_box( store_t *gctx,
 		int bl;
 		char buf[1000];
 
-		for (msg = ctx->msgs; ; ) {
+		for (msg = ctx->msgs.head; ; ) {
 			for (bl = 0; msg && bl < 960; msg = msg->next) {
-				if (!(msg->flags & F_DELETED))
+				if ((msg->status & M_DEAD) || !(msg->flags & F_DELETED))
 					continue;
 				if (bl)
 					buf[bl++] = ',';
@@ -3161,7 +3129,9 @@ imap_close_box( store_t *gctx,
 	} else {
 		/* This is inherently racy: it may cause messages which other clients
 		 * marked as deleted to be expunged without being trashed. */
-		// Note that, to save bandwidth, we don't use EXPUNGE.
+		// Note that, to save bandwidth, we don't use EXPUNGE. Also, in many
+		// cases, we wouldn't be able to map the EXPUNGE responses' seq numbers
+		// anyway, due to not having fetched the messages.
 		INIT_IMAP_CMD(imap_cmd_simple_t, cmd, cb, aux)
 		imap_exec( ctx, &cmd->gen, imap_done_simple_box, "CLOSE" );
 	}
@@ -3281,7 +3251,7 @@ imap_find_new_msgs( store_t *gctx, uint newuid,
 	imap_store_t *ctx = (imap_store_t *)gctx;
 
 	INIT_IMAP_CMD(imap_cmd_find_new_t, cmd, cb, aux)
-	cmd->out_msgs = ctx->msgapp;
+	cmd->out_msgs = ctx->msgs.tail;
 	cmd->uid = newuid;
 	// Some servers fail to enumerate recently APPENDed messages without syncing first.
 	imap_exec( ctx, &cmd->gen, imap_find_new_msgs_p2, "CHECK" );
@@ -3346,6 +3316,9 @@ imap_find_new_msgs_p4( imap_store_t *ctx ATTR_UNUSED, imap_cmd_t *gcmd, int resp
 
 	ctx->fetch_sts = FetchNone;
 	transform_box_response( &response );
+	// Note: unlike in load_box(), we don't call imap_ensure_relative() here,
+	// as it's unnecessary. It being called due to unsolicited responses
+	// causes no harm.
 	cmdp->callback( response, &(*cmdp->out_msgs)->gen, cmdp->callback_aux );
 }
 

@@ -5,13 +5,13 @@
 mbsync_SOURCES = \
 	util.c config.c socket.c \
 	driver.c drv_proxy.c \
-	drv_imap.c \
+	drv_imap.c imap_msgs.c \
 	drv_maildir.c \
 	sync.c sync_state.c \
 	main.c main_sync.c main_list.c
 noinst_HEADERS = \
 	common.h config.h socket.h \
-	driver.h \
+	driver.h imap_p.h \
 	sync.h sync_p.h \
 	main_p.h
 mbsync_LDADD = $(DB_LIBS) $(SSL_LIBS) $(SOCK_LIBS) $(SASL_LIBS) $(Z_LIBS) $(KEYCHAIN_LIBS)
@@ -51,6 +51,11 @@ endif
 
 bin_PROGRAMS = mbsync $(mdconvert_prog)
 man_MANS = mbsync.1 $(mdconvert_man)
+
+tst_imap_msgs_SOURCES = tst_imap_msgs.c imap_msgs.c util.c
+
+check_PROGRAMS = tst_imap_msgs
+TESTS = $(check_PROGRAMS)
 
 tst_timers_SOURCES = tst_timers.c util.c
 
