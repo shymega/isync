@@ -11,8 +11,14 @@
 #include <autodefs.h>
 
 #include <sys/types.h>
+#include <assert.h>
+#include <limits.h>
 #include <stdarg.h>
+#include <stddef.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
 #include <time.h>
 
 typedef unsigned char uchar;

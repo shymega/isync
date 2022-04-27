@@ -10,15 +10,7 @@
 
 #include "socket.h"
 
-#include <assert.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <stddef.h>
-#include <limits.h>
-#include <string.h>
 #include <ctype.h>
-#include <time.h>
 #include <sys/wait.h>
 
 #ifdef HAVE_LIBSASL

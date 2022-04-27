@@ -6,10 +6,6 @@
 
 #include "driver.h"
 
-#include <assert.h>
-#include <limits.h>
-#include <stdlib.h>
-
 typedef struct gen_cmd gen_cmd_t;
 
 typedef union proxy_store {

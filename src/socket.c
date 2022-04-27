@@ -8,12 +8,7 @@
 
 #include "socket.h"
 
-#include <assert.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <stddef.h>
 #include <errno.h>
-#include <string.h>
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>

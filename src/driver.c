@@ -7,9 +7,6 @@
 
 #include "driver.h"
 
-#include <stdlib.h>
-#include <string.h>
-
 driver_t *drivers[N_DRIVERS] = { &maildir_driver, &imap_driver };
 
 uint

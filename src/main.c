@@ -7,13 +7,8 @@
 
 #include "sync.h"
 
-#include <stdlib.h>
-#include <stddef.h>
-#include <unistd.h>
-#include <string.h>
 #include <fcntl.h>
 #include <signal.h>
-#include <time.h>
 #include <sys/wait.h>
 #ifdef __linux__
 # include <sys/prctl.h>

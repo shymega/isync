@@ -8,18 +8,11 @@
 
 #include "driver.h"
 
-#include <assert.h>
-#include <limits.h>
-#include <stdlib.h>
-#include <string.h>
 #include <ctype.h>
 #include <dirent.h>
 #include <fcntl.h>
-#include <stdio.h>
-#include <unistd.h>
 #include <sys/stat.h>
 #include <errno.h>
-#include <time.h>
 #include <utime.h>
 
 #if !defined(_POSIX_SYNCHRONIZED_IO) || _POSIX_SYNCHRONIZED_IO <= 0

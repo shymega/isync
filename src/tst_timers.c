@@ -6,10 +6,6 @@
 
 #include "common.h"
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <time.h>
-
 typedef struct {
 	int id;
 	int first, other, morph_at, morph_to;

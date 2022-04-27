@@ -7,16 +7,8 @@
 
 #include "sync.h"
 
-#include <assert.h>
-#include <stdio.h>
-#include <limits.h>
-#include <stdlib.h>
-#include <stddef.h>
-#include <unistd.h>
-#include <time.h>
 #include <fcntl.h>
 #include <ctype.h>
-#include <string.h>
 #include <errno.h>
 #include <sys/stat.h>
 

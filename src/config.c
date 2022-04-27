@@ -9,15 +9,8 @@
 
 #include "sync.h"
 
-#include <assert.h>
-#include <unistd.h>
-#include <limits.h>
 #include <pwd.h>
-#include <sys/types.h>
 #include <ctype.h>
-#include <string.h>
-#include <stdlib.h>
-#include <stdio.h>
 
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__) || defined(__CYGWIN__)
 char FieldDelimiter = ';';
