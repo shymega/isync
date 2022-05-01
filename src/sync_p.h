@@ -103,3 +103,14 @@ void assign_tuid( sync_vars_t *svars, sync_rec_t *srec );
 int match_tuids( sync_vars_t *svars, int t, message_t *msgs );
 
 sync_rec_t *upgrade_srec( sync_vars_t *svars, sync_rec_t *srec, int t );
+
+typedef struct copy_vars {
+	void (*cb)( int sts, uint uid, struct copy_vars *vars );
+	void *aux;
+	sync_rec_t *srec; /* also ->tuid */
+	message_t *msg;
+	msg_data_t data;
+	int minimal;
+} copy_vars_t;
+
+char *copy_msg_convert( int in_cr, int out_cr, copy_vars_t *vars );

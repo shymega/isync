@@ -7,7 +7,7 @@ mbsync_SOURCES = \
 	driver.c drv_proxy.c \
 	drv_imap.c imap_msgs.c \
 	drv_maildir.c \
-	sync.c sync_state.c \
+	sync.c sync_state.c sync_msg_cvt.c \
 	main.c main_sync.c main_list.c
 noinst_HEADERS = \
 	common.h config.h socket.h \
