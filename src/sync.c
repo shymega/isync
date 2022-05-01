@@ -133,8 +133,8 @@ copy_msg_bytes( char **out_ptr, const char *in_buf, uint *in_idx, uint in_len, i
 	*in_idx = idx;
 }
 
-static int
-copy_msg_convert( int in_cr, int out_cr, copy_vars_t *vars, int t )
+static char *
+copy_msg_convert( int in_cr, int out_cr, copy_vars_t *vars )
 {
 	char *in_buf = vars->data.data;
 	uint in_len = vars->data.len;
@@ -180,10 +180,8 @@ copy_msg_convert( int in_cr, int out_cr, copy_vars_t *vars, int t )
 				goto nloop;
 			}
 		}
-		warn( "Warning: message %u from %s has incomplete header; skipping.\n",
-		      vars->msg->uid, str_fn[t^1] );
 		free( in_buf );
-		return 0;
+		return "has incomplete header";
 	  oke:
 		app_cr = out_cr && (!in_cr || hdr_crs);
 		extra += 8 + TUIDL + app_cr + 1;
@@ -231,10 +229,8 @@ copy_msg_convert( int in_cr, int out_cr, copy_vars_t *vars, int t )
 
 	vars->data.len = in_len + extra;
 	if (vars->data.len > INT_MAX) {
-		warn( "Warning: message %u from %s is too big after conversion; skipping.\n",
-		      vars->msg->uid, str_fn[t^1] );
 		free( in_buf );
-		return 0;
+		return "is too big after conversion";
 	}
 	char *out_buf = vars->data.data = nfmalloc( vars->data.len );
 	idx = 0;
@@ -275,7 +271,7 @@ copy_msg_convert( int in_cr, int out_cr, copy_vars_t *vars, int t )
 		memcpy( out_buf, dummy_msg_buf, dummy_msg_len );
 
 	free( in_buf );
-	return 1;
+	return NULL;
 }
 
 static void
@@ -318,7 +314,9 @@ msg_fetched( int sts, void *aux )
 		scr = svars->can_crlf[t^1];
 		tcr = svars->can_crlf[t];
 		if (srec || scr != tcr) {
-			if (!copy_msg_convert( scr, tcr, vars, t )) {
+			const char *err;
+			if ((err = copy_msg_convert( scr, tcr, vars ))) {
+				warn( "Warning: message %u from %s %s; skipping.\n", vars->msg->uid, str_fn[t^1], err );
 				vars->cb( SYNC_NOGOOD, 0, vars );
 				return;
 			}
