@@ -487,108 +487,6 @@ submit_imap_cmd( imap_store_t *ctx, imap_cmd_t *cmd )
 	}
 }
 
-/* Minimal printf() replacement that supports an %\s format sequence to print backslash-escaped
- * string literals. Note that this does not automatically add quotes around the printed string,
- * so it is possible to concatenate multiple segments. */
-static char *
-imap_vprintf( const char *fmt, va_list ap )
-{
-	const char *s;
-	char *d, *ed;
-	char c;
-#define MAX_SEGS 16
-#define add_seg(s, l) \
-		do { \
-			if (nsegs == MAX_SEGS) \
-				oob(); \
-			segs[nsegs] = s; \
-			segls[nsegs++] = l; \
-			totlen += l; \
-		} while (0)
-	int nsegs = 0;
-	uint totlen = 0;
-	const char *segs[MAX_SEGS];
-	uint segls[MAX_SEGS];
-	char buf[1000];
-
-	d = buf;
-	ed = d + sizeof(buf);
-	s = fmt;
-	for (;;) {
-		c = *fmt;
-		if (!c || c == '%') {
-			uint l = fmt - s;
-			if (l)
-				add_seg( s, l );
-			if (!c)
-				break;
-			uint maxlen = UINT_MAX;
-			c = *++fmt;
-			if (c == '\\') {
-				c = *++fmt;
-				if (c != 's') {
-					fputs( "Fatal: unsupported escaped format specifier. Please report a bug.\n", stderr );
-					abort();
-				}
-				char *bd = d;
-				s = va_arg( ap, const char * );
-				while ((c = *s++)) {
-					if (d + 2 > ed)
-						oob();
-					if (c == '\\' || c == '"')
-						*d++ = '\\';
-					*d++ = c;
-				}
-				l = d - bd;
-				if (l)
-					add_seg( bd, l );
-			} else { /* \\ cannot be combined with anything else. */
-				if (c == '.') {
-					c = *++fmt;
-					if (c != '*') {
-						fputs( "Fatal: unsupported string length specification. Please report a bug.\n", stderr );
-						abort();
-					}
-					maxlen = va_arg( ap, uint );
-					c = *++fmt;
-				}
-				if (c == 'c') {
-					if (d + 1 > ed)
-						oob();
-					add_seg( d, 1 );
-					*d++ = (char)va_arg( ap , int );
-				} else if (c == 's') {
-					s = va_arg( ap, const char * );
-					l = strnlen( s, maxlen );
-					if (l)
-						add_seg( s, l );
-				} else if (c == 'd') {
-					l = nfsnprintf( d, ed - d, "%d", va_arg( ap, int ) );
-					add_seg( d, l );
-					d += l;
-				} else if (c == 'u') {
-					l = nfsnprintf( d, ed - d, "%u", va_arg( ap, uint ) );
-					add_seg( d, l );
-					d += l;
-				} else {
-					fputs( "Fatal: unsupported format specifier. Please report a bug.\n", stderr );
-					abort();
-				}
-			}
-			s = ++fmt;
-		} else {
-			fmt++;
-		}
-	}
-	char *out = d = nfmalloc( totlen + 1 );
-	for (int i = 0; i < nsegs; i++) {
-		memcpy( d, segs[i], segls[i] );
-		d += segls[i];
-	}
-	*d = 0;
-	return out;
-}
-
 static void
 imap_exec( imap_store_t *ctx, imap_cmd_t *cmdp,
            void (*done)( imap_store_t *ctx, imap_cmd_t *cmd, int response ),
@@ -600,7 +498,7 @@ imap_exec( imap_store_t *ctx, imap_cmd_t *cmdp,
 		cmdp = new_imap_cmd( sizeof(*cmdp) );
 	cmdp->param.done = done;
 	va_start( ap, fmt );
-	cmdp->cmd = imap_vprintf( fmt, ap );
+	cmdp->cmd = xvasprintf( fmt, ap );
 	va_end( ap );
 	submit_imap_cmd( ctx, cmdp );
 }

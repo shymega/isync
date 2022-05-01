@@ -184,6 +184,112 @@ sys_error( const char *msg, ... )
 	va_end( va );
 }
 
+// Minimal printf() replacement with custom format sequence(s):
+// - %\\s
+//   Print backslash-escaped string literals. Note that this does not
+//   automatically add quotes around the printed string, so it is
+//   possible to concatenate multiple segments.
+
+// TODO: Trade off segments vs. buffer capacity dynamically.
+#define QPRINTF_SEGS 16
+#define QPRINTF_BUFF 1000
+
+char *
+xvasprintf( const char *fmt, va_list ap )
+{
+	int nsegs = 0;
+	uint totlen = 0;
+	const char *segs[QPRINTF_SEGS];
+	uint segls[QPRINTF_SEGS];
+	char buf[QPRINTF_BUFF];
+
+#define ADD_SEG(p, l) \
+		do { \
+			if (nsegs == QPRINTF_SEGS) \
+				oob(); \
+			segs[nsegs] = p; \
+			segls[nsegs++] = l; \
+			totlen += l; \
+		} while (0)
+
+	char *d = buf;
+	char *ed = d + sizeof(buf);
+	const char *s = fmt;
+	for (;;) {
+		char c = *fmt;
+		if (!c || c == '%') {
+			uint l = fmt - s;
+			if (l)
+				ADD_SEG( s, l );
+			if (!c)
+				break;
+			uint maxlen = UINT_MAX;
+			c = *++fmt;
+			if (c == '\\') {
+				c = *++fmt;
+				if (c != 's') {
+					fputs( "Fatal: unsupported escaped format specifier. Please report a bug.\n", stderr );
+					abort();
+				}
+				char *bd = d;
+				s = va_arg( ap, const char * );
+				while ((c = *s++)) {
+					if (d + 2 > ed)
+						oob();
+					if (c == '\\' || c == '"')
+						*d++ = '\\';
+					*d++ = c;
+				}
+				l = d - bd;
+				if (l)
+					ADD_SEG( bd, l );
+			} else {  // \\ cannot be combined with anything else.
+				if (c == '.') {
+					c = *++fmt;
+					if (c != '*') {
+						fputs( "Fatal: unsupported string length specification. Please report a bug.\n", stderr );
+						abort();
+					}
+					maxlen = va_arg( ap, uint );
+					c = *++fmt;
+				}
+				if (c == 'c') {
+					if (d + 1 > ed)
+						oob();
+					ADD_SEG( d, 1 );
+					*d++ = (char)va_arg( ap, int );
+				} else if (c == 's') {
+					s = va_arg( ap, const char * );
+					l = strnlen( s, maxlen );
+					if (l)
+						ADD_SEG( s, l );
+				} else if (c == 'd') {
+					l = nfsnprintf( d, ed - d, "%d", va_arg( ap, int ) );
+					ADD_SEG( d, l );
+					d += l;
+				} else if (c == 'u') {
+					l = nfsnprintf( d, ed - d, "%u", va_arg( ap, uint ) );
+					ADD_SEG( d, l );
+					d += l;
+				} else {
+					fputs( "Fatal: unsupported format specifier. Please report a bug.\n", stderr );
+					abort();
+				}
+			}
+			s = ++fmt;
+		} else {
+			fmt++;
+		}
+	}
+	char *out = d = nfmalloc( totlen + 1 );
+	for (int i = 0; i < nsegs; i++) {
+		memcpy( d, segs[i], segls[i] );
+		d += segls[i];
+	}
+	*d = 0;
+	return out;
+}
+
 void
 vFprintf( FILE *f, const char *msg, va_list va )
 {

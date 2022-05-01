@@ -165,6 +165,8 @@ void ATTR_PRINTFLIKE(1, 0) vsys_error( const char *, va_list va );
 void ATTR_PRINTFLIKE(1, 2) sys_error( const char *, ... );
 void flushn( void );
 
+char *xvasprintf( const char *fmt, va_list ap );
+
 #if !defined(_POSIX_SYNCHRONIZED_IO) || _POSIX_SYNCHRONIZED_IO <= 0
 # define fdatasync fsync
 #endif
