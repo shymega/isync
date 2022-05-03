@@ -189,6 +189,10 @@ sys_error( const char *msg, ... )
 //   Print backslash-escaped string literals. Note that this does not
 //   automatically add quotes around the printed string, so it is
 //   possible to concatenate multiple segments.
+// - %!s
+//   Same as %\\s, but non-ASCII characters are (hex-)escaped as well.
+// - %!&s
+//   Same as %!s, but linefeeds are also printed verbatim for legibility.
 
 // TODO: Trade off segments vs. buffer capacity dynamically.
 #define QPRINTF_SEGS 16
@@ -238,6 +242,13 @@ xvasprintf( const char *fmt, va_list ap )
 			if (c == '\\') {
 				escaped = 1;
 				c = *++fmt;
+			} else if (c == '!') {
+				escaped = 2;
+				c = *++fmt;
+				if (c == '&') {
+					escaped = 3;
+					c = *++fmt;
+				}
 			}
 			if (c == 'c') {
 				if (d + 1 > ed)
@@ -249,10 +260,39 @@ xvasprintf( const char *fmt, va_list ap )
 				if (escaped) {
 					char *bd = d;
 					for (l = 0; l < maxlen && (c = *s); l++, s++) {
-						if (d + 2 > ed)
-							oob();
-						if (c == '\\' || c == '"')
+						if (c == '\\' || c == '"') {
+							if (d >= ed)
+								oob();
 							*d++ = '\\';
+						} else if (escaped >= 2 && (c < 32 || c > 126)) {
+							switch (c) {
+							case '\r': c = 'r'; break;
+							case '\t': c = 't'; break;
+							case '\a': c = 'a'; break;
+							case '\b': c = 'b'; break;
+							case '\v': c = 'v'; break;
+							case '\f': c = 'f'; break;
+							case '\n':
+								if (escaped == 2) {
+									c = 'n';
+									break;
+								}
+								if (d + 2 >= ed)
+									oob();
+								*d++ = '\\';
+								*d++ = 'n';
+								*d++ = c;  // Keep the actual line break for legibility.
+								continue;
+							default:
+								d += nfsnprintf( d, ed - d, "\\x%02x", (uchar)c );
+								continue;
+							}
+							if (d >= ed)
+								oob();
+							*d++ = '\\';
+						}
+						if (d >= ed)
+							oob();
 						*d++ = c;
 					}
 					l = d - bd;
