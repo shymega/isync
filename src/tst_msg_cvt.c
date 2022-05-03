@@ -131,10 +131,13 @@ mintests( const char *name, const char *in, const char *out, int flagged )
 }
 
 #define FROM "From: de\rvil\r\n"
-#define TO "To: me\r\n"
-#define IN_TUID "X-TUID: garbage\r\n"
+#define R_TO "To: me"
+#define TO R_TO "\r\n"
+#define R_IN_TUID "X-TUID: garbage"
+#define IN_TUID R_IN_TUID "\r\n"
 #define OUT_TUID "X-TUID: " TUID "\r\n"
-#define SUBJECT "Subject: hell\r\n"
+#define R_SUBJECT "Subject: hell"
+#define SUBJECT R_SUBJECT "\r\n"
 #define PH_SUBJECT "Subject: [placeholder] hell\r\n"
 #define NO_SUBJECT "Subject: [placeholder] (No Subject)\r\n"
 #define BODY "\r\nHi,\r\n\r\n...\r\n"
@@ -176,6 +179,80 @@ main( void )
 	scc in_tuid_from_subj_to[] = IN_TUID FROM SUBJECT TO BODY;
 	scc out_tuid_from_subj_to[] = OUT_TUID FROM PH_SUBJECT TO PH_BODY;
 	mintests( "tuid / from / subject / to", in_tuid_from_subj_to, out_tuid_from_subj_to, REGULAR );
+
+
+	scc in_from_to_b1[] = FROM TO;
+	fulltests( "from / to w/o end", in_from_to_b1, in_from_to_b1, AS_IS );
+	scc out_from_to_b1[] = FROM TO OUT_TUID;
+	fulltests( "from / to w/o end", in_from_to_b1, out_from_to_b1, ADD_TUID );
+	scc in_from_tuid_to_b1[] = FROM IN_TUID TO;
+	scc out_from_tuid_to_b1[] = FROM OUT_TUID TO;
+	fulltests( "from / tuid / to w/o end", in_from_tuid_to_b1, out_from_tuid_to_b1, ADD_TUID );
+	scc in_from_to_tuid_b1[] = FROM TO IN_TUID;
+	scc out_from_to_tuid_b1[] = FROM TO OUT_TUID;
+	fulltests( "from / to / tuid w/o end", in_from_to_tuid_b1, out_from_to_tuid_b1, ADD_TUID );
+
+	mintests( "from / to w/o end", in_from_to_b1, out_from_to_ph, REGULAR );
+	mintests( "from / tuid / to w/o end", in_from_tuid_to_b1, out_from_tuid_to_ph, REGULAR );
+	scc in_from_subj_to_b1[] = FROM SUBJECT TO;
+	mintests( "from / subject / to w/o end", in_from_subj_to_b1, out_from_subj_to, REGULAR );
+	scc in_from_subj_tuid_to_b1[] = FROM SUBJECT IN_TUID TO;
+	mintests( "from / subject / tuid / to w/o end", in_from_subj_tuid_to_b1, out_from_subj_tuid_to, REGULAR );
+	scc in_from_subj_to_tuid_b1[] = FROM SUBJECT TO IN_TUID;
+	scc out_from_subj_to_tuid_b1[] = FROM PH_SUBJECT TO OUT_TUID PH_BODY;
+	mintests( "from / subject / to / tuid w/o end", in_from_subj_to_tuid_b1, out_from_subj_to_tuid_b1, REGULAR );
+	scc in_from_tuid_subj_to_b1[] = FROM IN_TUID SUBJECT TO;
+	mintests( "from / tuid / subject / to w/o end", in_from_tuid_subj_to_b1, out_from_tuid_subj_to, REGULAR );
+	scc in_from_tuid_to_subj_b1[] = FROM IN_TUID TO SUBJECT;
+	scc out_from_tuid_to_subj_b1[] = FROM OUT_TUID TO PH_SUBJECT PH_BODY;
+	mintests( "from / tuid / to / subject w/o end", in_from_tuid_to_subj_b1, out_from_tuid_to_subj_b1, REGULAR );
+
+
+	scc in_from_to_b2[] = FROM R_TO "\r";
+	fulltests( "from / to w/o lf", in_from_to_b2, in_from_to_b2, AS_IS );
+	scc out_from_to_b2[] = FROM TO OUT_TUID "\r";
+	fulltests( "from / to w/o lf", in_from_to_b2, out_from_to_b2, ADD_TUID );
+	scc in_from_tuid_to_b2[] = FROM IN_TUID R_TO "\r";
+	scc out_from_tuid_to_b2[] = FROM OUT_TUID R_TO "\r";
+	fulltests( "from / tuid / to w/o lf", in_from_tuid_to_b2, out_from_tuid_to_b2, ADD_TUID );
+	scc in_from_to_tuid_b2[] = FROM TO R_IN_TUID "\r";
+	fulltests( "from / to / tuid w/o lf", in_from_to_tuid_b2, out_from_to_tuid_b1, ADD_TUID );
+
+	mintests( "from / to w/o lf", in_from_to_b2, out_from_to_ph, REGULAR );
+	mintests( "from / tuid / to w/o lf", in_from_tuid_to_b2, out_from_tuid_to_ph, REGULAR );
+	scc in_from_subj_to_b2[] = FROM SUBJECT R_TO "\r";
+	mintests( "from / subject / to w/o lf", in_from_subj_to_b2, out_from_subj_to, REGULAR );
+	scc in_from_subj_tuid_to_b2[] = FROM SUBJECT IN_TUID R_TO "\r";
+	mintests( "from / subject / tuid / to w/o lf", in_from_subj_tuid_to_b2, out_from_subj_tuid_to, REGULAR );
+	scc in_from_subj_to_tuid_b2[] = FROM SUBJECT TO R_IN_TUID "\r";
+	mintests( "from / subject / to / tuid w/o lf", in_from_subj_to_tuid_b2, out_from_subj_to_tuid_b1, REGULAR );
+	scc in_from_tuid_subj_to_b2[] = FROM IN_TUID SUBJECT R_TO "\r";
+	mintests( "from / tuid / subject / to w/o lf", in_from_tuid_subj_to_b2, out_from_tuid_subj_to, REGULAR );
+	scc in_from_tuid_to_subj_b2[] = FROM IN_TUID TO R_SUBJECT "\r";
+	mintests( "from / tuid / to / subject w/o lf", in_from_tuid_to_subj_b2, out_from_tuid_to_subj_b1, REGULAR );
+
+
+	scc in_from_to_b3[] = FROM R_TO;
+	fulltests( "from / to w/o crlf", in_from_to_b3, in_from_to_b3, AS_IS );
+	fulltests( "from / to w/o crlf", in_from_to_b3, out_from_to_b1, ADD_TUID );
+	scc in_from_tuid_to_b3[] = FROM IN_TUID R_TO;
+	scc out_from_tuid_to_b3[] = FROM OUT_TUID R_TO;
+	fulltests( "from / tuid / to w/o crlf", in_from_tuid_to_b3, out_from_tuid_to_b3, ADD_TUID );
+	scc in_from_to_tuid_b3[] = FROM TO R_IN_TUID;
+	fulltests( "from / to / tuid w/o crlf", in_from_to_tuid_b3, out_from_to_tuid_b1, ADD_TUID );
+
+	mintests( "from / to w/o crlf", in_from_to_b3, out_from_to_ph, REGULAR );
+	mintests( "from / tuid / to w/o crlf", in_from_tuid_to_b3, out_from_tuid_to_ph, REGULAR );
+	scc in_from_subj_to_b3[] = FROM SUBJECT R_TO;
+	mintests( "from / subject / to w/o crlf", in_from_subj_to_b3, out_from_subj_to, REGULAR );
+	scc in_from_subj_tuid_to_b3[] = FROM SUBJECT IN_TUID R_TO;
+	mintests( "from / subject / tuid / to w/o crlf", in_from_subj_tuid_to_b3, out_from_subj_tuid_to, REGULAR );
+	scc in_from_subj_to_tuid_b3[] = FROM SUBJECT TO R_IN_TUID;
+	mintests( "from / subject / to / tuid w/o crlf", in_from_subj_to_tuid_b3, out_from_subj_to_tuid_b1, REGULAR );
+	scc in_from_tuid_subj_to_b3[] = FROM IN_TUID SUBJECT R_TO;
+	mintests( "from / tuid / subject / to w/o crlf", in_from_tuid_subj_to_b3, out_from_tuid_subj_to, REGULAR );
+	scc in_from_tuid_to_subj_b3[] = FROM IN_TUID TO R_SUBJECT;
+	mintests( "from / tuid / to / subject w/o crlf", in_from_tuid_to_subj_b3, out_from_tuid_to_subj_b1, REGULAR );
 
 	return 0;
 }
