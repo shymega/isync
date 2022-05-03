@@ -13,19 +13,19 @@ copy_msg_bytes( char **out_ptr, const char *in_buf, uint *in_idx, uint in_len, i
 	char *out = *out_ptr;
 	uint idx = *in_idx;
 	if (out_cr != in_cr) {
-		char c;
 		if (out_cr) {
-			for (; idx < in_len; idx++) {
-				if ((c = in_buf[idx]) != '\r') {
-					if (c == '\n')
-						*out++ = '\r';
-					*out++ = c;
-				}
+			for (char c, pc = 0; idx < in_len; idx++) {
+				if (((c = in_buf[idx]) == '\n') && (pc != '\r'))
+					*out++ = '\r';
+				*out++ = c;
+				pc = c;
 			}
 		} else {
-			for (; idx < in_len; idx++) {
-				if ((c = in_buf[idx]) != '\r')
-					*out++ = c;
+			for (char c, pc = 0; idx < in_len; idx++) {
+				if (((c = in_buf[idx]) == '\n') && (pc == '\r'))
+					out--;
+				*out++ = c;
+				pc = c;
 			}
 		}
 	} else {
@@ -49,12 +49,13 @@ copy_msg_convert( int in_cr, int out_cr, copy_vars_t *vars )
 	if (vars->srec) {
 	  nloop: ;
 		uint start = idx;
-		uint line_crs = 0;
+		uint line_cr = 0;
+		char pc = 0;
 		while (idx < in_len) {
 			char c = in_buf[idx++];
-			if (c == '\r') {
-				line_crs++;
-			} else if (c == '\n') {
+			if (c == '\n') {
+				if (pc == '\r')
+					line_cr = 1;
 				if (!ebreak && starts_with_upper( in_buf + start, (int)(in_len - start), "X-TUID: ", 8 )) {
 					extra = (sbreak = start) - (ebreak = idx);
 					if (!vars->minimal)
@@ -67,9 +68,9 @@ copy_msg_convert( int in_cr, int out_cr, copy_vars_t *vars )
 							break2++;
 					}
 					lines++;
-					hdr_crs += line_crs;
+					hdr_crs += line_cr;
 				}
-				if (idx - line_crs - 1 == start) {
+				if (idx - line_cr - 1 == start) {
 					if (!ebreak)
 						sbreak = ebreak = start;
 					if (vars->minimal) {
@@ -83,6 +84,7 @@ copy_msg_convert( int in_cr, int out_cr, copy_vars_t *vars )
 				}
 				goto nloop;
 			}
+			pc = c;
 		}
 		free( in_buf );
 		return "has incomplete header";
@@ -91,12 +93,14 @@ copy_msg_convert( int in_cr, int out_cr, copy_vars_t *vars )
 		extra += 8 + TUIDL + app_cr + 1;
 	}
 	if (out_cr != in_cr) {
-		for (; idx < in_len; idx++) {
+		for (char pc = 0; idx < in_len; idx++) {
 			char c = in_buf[idx];
-			if (c == '\r')
-				bdy_crs++;
-			else if (c == '\n')
+			if (c == '\n') {
 				lines++;
+				if (pc == '\r')
+					bdy_crs++;
+			}
+			pc = c;
 		}
 		extra -= hdr_crs + bdy_crs;
 		if (out_cr)

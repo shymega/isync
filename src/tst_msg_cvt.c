@@ -130,7 +130,7 @@ mintests( const char *name, const char *in, const char *out, int flagged )
 	tests( name, in, out, ADD_TUID, MINIMAL, flagged );
 }
 
-#define FROM "From: devil\r\n"
+#define FROM "From: de\rvil\r\n"
 #define TO "To: me\r\n"
 #define IN_TUID "X-TUID: garbage\r\n"
 #define OUT_TUID "X-TUID: " TUID "\r\n"
