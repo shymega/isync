@@ -14,6 +14,7 @@
 /config.status
 /config.sub
 /configure
+/configure~
 /configure.lineno
 /configure-stamp
 /cov-int/
@@ -22,6 +23,7 @@
 /isync.spec
 /isync-*.tar.gz
 /isync-*.tar.gz.asc
+/isync-cov.tar.xz
 /missing
 /patch-stamp
 /stamp-h

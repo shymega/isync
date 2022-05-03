@@ -2,7 +2,7 @@
 /mbsync
 /mdconvert
 /tst_timers
-/tmp/
+/tmp
 
 .deps/
 *.o
