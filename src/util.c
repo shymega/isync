@@ -225,56 +225,55 @@ xvasprintf( const char *fmt, va_list ap )
 				break;
 			uint maxlen = UINT_MAX;
 			c = *++fmt;
-			if (c == '\\') {
+			if (c == '.') {
 				c = *++fmt;
-				if (c != 's') {
-					fputs( "Fatal: unsupported escaped format specifier. Please report a bug.\n", stderr );
+				if (c != '*') {
+					fputs( "Fatal: unsupported string length specification. Please report a bug.\n", stderr );
 					abort();
 				}
-				char *bd = d;
+				maxlen = va_arg( ap, uint );
+				c = *++fmt;
+			}
+			int escaped = 0;
+			if (c == '\\') {
+				escaped = 1;
+				c = *++fmt;
+			}
+			if (c == 'c') {
+				if (d + 1 > ed)
+					oob();
+				ADD_SEG( d, 1 );
+				*d++ = (char)va_arg( ap, int );
+			} else if (c == 's') {
 				s = va_arg( ap, const char * );
-				while ((c = *s++)) {
-					if (d + 2 > ed)
-						oob();
-					if (c == '\\' || c == '"')
-						*d++ = '\\';
-					*d++ = c;
-				}
-				l = d - bd;
-				if (l)
-					ADD_SEG( bd, l );
-			} else {  // \\ cannot be combined with anything else.
-				if (c == '.') {
-					c = *++fmt;
-					if (c != '*') {
-						fputs( "Fatal: unsupported string length specification. Please report a bug.\n", stderr );
-						abort();
+				if (escaped) {
+					char *bd = d;
+					for (l = 0; l < maxlen && (c = *s); l++, s++) {
+						if (d + 2 > ed)
+							oob();
+						if (c == '\\' || c == '"')
+							*d++ = '\\';
+						*d++ = c;
 					}
-					maxlen = va_arg( ap, uint );
-					c = *++fmt;
-				}
-				if (c == 'c') {
-					if (d + 1 > ed)
-						oob();
-					ADD_SEG( d, 1 );
-					*d++ = (char)va_arg( ap, int );
-				} else if (c == 's') {
-					s = va_arg( ap, const char * );
+					l = d - bd;
+					if (l)
+						ADD_SEG( bd, l );
+				} else {
 					l = strnlen( s, maxlen );
 					if (l)
 						ADD_SEG( s, l );
-				} else if (c == 'd') {
-					l = nfsnprintf( d, ed - d, "%d", va_arg( ap, int ) );
-					ADD_SEG( d, l );
-					d += l;
-				} else if (c == 'u') {
-					l = nfsnprintf( d, ed - d, "%u", va_arg( ap, uint ) );
-					ADD_SEG( d, l );
-					d += l;
-				} else {
-					fputs( "Fatal: unsupported format specifier. Please report a bug.\n", stderr );
-					abort();
 				}
+			} else if (c == 'd') {
+				l = nfsnprintf( d, ed - d, "%d", va_arg( ap, int ) );
+				ADD_SEG( d, l );
+				d += l;
+			} else if (c == 'u') {
+				l = nfsnprintf( d, ed - d, "%u", va_arg( ap, uint ) );
+				ADD_SEG( d, l );
+				d += l;
+			} else {
+				fputs( "Fatal: unsupported format specifier. Please report a bug.\n", stderr );
+				abort();
 			}
 			s = ++fmt;
 		} else {
