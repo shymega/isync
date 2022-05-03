@@ -131,6 +131,13 @@ copy_msg_convert( int in_cr, int out_cr, copy_vars_t *vars )
 		extra += add_subj ? strlen(dummy_subj) + app_cr + 1 : strlen(dummy_pfx);
 	}
 
+#define ADD_NL() \
+		do { \
+			if (app_cr) \
+				*out_buf++ = '\r'; \
+			*out_buf++ = '\n'; \
+		} while (0)
+
 	vars->data.len = in_len + extra;
 	if (vars->data.len > INT_MAX) {
 		free( in_buf );
@@ -150,9 +157,7 @@ copy_msg_convert( int in_cr, int out_cr, copy_vars_t *vars )
 		out_buf += 8;
 		memcpy( out_buf, vars->srec->tuid, TUIDL );
 		out_buf += TUIDL;
-		if (app_cr)
-			*out_buf++ = '\r';
-		*out_buf++ = '\n';
+		ADD_NL();
 		idx = ebreak;
 
 		if (break2 != UINT_MAX && break2 >= sbreak) {
@@ -163,9 +168,7 @@ copy_msg_convert( int in_cr, int out_cr, copy_vars_t *vars )
 			} else {
 				memcpy( out_buf, dummy_subj, strlen(dummy_subj) );
 				out_buf += strlen(dummy_subj);
-				if (app_cr)
-					*out_buf++ = '\r';
-				*out_buf++ = '\n';
+				ADD_NL();
 			}
 		}
 	}
