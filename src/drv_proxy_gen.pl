@@ -155,7 +155,7 @@ for (@ptypes) {
 				$replace{'GEN_CMD'} = "GEN_CMD\n";
 				$replace{'gen_cmd'} = "&cmd->gen";
 			}
-			$replace{'checked'} //= '0';
+			$replace{'checked'} = '0';
 			$template = "CALLBACK";
 		} elsif ($cmd_type eq "void ") {
 			$template = "REGULAR_VOID";
