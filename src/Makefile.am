@@ -2,9 +2,18 @@
 # SPDX-FileCopyrightText: 2002-2022 Oswald Buddenhagen <ossi@users.sf.net>
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-mbsync_SOURCES = main.c sync.c config.c util.c socket.c driver.c drv_imap.c drv_maildir.c drv_proxy.c
+mbsync_SOURCES = \
+	util.c config.c socket.c \
+	driver.c drv_proxy.c \
+	drv_imap.c \
+	drv_maildir.c \
+	sync.c \
+	main.c
+noinst_HEADERS = \
+	common.h config.h socket.h \
+	driver.h \
+	sync.h
 mbsync_LDADD = $(DB_LIBS) $(SSL_LIBS) $(SOCK_LIBS) $(SASL_LIBS) $(Z_LIBS) $(KEYCHAIN_LIBS)
-noinst_HEADERS = common.h config.h driver.h sync.h socket.h
 
 drv_proxy.$(OBJEXT): drv_proxy.inc
 drv_proxy.inc: $(srcdir)/driver.h $(srcdir)/drv_proxy.c $(srcdir)/drv_proxy_gen.pl
@@ -17,12 +26,12 @@ mdconvert_prog = mdconvert
 mdconvert_man = mdconvert.1
 endif
 
-EXTRA_PROGRAMS = tst_timers
+bin_PROGRAMS = mbsync $(mdconvert_prog)
+man_MANS = mbsync.1 $(mdconvert_man)
 
 tst_timers_SOURCES = tst_timers.c util.c
 
-bin_PROGRAMS = mbsync $(mdconvert_prog)
-man_MANS = mbsync.1 $(mdconvert_man)
+EXTRA_PROGRAMS = tst_timers
 
 exampledir = $(docdir)/examples
 example_DATA = mbsyncrc.sample
