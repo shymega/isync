@@ -8,11 +8,12 @@ mbsync_SOURCES = \
 	drv_imap.c \
 	drv_maildir.c \
 	sync.c sync_state.c \
-	main.c
+	main.c main_sync.c
 noinst_HEADERS = \
 	common.h config.h socket.h \
 	driver.h \
-	sync.h sync_p.h
+	sync.h sync_p.h \
+	main_p.h
 mbsync_LDADD = $(DB_LIBS) $(SSL_LIBS) $(SOCK_LIBS) $(SASL_LIBS) $(Z_LIBS) $(KEYCHAIN_LIBS)
 
 drv_proxy.$(OBJEXT): drv_proxy.inc

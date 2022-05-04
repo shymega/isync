@@ -9,6 +9,13 @@
 
 driver_t *drivers[N_DRIVERS] = { &maildir_driver, &imap_driver };
 
+void
+cleanup_drivers( void )
+{
+	for (int t = 0; t < N_DRIVERS; t++)
+		drivers[t]->cleanup();
+}
+
 // Keep the MESSAGE_FLAGS in sync (grep that)!
 const char MsgFlags[] = { 'D', 'F', 'P', 'R', 'S', 'T' };
 

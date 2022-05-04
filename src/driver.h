@@ -297,4 +297,6 @@ store_t *proxy_alloc_store( store_t *real_ctx, const char *label );
 extern driver_t *drivers[N_DRIVERS];
 extern driver_t maildir_driver, imap_driver, proxy_driver;
 
+void cleanup_drivers( void );
+
 #endif
