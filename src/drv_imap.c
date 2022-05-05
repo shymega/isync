@@ -1904,13 +1904,13 @@ imap_socket_read( void *aux )
 						resp = RESP_CANCEL;
 					}
 				}
-				error( "IMAP command '%s' returned an error: %s %s\n",
+				error( "IMAP command '%s' returned an error: %s\n",
 				       starts_with( cmdp->cmd, -1, "LOGIN", 5 ) ?
 				           "LOGIN <user> <pass>" :
 				           starts_with( cmdp->cmd, -1, "AUTHENTICATE PLAIN", 18 ) ?
 				               "AUTHENTICATE PLAIN <authdata>" :
 				                cmdp->cmd,
-				       arg, cmd ? cmd : "" );
+				       cmd ? cmd : "<unspecified>" );
 			}
 		  doresp:
 			if ((resp2 = parse_response_code( ctx, cmdp, cmd )) > resp)
