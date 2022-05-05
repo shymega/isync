@@ -564,21 +564,6 @@ maildir_clear_tmp( char *buf, int bufsz, int bl )
 }
 
 static int
-make_box_dir( char *buf, int bl )
-{
-	char *p;
-
-	if (!mkdir( buf, 0700 ) || errno == EEXIST)
-		return 0;
-	p = memrchr( buf, '/', (size_t)bl - 1 );
-	*p = 0;
-	if (make_box_dir( buf, (int)(p - buf) ))
-		return -1;
-	*p = '/';
-	return mkdir( buf, 0700 );
-}
-
-static int
 maildir_validate( const char *box, int create, maildir_store_t *ctx )
 {
 	int i, bl, ret;
@@ -593,7 +578,7 @@ maildir_validate( const char *box, int create, maildir_store_t *ctx )
 		}
 		if (!create)
 			return DRV_BOX_BAD;
-		if (make_box_dir( buf, bl )) {
+		if (mkdir_p( buf, bl - 1 )) {
 			sys_error( "Maildir error: cannot create mailbox '%s'", buf );
 			ctx->conf->failed = FAIL_FINAL;
 			maildir_invoke_bad_callback( ctx );

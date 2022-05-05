@@ -8,6 +8,7 @@
 #include "common.h"
 
 #include <fcntl.h>
+#include <sys/stat.h>
 #include <errno.h>
 #include <ctype.h>
 #include <pwd.h>
@@ -537,6 +538,21 @@ map_name( const char *arg, char **result, uint reserve, const char *in, const ch
 	}
 	*p = 0;
 	return 0;
+}
+
+int
+mkdir_p( char *path, int len )
+{
+	if (!mkdir( path, 0700 ) || errno == EEXIST)
+		return 0;
+	char *p = memrchr( path, '/', (size_t)len );
+	*p = 0;
+	if (mkdir_p( path, (int)(p - path) )) {
+		*p = '/';
+		return -1;
+	}
+	*p = '/';
+	return mkdir( path, 0700 );
 }
 
 static int

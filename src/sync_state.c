@@ -58,7 +58,7 @@ prepare_state( sync_vars_t *svars )
 		// Note that this may be shorter than the configuration value,
 		// as that may contain a filename prefix.
 		*s = 0;
-		if (mkdir( svars->dname, 0700 ) && errno != EEXIST) {
+		if (mkdir_p( svars->dname, s - svars->dname )) {
 			sys_error( "Error: cannot create SyncState directory '%s'", svars->dname );
 			return 0;
 		}

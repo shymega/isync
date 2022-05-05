@@ -186,6 +186,8 @@ void ATTR_NORETURN oom( void );
 
 int map_name( const char *arg, char **result, uint reserve, const char *in, const char *out );
 
+int mkdir_p( char *path, int len );
+
 #define DEFINE_ARRAY_TYPE(T) \
 	typedef struct { \
 		T *data; \
