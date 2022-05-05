@@ -11,8 +11,8 @@
 
 BIT_ENUM(
 	S_DEAD,         // ephemeral: the entry was killed and should be ignored
-	S_EXPIRE,       // the entry is being expired (near side message removal scheduled)
-	S_EXPIRED,      // the entry is expired (near side message removal confirmed)
+	S_EXPIRE,       // the entry is being expired (expire-side message removal scheduled)
+	S_EXPIRED,      // the entry is expired (expire-side message removal confirmed)
 	S_NEXPIRE,      // temporary: new expiration state
 	S_PENDING,      // the entry is new and awaits propagation (possibly a retry)
 	S_DUMMY(2),     // f/n message is only a placeholder
@@ -62,7 +62,7 @@ typedef struct {
 	uint uidval[2];     // UID validity value
 	uint newuidval[2];  // UID validity obtained from driver
 	uint finduid[2];    // TUID lookup makes sense only for UIDs >= this
-	uint maxxfuid;      // highest expired UID on far side
+	uint maxxfuid;      // highest expired UID on full side
 	uchar good_flags[2], bad_flags[2], can_crlf[2];
 } sync_vars_t;
 

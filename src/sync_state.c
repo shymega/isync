@@ -126,6 +126,7 @@ load_state( sync_vars_t *svars )
 	char fbuf[16];  // enlarge when support for keywords is added
 	char buf[128], buf1[64], buf2[64];
 
+	int xt = svars->chan->expire_side;
 	if ((jfp = fopen( svars->dname, "r" ))) {
 		if (!lock_state( svars ))
 			goto jbail;
@@ -148,6 +149,8 @@ load_state( sync_vars_t *svars )
 					error( "Error: invalid sync state header in %s\n", svars->dname );
 					goto jbail;
 				}
+				if (maxxnuid && xt != N)
+					goto sidefail;
 				goto gothdr;
 			}
 			uint uid;
@@ -164,8 +167,19 @@ load_state( sync_vars_t *svars )
 			} else if (!strcmp( buf1, "MaxPushedUid" )) {
 				svars->maxuid[N] = uid;
 			} else if (!strcmp( buf1, "MaxExpiredFarUid" ) || !strcmp( buf1, "MaxExpiredMasterUid" ) /* Pre-1.4 legacy */) {
+				if (xt != N) {
+				  sidefail:
+					error( "Error: state file %s does not match ExpireSide setting\n", svars->dname );
+					goto jbail;
+				}
+				svars->maxxfuid = uid;
+			} else if (!strcmp( buf1, "MaxExpiredNearUid" )) {
+				if (xt != F)
+					goto sidefail;
 				svars->maxxfuid = uid;
 			} else if (!strcmp( buf1, "MaxExpiredSlaveUid" )) {  // Pre-1.3 legacy
+				if (xt != N)
+					goto sidefail;
 				maxxnuid = uid;
 			} else {
 				error( "Error: unrecognized sync state header entry at %s:%d\n", svars->dname, line );
@@ -397,8 +411,8 @@ load_state( sync_vars_t *svars )
 						break;
 					case '~':
 						srec->status = (srec->status & ~S_LOGGED) | t3;
-						if ((srec->status & S_EXPIRED) && svars->maxxfuid < srec->uid[F])
-							svars->maxxfuid = srec->uid[F];
+						if ((srec->status & S_EXPIRED) && svars->maxxfuid < srec->uid[xt^1])
+							svars->maxxfuid = srec->uid[xt^1];
 						debug( "status now %s\n", fmt_sts( srec->status ).str );
 						break;
 					case '_':
@@ -490,7 +504,9 @@ save_state( sync_vars_t *svars )
 	         "FarUidValidity %u\nNearUidValidity %u\nMaxPulledUid %u\nMaxPushedUid %u\n",
 	         svars->uidval[F], svars->uidval[N], svars->maxuid[F], svars->maxuid[N] );
 	if (svars->maxxfuid)
-		Fprintf( svars->nfp, "MaxExpiredFarUid %u\n", svars->maxxfuid );
+		Fprintf( svars->nfp,
+		         svars->chan->expire_side == N ? "MaxExpiredFarUid %u\n" : "MaxExpiredNearUid %u\n",
+		         svars->maxxfuid );
 	Fprintf( svars->nfp, "\n" );
 	for (sync_rec_t *srec = svars->srecs; srec; srec = srec->next) {
 		if (srec->status & S_DEAD)

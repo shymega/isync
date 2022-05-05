@@ -12,6 +12,8 @@ they are flagged on the source side.
 Renamed the ReNew/--renew/-N options to Upgrade/--upgrade/-u
 and Delete/--delete/-d to Gone/--gone/-g.
 
+Made the Channel side to expire with MaxMessages configurable.
+
 MaxMessages and MaxSize can be used together now.
 
 The unfiltered list of mailboxes in each Store can be printed now.

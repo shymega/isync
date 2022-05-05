@@ -579,6 +579,12 @@ case you need to enable this option.
 (Global default: \fBno\fR).
 .
 .TP
+\fBExpireSide\fR \fBFar\fR|\fBNear\fR
+Selects on which side messages should be expired when \fBMaxMessages\fR is
+configured.
+(Global default: \fBNear\fR).
+.
+.TP
 \fBSync\fR {\fBNone\fR|[\fBPull\fR] [\fBPush\fR] [\fBNew\fR] [\fBOld\fR] [\fBUpgrade\fR] [\fBGone\fR] [\fBFlags\fR] [\fBFull\fR]}
 Select the synchronization operation(s) to perform:
 .br
@@ -693,7 +699,8 @@ date\fR) is actually the arrival time, but it is usually close enough.
 .
 .P
 \fBSync\fR, \fBCreate\fR, \fBRemove\fR, \fBExpunge\fR, \fBExpungeSolo\fR,
-\fBMaxMessages\fR, \fBExpireUnread\fR, and \fBCopyArrivalDate\fR
+\fBMaxMessages\fR, \fBExpireUnread\fR, \fBExpireSide\fR,
+and \fBCopyArrivalDate\fR
 can be used before any section for a global effect.
 The global settings are overridden by Channel-specific options,
 which in turn are overridden by command line switches.

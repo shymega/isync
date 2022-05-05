@@ -625,14 +625,15 @@ box_opened2( sync_vars_t *svars, int t )
 	// The latter would also apply when the expired box is the source,
 	// but it's more natural to treat it as read-only in that case.
 	// OP_UPGRADE makes sense only for legacy S_SKIPPED entries.
-	if ((chan->ops[N] & (OP_OLD | OP_NEW | OP_UPGRADE | OP_FLAGS)) && chan->max_messages)
+	int xt = chan->expire_side;
+	if ((chan->ops[xt] & (OP_OLD | OP_NEW | OP_UPGRADE | OP_FLAGS)) && chan->max_messages)
 		svars->any_expiring = 1;
 	if (svars->any_expiring) {
-		opts[N] |= OPEN_PAIRED | OPEN_FLAGS;
-		if (any_dummies[N])
-			opts[F] |= OPEN_PAIRED | OPEN_FLAGS;
-		else if (chan->ops[N] & (OP_OLD | OP_NEW | OP_UPGRADE))
-			opts[F] |= OPEN_FLAGS;
+		opts[xt] |= OPEN_PAIRED | OPEN_FLAGS;
+		if (any_dummies[xt])
+			opts[xt^1] |= OPEN_PAIRED | OPEN_FLAGS;
+		else if (chan->ops[xt] & (OP_OLD | OP_NEW | OP_UPGRADE))
+			opts[xt^1] |= OPEN_FLAGS;
 	}
 	for (t = 0; t < 2; t++) {
 		svars->opts[t] = svars->drv[t]->prepare_load_box( ctx[t], opts[t] );
@@ -651,36 +652,37 @@ box_opened2( sync_vars_t *svars, int t )
 	}
 
 	ARRAY_INIT( &mexcs );
-	if ((svars->opts[F] & OPEN_PAIRED) && !(svars->opts[F] & OPEN_OLD) && chan->max_messages) {
-		/* When messages have been expired on the near side, the far side fetch is split into
+	if ((svars->opts[xt^1] & OPEN_PAIRED) && !(svars->opts[xt^1] & OPEN_OLD) && chan->max_messages) {
+		/* When messages have been expired on one side, the other side's fetch is split into
 		 * two ranges: The bulk fetch which corresponds with the most recent messages, and an
 		 * exception list of messages which would have been expired if they weren't important. */
-		debug( "preparing far side selection - max expired far uid is %u\n", svars->maxxfuid );
+		debug( "preparing %s selection - max expired %s uid is %u\n",
+		       str_fn[xt^1], str_fn[xt^1], svars->maxxfuid );
 		/* First, find out the lower bound for the bulk fetch. */
 		minwuid = svars->maxxfuid + 1;
 		/* Next, calculate the exception fetch. */
 		for (srec = svars->srecs; srec; srec = srec->next) {
 			if (srec->status & S_DEAD)
 				continue;
-			if (!srec->uid[F])
+			if (!srec->uid[xt^1])
 				continue;  // No message; other state is irrelevant
-			if (srec->uid[F] >= minwuid)
+			if (srec->uid[xt^1] >= minwuid)
 				continue;  // Message is in non-expired range
-			if ((svars->opts[F] & OPEN_NEW) && srec->uid[F] > svars->maxuid[F])
+			if ((svars->opts[xt^1] & OPEN_NEW) && srec->uid[xt^1] > svars->maxuid[xt^1])
 				continue;  // Message is in expired range, but new range overlaps that
-			if (!srec->uid[N] && !(srec->status & S_PENDING))
+			if (!srec->uid[xt] && !(srec->status & S_PENDING))
 				continue;  // Only actually paired up messages matter
 			// The pair is alive, but outside the bulk range
-			*uint_array_append( &mexcs ) = srec->uid[F];
+			*uint_array_append( &mexcs ) = srec->uid[xt^1];
 		}
 		sort_uint_array( mexcs.array );
 	} else {
 		minwuid = 1;
 	}
 	sync_ref( svars );
-	load_box( svars, F, minwuid, mexcs.array );
+	load_box( svars, xt^1, minwuid, mexcs.array );
 	if (!check_cancel( svars ))
-		load_box( svars, N, 1, (uint_array_t){ NULL, 0 } );
+		load_box( svars, xt, 1, (uint_array_t){ NULL, 0 } );
 	sync_deref( svars );
 }
 
@@ -742,6 +744,16 @@ cmp_srec_far( const void *a, const void *b )
 {
 	uint au = (*(const alive_srec_t *)a).srec->uid[F];
 	uint bu = (*(const alive_srec_t *)b).srec->uid[F];
+	assert( au && bu );
+	assert( au != bu );
+	return au > bu ? 1 : -1;  // Can't subtract, the result might not fit into signed int.
+}
+
+static int
+cmp_srec_near( const void *a, const void *b )
+{
+	uint au = (*(const alive_srec_t *)a).srec->uid[N];
+	uint bu = (*(const alive_srec_t *)b).srec->uid[N];
 	assert( au && bu );
 	assert( au != bu );
 	return au > bu ? 1 : -1;  // Can't subtract, the result might not fit into signed int.
@@ -877,6 +889,7 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 	svars->oldmaxuid[N] = svars->newmaxuid[N];
 
 	info( "Synchronizing...\n" );
+	int xt = svars->chan->expire_side;
 	for (t = 0; t < 2; t++)
 		svars->good_flags[t] = (uchar)svars->drv[t]->get_supported_flags( svars->ctx[t] );
 
@@ -953,15 +966,16 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 				} else if (del[t^1]) {
 					// The source was newly expunged, so possibly propagate the deletion.
 					// The target may be in an unknown state (not fetched).
-					if ((t == F) && (srec->status & (S_EXPIRE|S_EXPIRED))) {
+					if ((t != xt) && (srec->status & (S_EXPIRE | S_EXPIRED))) {
 						/* Don't propagate deletion resulting from expiration. */
 						if (~srec->status & (S_EXPIRE | S_EXPIRED)) {
 							// An expiration was interrupted, but the message was expunged since.
 							srec->status |= S_EXPIRE | S_EXPIRED;  // Override failed unexpiration attempts.
 							JLOG( "~ %u %u %u", (srec->uid[F], srec->uid[N], srec->status), "forced expiration commit" );
 						}
-						JLOG( "> %u %u 0", (srec->uid[F], srec->uid[N]), "near side expired, orphaning far side" );
-						srec->uid[N] = 0;
+						JLOG( "%c %u %u 0", ("<>"[xt], srec->uid[F], srec->uid[N]),
+						      "%s expired, orphaning %s", (str_fn[xt], str_fn[xt^1]) );
+						srec->uid[xt] = 0;
 					} else {
 						if (srec->msg[t] && (srec->msg[t]->status & M_FLAGS) &&
 						    // Ignore deleted flag, as that's what we'll change ourselves ...
@@ -988,7 +1002,7 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 				  doflags:
 					if (svars->chan->ops[t] & OP_FLAGS) {
 						sflags = sanitize_flags( sflags, svars, t );
-						if ((t == F) && (srec->status & (S_EXPIRE|S_EXPIRED))) {
+						if ((t != xt) && (srec->status & (S_EXPIRE | S_EXPIRED))) {
 							/* Don't propagate deletion resulting from expiration. */
 							debug( "  near side expiring\n" );
 							sflags &= ~F_DELETED;
@@ -1054,7 +1068,7 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 							// debug( "not re-propagating orphaned message %u\n", tmsg->uid );
 							continue;
 						}
-						if (t == F || !(srec->status & S_EXPIRED)) {
+						if (t != xt || !(srec->status & S_EXPIRED)) {
 							// Orphans are essentially deletion propagation transactions which
 							// were interrupted midway through by not expunging the target. We
 							// don't re-propagate these, as it would be illogical, and also
@@ -1100,7 +1114,7 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 				// The 1st unknown message which should be known marks the end
 				// of the synced range; more known messages may follow (from an
 				// unidirectional sync in the opposite direction).
-				if (t == F || tmsg->uid > svars->maxxfuid)
+				if (t != xt || tmsg->uid > svars->maxxfuid)
 					topping = 0;
 
 				const char *what;
@@ -1163,50 +1177,50 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 	}
 
 	if (svars->any_expiring) {
-		// Note: When this branch is entered, we have loaded all near side messages.
 		/* Expire excess messages. Important (flagged, unread, or unpropagated) messages
 		 * older than the first not expired message are not counted towards the total. */
+		// Note: When this branch is entered, we have loaded all expire-side messages.
 		debug( "preparing message expiration\n" );
 		alive_srec_t *arecs = nfmalloc( sizeof(*arecs) * svars->nsrecs );
 		int alive = 0;
 		for (srec = svars->srecs; srec; srec = srec->next) {
 			if (srec->status & S_DEAD)
 				continue;
-			// We completely ignore unpaired near-side messages, as we cannot expire
+			// We completely ignore unpaired expire-side messages, as we cannot expire
 			// them without data loss; consequently, we also don't count them.
-			// Note that we also ignore near-side messages we're currently propagating,
+			// Note that we also ignore expire-side messages we're currently propagating,
 			// which delays expiration of some messages by one cycle. Otherwise, we'd
 			// have to sequence flag updating after message propagation to avoid a race
 			// with external expunging, and that seems unreasonably expensive.
-			if (!srec->uid[F])
+			if (!srec->uid[xt^1])
 				continue;
 			if (!(srec->status & S_PENDING)) {
 				// We ignore unpaired far-side messages, as there is obviously nothing
 				// to expire in the first place.
-				if (!srec->msg[N])
+				if (!srec->msg[xt])
 					continue;
-				nflags = srec->msg[N]->flags;
-				if (srec->status & S_DUMMY(N)) {
-					if (!srec->msg[F])
+				nflags = srec->msg[xt]->flags;
+				if (srec->status & S_DUMMY(xt)) {
+					if (!srec->msg[xt^1])
 						continue;
 					// We need to pull in the real Flagged and Seen even if flag
 					// propagation was not requested, as the placeholder's ones are
 					// useless (except for un-seeing).
 					// This results in the somewhat weird situation that messages
 					// which are not visibly flagged remain unexpired.
-					sflags = srec->msg[F]->flags;
+					sflags = srec->msg[xt^1]->flags;
 					aflags = (sflags & ~srec->flags) & (F_SEEN | F_FLAGGED);
 					dflags = (~sflags & srec->flags) & F_SEEN;
 					nflags = (nflags & (~(F_SEEN | F_FLAGGED) | (srec->flags & F_SEEN)) & ~dflags) | aflags;
 				}
-				nflags = (nflags | srec->aflags[N]) & ~srec->dflags[N];
+				nflags = (nflags | srec->aflags[xt]) & ~srec->dflags[xt];
 			} else {
 				if (srec->status & S_UPGRADE) {
 					// The dummy's F & S flags are mostly masked out anyway,
 					// but we may be pulling in the real ones.
-					nflags = (srec->pflags | srec->aflags[N]) & ~srec->dflags[N];
+					nflags = (srec->pflags | srec->aflags[xt]) & ~srec->dflags[xt];
 				} else {
-					nflags = srec->msg[F]->flags;
+					nflags = srec->msg[xt^1]->flags;
 				}
 			}
 			if (!(nflags & F_DELETED) || (srec->status & (S_EXPIRE | S_EXPIRED))) {
@@ -1216,7 +1230,7 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 		}
 		// Sort such that the messages which have been in the
 		// complete store longest expire first.
-		qsort( arecs, alive, sizeof(*arecs), cmp_srec_far );
+		qsort( arecs, alive, sizeof(*arecs), (xt == F) ? cmp_srec_near : cmp_srec_far );
 		int todel = alive - svars->chan->max_messages;
 		debug( "%d alive messages, %d excess - expiring\n", alive, todel );
 		int unseen = 0;
@@ -1230,7 +1244,7 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 				todel--;
 			} else if (todel > 0 ||
 			           ((srec->status & (S_EXPIRE | S_EXPIRED)) == (S_EXPIRE | S_EXPIRED)) ||
-			           ((srec->status & (S_EXPIRE | S_EXPIRED)) && (srec->msg[N]->flags & F_DELETED))) {
+			           ((srec->status & (S_EXPIRE | S_EXPIRED)) && (srec->msg[xt]->flags & F_DELETED))) {
 				/* The message is excess or was already (being) expired. */
 				srec->status |= S_NEXPIRE;
 				debug( "  expiring pair(%u,%u)\n", srec->uid[F], srec->uid[N] );
@@ -1241,7 +1255,7 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 		if (svars->chan->expire_unread < 0 && unseen * 2 > svars->chan->max_messages) {
 			error( "%s: %d unread messages in excess of MaxMessages (%d).\n"
 			       "Please set ExpireUnread to decide outcome. Skipping mailbox.\n",
-			       svars->orig_name[N], unseen, svars->chan->max_messages );
+			       svars->orig_name[xt], unseen, svars->chan->max_messages );
 			svars->ret |= SYNC_FAIL;
 			cancel_sync( svars );
 			return;
@@ -1272,9 +1286,9 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 					// If we have so many new messages that some of them are instantly expired,
 					// but some are still propagated because they are important, we need to
 					// ensure explicitly that the bulk fetch limit is upped.
-					if (svars->maxxfuid < srec->uid[F])
-						svars->maxxfuid = srec->uid[F];
-					srec->msg[F]->srec = NULL;
+					if (svars->maxxfuid < srec->uid[xt^1])
+						svars->maxxfuid = srec->uid[xt^1];
+					srec->msg[xt^1]->srec = NULL;
 				}
 			}
 		}
@@ -1307,7 +1321,7 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 				}
 			} else {
 				/* The trigger is an expiration transaction being ongoing ... */
-				if ((t == N) && ((shifted_bit(srec->status, S_EXPIRE, S_EXPIRED) ^ srec->status) & S_EXPIRED)) {
+				if ((t == xt) && ((shifted_bit(srec->status, S_EXPIRE, S_EXPIRED) ^ srec->status) & S_EXPIRED)) {
 					// ... but the actual action derives from the wanted state -
 					// so that canceled transactions are rolled back as well.
 					if (srec->status & S_NEXPIRE)
@@ -1529,14 +1543,14 @@ flags_set_p2( sync_vars_t *svars, sync_rec_t *srec, int t )
 			      (str_hl[t], fmt_lone_flags( nflags ).str, fmt_lone_flags( srec->flags ).str) );
 			srec->flags = nflags;
 		}
-		if (t == N) {
+		if (t == svars->chan->expire_side) {
 			uchar ex = (srec->status / S_EXPIRE) & 1;
 			uchar exd = (srec->status / S_EXPIRED) & 1;
 			if (ex != exd) {
 				uchar nex = (srec->status / S_NEXPIRE) & 1;
 				if (nex == ex) {
-					if (nex && svars->maxxfuid < srec->uid[F])
-						svars->maxxfuid = srec->uid[F];
+					if (nex && svars->maxxfuid < srec->uid[t^1])
+						svars->maxxfuid = srec->uid[t^1];
 					srec->status = (srec->status & ~S_EXPIRED) | (nex * S_EXPIRED);
 					JLOG( "~ %u %u %d", (srec->uid[F], srec->uid[N], srec->status & S_LOGGED),
 					      "expired %d - commit", nex );
@@ -1582,6 +1596,7 @@ msgs_flags_set( sync_vars_t *svars, int t )
 		only_solo = 0;
 	else
 		goto skip;
+	int xt = svars->chan->expire_side;
 	int expunge_other = (svars->chan->ops[t^1] & OP_EXPUNGE);
 	// Driver-wise, this makes sense only if (svars->opts[t] & OPEN_UID_EXPUNGE),
 	// but the trashing loop uses the result as well.
@@ -1603,7 +1618,7 @@ msgs_flags_set( sync_vars_t *svars, int t )
 					debugn( "(orphaned) " );
 				} else if (expunge_other && (srec->status & S_DEL(t^1))) {
 					debugn( "(orphaning) " );
-				} else if (t == N && (srec->status & (S_EXPIRE | S_EXPIRED))) {
+				} else if (t == xt && (srec->status & (S_EXPIRE | S_EXPIRED))) {
 					// Expiration overrides mirroring, as otherwise the combination
 					// makes no sense at all.
 					debugn( "(expire) " );
@@ -1644,7 +1659,7 @@ msgs_flags_set( sync_vars_t *svars, int t )
 		}
 		debugn( "  message %u ", tmsg->uid );
 		if ((srec = tmsg->srec)) {
-			if (t == N && (srec->status & (S_EXPIRE | S_EXPIRED))) {
+			if (t == xt && (srec->status & (S_EXPIRE | S_EXPIRED))) {
 				// Don't trash messages that are deleted only due to expiring.
 				// However, this is an unlikely configuration to start with ...
 				debug( "is expired\n" );
@@ -1814,12 +1829,17 @@ box_closed_p2( sync_vars_t *svars, int t )
 	}
 
 	debug( "purging obsolete entries\n" );
+	int xt = svars->chan->expire_side;
 	for (srec = svars->srecs; srec; srec = srec->next) {
 		if (srec->status & S_DEAD)
 			continue;
-		if (!srec->uid[N] || (srec->status & S_GONE(N))) {
-			if (!srec->uid[F] || (srec->status & S_GONE(F)) ||
-				((srec->status & S_EXPIRED) && svars->maxuid[F] >= srec->uid[F] && svars->maxxfuid >= srec->uid[F])) {
+		if ((srec->status & S_EXPIRED) &&
+		    (!srec->uid[xt] || (srec->status & S_GONE(xt))) &&
+		    svars->maxuid[xt^1] >= srec->uid[xt^1] && svars->maxxfuid >= srec->uid[xt^1]) {
+		    PC_JLOG( "- %u %u", (srec->uid[F], srec->uid[N]), "killing expired" );
+			srec->status = S_DEAD;
+		} else if (!srec->uid[N] || (srec->status & S_GONE(N))) {
+			if (!srec->uid[F] || (srec->status & S_GONE(F))) {
 				PC_JLOG( "- %u %u", (srec->uid[F], srec->uid[N]), "killing" );
 				srec->status = S_DEAD;
 			} else if (srec->uid[N] && (srec->status & S_DEL(F))) {

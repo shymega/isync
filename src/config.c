@@ -261,6 +261,17 @@ getopt_helper( conffile_t *cfile, int *cops, channel_conf_t *conf )
 		conf->use_internal_date = parse_bool( cfile );
 	} else if (!strcasecmp( "MaxMessages", cfile->cmd )) {
 		conf->max_messages = parse_int( cfile );
+	} else if (!strcasecmp( "ExpireSide", cfile->cmd )) {
+		arg = cfile->val;
+		if (!strcasecmp( "Far", arg )) {
+			conf->expire_side = F;
+		} else if (!strcasecmp( "Near", arg )) {
+			conf->expire_side = N;
+		} else {
+			error( "%s:%d: invalid ExpireSide argument '%s'\n",
+			       cfile->file, cfile->line, arg );
+			cfile->err = 1;
+		}
 	} else if (!strcasecmp( "ExpireUnread", cfile->cmd )) {
 		conf->expire_unread = parse_bool( cfile );
 	} else {
@@ -481,6 +492,7 @@ load_config( const char *where )
 
 	gcops = 0;
 	glob_ok = 1;
+	global_conf.expire_side = N;
 	global_conf.expire_unread = -1;
   reloop:
 	while (getcline( &cfile )) {
@@ -505,6 +517,7 @@ load_config( const char *where )
 			channel = nfzalloc( sizeof(*channel) );
 			channel->name = nfstrdup( cfile.val );
 			channel->max_messages = global_conf.max_messages;
+			channel->expire_side = global_conf.expire_side;
 			channel->expire_unread = global_conf.expire_unread;
 			channel->use_internal_date = global_conf.use_internal_date;
 			cops = 0;

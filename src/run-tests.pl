@@ -266,10 +266,26 @@ sub parse_chan($;$)
 	}
 
 	$$ss{max_pulled} = resolv_msg($$ics[0], $cs, "far");
-	$$ss{max_expired} = resolv_msg($$ics[1], $cs, "far");
+	$$ss{max_expired_far} = resolv_msg($$ics[1], $cs, "far");
 	$$ss{max_pushed} = resolv_msg($$ics[2], $cs, "near");
+	$$ss{max_expired_near} = 0;
 
 	return $cs;
+}
+
+sub flip_chan($)
+{
+	my ($cs) = @_;
+
+	($$cs{far}, $$cs{near}) = ($$cs{near}, $$cs{far});
+	($$cs{far_trash}, $$cs{near_trash}) = ($$cs{near_trash}, $$cs{far_trash});
+	my $ss = $$cs{state};
+	($$ss{max_pulled}, $$ss{max_pushed}) = ($$ss{max_pushed}, $$ss{max_pulled});
+	($$ss{max_expired_far}, $$ss{max_expired_near}) = ($$ss{max_expired_near}, $$ss{max_expired_far});
+	for my $ent (@{$$ss{entries}}) {
+		($$ent[0], $$ent[1]) = ($$ent[1], $$ent[0]);
+		$$ent[2] =~ tr/<>/></;
+	}
 }
 
 
@@ -442,8 +458,9 @@ sub readstate(;$)
 	my @ents;
 	my %ss = (
 		max_pulled => 0,
-		max_expired => 0,
+		max_expired_far => 0,
 		max_pushed => 0,
+		max_expired_near => 0,
 		entries => \@ents
 	);
 	my ($far_val, $near_val) = (0, 0);
@@ -452,7 +469,8 @@ sub readstate(;$)
 		'NearUidValidity' => \$near_val,
 		'MaxPulledUid' => \$ss{max_pulled},
 		'MaxPushedUid' => \$ss{max_pushed},
-		'MaxExpiredFarUid' => \$ss{max_expired}
+		'MaxExpiredFarUid' => \$ss{max_expired_far},
+		'MaxExpiredNearUid' => \$ss{max_expired_near}
 	);
 	OUTER: while (1) {
 		while (@$ls) {
@@ -473,6 +491,7 @@ sub readstate(;$)
 		return;
 	}
 	delete $hdr{'MaxExpiredFarUid'};  # optional field
+	delete $hdr{'MaxExpiredNearUid'};  # ditto
 	my @ky = keys %hdr;
 	if (@ky) {
 		print STDERR "Keys missing from sync state header: @ky\n";
@@ -537,8 +556,12 @@ sub mkstate($)
 	open(FILE, ">", "near/.mbsyncstate") or
 		die "Cannot create sync state.\n";
 	print FILE "FarUidValidity 1\nMaxPulledUid ".$$ss{max_pulled}."\n".
-	           "NearUidValidity 1\nMaxExpiredFarUid ".$$ss{max_expired}.
-	           "\nMaxPushedUid ".$$ss{max_pushed}."\n\n";
+	           "NearUidValidity 1\nMaxPushedUid ".$$ss{max_pushed}."\n";
+	print FILE "MaxExpiredFarUid ".$$ss{max_expired_far}."\n"
+		if ($$ss{max_expired_far});
+	print FILE "MaxExpiredNearUid ".$$ss{max_expired_near}."\n"
+		if ($$ss{max_expired_near});
+	print FILE "\n";
 	for my $ent (@{$$ss{entries}}) {
 		print FILE $$ent[0]." ".$$ent[1]." ".$$ent[2]."\n";
 	}
@@ -646,8 +669,9 @@ sub cmpstate($$)
 	return 0 if ($ss == $ref_ss);
 	my $ret = 0;
 	for my $h (['MaxPulledUid', 'max_pulled'],
-	           ['MaxExpiredFarUid', 'max_expired'],
-	           ['MaxPushedUid', 'max_pushed']) {
+	           ['MaxExpiredFarUid', 'max_expired_far'],
+	           ['MaxPushedUid', 'max_pushed'],
+	           ['MaxExpiredNearUid', 'max_expired_near']) {
 		my ($hn, $sn) = @$h;
 		my ($got, $want) = ($$ss{$sn}, $$ref_ss{$sn});
 		if ($got != $want) {
@@ -735,7 +759,8 @@ sub printstate($)
 	my ($ss) = @_;
 
 	return if (!$ss);
-	print " [ ".$$ss{max_pulled}.", ".$$ss{max_expired}.", ".$$ss{max_pushed}.",\n   ";
+	print " [ ".$$ss{max_pulled}.", ".$$ss{max_expired_far}.", ".
+			$$ss{max_pushed}.", ".$$ss{max_expired_near}.",\n   ";
 	my $frst = 1;
 	for my $ent (@{$$ss{entries}}) {
 		if ($frst) {
@@ -884,10 +909,10 @@ sub test_impl($$$$)
 	}
 }
 
-# $title, \@source_state, \@target_state, \@channel_configs
-sub test($$$$)
+# $title, \@source_state, \@target_state, \@channel_configs, $flip_sides
+sub test($$$$;$)
 {
-	my ($ttl, $isx, $itx, $sfx) = @_;
+	my ($ttl, $isx, $itx, $sfx, $flip) = @_;
 
 	if (@match) {
 		if ($start) {
@@ -899,10 +924,16 @@ sub test($$$$)
 	}
 
 	print "Testing: ".$ttl." ...\n";
+	# We don't flip the Store configs, as inverting the Channel config
+	# would be unreasonably complex.
 	writecfg($sfx);
 
 	my $sx = parse_chan($isx);
 	my $tx = parse_chan($itx, $sx);
+	if ($flip) {
+		flip_chan($sx);
+		flip_chan($tx);
+	}
 
 	test_impl(0, $sx, $tx, $sfx);
 	test_impl(1, $sx, $tx, $sfx);
@@ -1263,6 +1294,9 @@ my @X33 = (
 );
 test("max messages + expire - full", \@x33, \@X33, \@O31);
 
+my @O31a = ("", "", "MaxMessages 3\nExpireSide Far\n");
+test("max messages + expire far - full", \@x33, \@X33, \@O31a, 1);
+
 my @O34 = ("", "", "Sync New\nMaxMessages 3\n");
 my @X34 = (
   I, F, I,
@@ -1464,6 +1498,9 @@ my @X61 = (
   E, C, E,
 );
 test("maxuid topping", \@x60, \@X61, \@O61);
+
+my @O62 = ("", "", "Sync Flags\nExpireSide Far");
+test("maxuid topping (expire far)", \@x60, \@X61, \@O62, 1);
 
 # Tests for refreshing previously skipped/failed/expired messages.
 # We don't know the flags at the time of the (hypothetical) previous
@@ -1688,6 +1725,24 @@ my @X82a = (
 );
 test("weird old + expire + expunge near", \@x80a, \@X82a, \@O72a);
 
+my @O82b = ("", "", "Sync New Old\nMaxMessages 3\nExpireUnread yes\nExpireSide Far\nExpunge Far\n");
+my @X82b = (
+  U, L, D,
+  E, "", "/", "/",
+  F, "", ">", "",
+  G, "", "", "/",
+  L, "", "/", "",
+  N, "", "/", "/",
+  O, "", ">", "",
+  P, "", "", "/",
+  T, "", "", "/",
+  D, "", "*F", "*F",
+  H, "*", "*", "",
+  Q, "*", "*", "",
+  U, "*", "*", "",
+);
+test("weird old + expire far + expunge far", \@x80a, \@X82b, \@O82b, 1);
+
 my @X83 = (
   S, L, Q,
   E, "", "<", "",
@@ -1815,6 +1870,24 @@ my @X13 = (
   S, "", "*", "*",
 );
 test("trash new remotely", \@x10, \@X13, \@O13);
+
+my @O14 = ("Trash far_trash\n", "",
+           "Sync Flags Gone\nMaxMessages 20\nExpireUnread yes\nExpireSide Far\nMaxSize 1k\nExpunge Both\n");
+my @X14 = (
+  K, A, K,
+  A, "", "/", "/",
+  B, "/", "/", "",
+  C, "/", "/", "#/",
+  D, "", "/", "#/",
+  E, "/", "/", "",
+  F, "/", "/", "/",
+  G, "/", "/", "#/",
+  H, "/", "/", "/",
+  I, "/", "/", "#/",
+  L, "/", "", "",
+  M, "", "", "#/",
+);
+test("trash near (expire far)", \@x10, \@X14, \@O14, 1);
 
 # Test "mirroring" expunges.
 

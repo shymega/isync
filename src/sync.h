@@ -57,6 +57,7 @@ typedef struct channel_conf {
 	string_list_t *patterns;
 	int ops[2];
 	int max_messages;  // For near side only.
+	int expire_side;
 	signed char expire_unread;
 	char use_internal_date;
 } channel_conf_t;
