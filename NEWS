@@ -22,6 +22,8 @@ Added new sync operation 'Old'.
 
 Added support for mirroring deletions more accurately.
 
+Added --dry-run option.
+
 [1.4.0]
 
 The 'isync' compatibility wrapper was removed.

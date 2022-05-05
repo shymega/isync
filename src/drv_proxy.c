@@ -23,6 +23,8 @@ typedef union proxy_store {
 		gen_cmd_t *pending_cmds, **pending_cmds_append;
 		gen_cmd_t *check_cmds, **check_cmds_append;
 		wakeup_t wakeup;
+		uint fake_nextuid;
+		char is_fake;  // Was "created" by dry-run
 		char force_async;
 
 		void (*expunge_callback)( message_t *msg, void *aux );
@@ -139,8 +141,11 @@ static @type@proxy_@name@( store_t *gctx )
 {
 	proxy_store_t *ctx = (proxy_store_t *)gctx;
 
-	@type@rv = ctx->real_driver->@name@( ctx->real_store );
-	debug( "%sCalled @name@, ret=@fmt@\n", ctx->label, rv );
+	@type@rv;
+	@pre_invoke@
+	@indent_invoke@rv = ctx->real_driver->@name@( ctx->real_store );
+	@post_invoke@
+	debug( "%sCalled @name@@print_fmt_dry@, ret=@fmt@\n", ctx->label@print_pass_dry@, rv );
 	return rv;
 }
 //# END
@@ -151,9 +156,12 @@ static @type@proxy_@name@( store_t *gctx@decl_args@ )
 	proxy_store_t *ctx = (proxy_store_t *)gctx;
 
 	@pre_print_args@
-	debug( "%sEnter @name@@print_fmt_args@\n", ctx->label@print_pass_args@ );
+	debug( "%sEnter @name@@print_fmt_dry@@print_fmt_args@\n", ctx->label@print_pass_dry@@print_pass_args@ );
 	@print_args@
-	@type@rv = ctx->real_driver->@name@( ctx->real_store@pass_args@ );
+	@type@rv;
+	@pre_invoke@
+	@indent_invoke@rv = ctx->real_driver->@name@( ctx->real_store@pass_args@ );
+	@post_invoke@
 	debug( "%sLeave @name@, ret=@print_fmt_ret@\n", ctx->label, @print_pass_ret@ );
 	return rv;
 }
@@ -165,9 +173,11 @@ static @type@proxy_@name@( store_t *gctx@decl_args@ )
 	proxy_store_t *ctx = (proxy_store_t *)gctx;
 
 	@pre_print_args@
-	debug( "%sEnter @name@@print_fmt_args@\n", ctx->label@print_pass_args@ );
+	debug( "%sEnter @name@@print_fmt_dry@@print_fmt_args@\n", ctx->label@print_pass_dry@@print_pass_args@ );
 	@print_args@
-	ctx->real_driver->@name@( ctx->real_store@pass_args@ );
+	@pre_invoke@
+	@indent_invoke@ctx->real_driver->@name@( ctx->real_store@pass_args@ );
+	@post_invoke@
 	debug( "%sLeave @name@\n", ctx->label );
 	@action@
 }
@@ -226,9 +236,11 @@ proxy_do_@name@( gen_cmd_t *gcmd )
 	proxy_store_t *ctx = cmd->ctx;
 
 	@pre_print_args@
-	debug( "%s[% 2d] Enter @name@@print_fmt_args@\n", ctx->label, cmd->tag@print_pass_args@ );
+	debug( "%s[% 2d] Enter @name@@print_fmt_dry@@print_fmt_args@\n", ctx->label, cmd->tag@print_pass_dry@@print_pass_args@ );
 	@print_args@
-	ctx->real_driver->@name@( ctx->real_store@pass_args@, proxy_@name@_cb, cmd );
+	@pre_invoke@
+	@indent_invoke@ctx->real_driver->@name@( ctx->real_store@pass_args@, proxy_@name@_cb, cmd );
+	@post_invoke@
 	debug( "%s[% 2d] Leave @name@\n", ctx->label, cmd->tag );
 }
 
@@ -252,9 +264,50 @@ static @type@proxy_@name@( store_t *gctx@decl_args@, void (*cb)( @decl_cb_args@v
 		debug( "  %s\n", box->string );
 //# END
 
+//# DEFINE select_box_pre_invoke
+	ctx->is_fake = 0;
+//# END
+
+//# DEFINE create_box_driable 1
+//# DEFINE create_box_fake_invoke
+	ctx->is_fake = 1;
+//# END
 //# DEFINE create_box_counted 1
 
+//# DEFINE open_box_fakeable 1
+//# DEFINE open_box_fake_invoke
+	ctx->fake_nextuid = 1;
+//# END
+//# DEFINE open_box_fake_cb_args , 1
+
+//# DEFINE get_uidnext_fakeable 1
+//# DEFINE get_uidnext_fake_invoke
+	rv = ctx->fake_nextuid;
+//# END
+//# DEFINE get_uidnext_post_real_invoke
+	ctx->fake_nextuid = rv;
+//# END
+
+//# DEFINE get_supported_flags_fakeable 1
+//# DEFINE get_supported_flags_fake_invoke
+	rv = 255;
+//# END
+
+//# DEFINE confirm_box_empty_fakeable 1
+//# DEFINE confirm_box_empty_fake_invoke
+	rv = 1;
+//# END
+
+//# DEFINE delete_box_driable 1
+//# DEFINE delete_box_fake_invoke
+	ctx->is_fake = 0;
+//# END
 //# DEFINE delete_box_counted 1
+
+//# DEFINE finish_delete_box_driable 1
+//# DEFINE finish_delete_box_fake_invoke
+	rv = DRV_OK;
+//# END
 
 //# DEFINE prepare_load_box_print_fmt_args , opts=%s
 //# DEFINE prepare_load_box_print_pass_args , fmt_opts( opts ).str
@@ -274,6 +327,8 @@ static @type@proxy_@name@( store_t *gctx@decl_args@, void (*cb)( @decl_cb_args@v
 		debug( "\n" );
 	}
 //# END
+//# DEFINE load_box_fakeable 1
+//# DEFINE load_box_fake_cb_args , NULL, 0, 0
 //# DEFINE load_box_print_fmt_cb_args , total=%d, recent=%d
 //# DEFINE load_box_print_pass_cb_args , total_msgs, recent_msgs
 //# DEFINE load_box_print_cb_args
@@ -297,6 +352,11 @@ static @type@proxy_@name@( store_t *gctx@decl_args@, void (*cb)( @decl_cb_args@v
 
 //# DEFINE fetch_msg_print_fmt_args , uid=%u, want_flags=%s, want_date=%s
 //# DEFINE fetch_msg_print_pass_args , cmd->msg->uid, !(cmd->msg->status & M_FLAGS) ? "yes" : "no", cmd->data->date ? "yes" : "no"
+//# DEFINE fetch_msg_driable 1
+//# DEFINE fetch_msg_fake_invoke
+	cmd->data->data = strdup( "" );
+	cmd->data->len = 0;
+//# END
 //# DEFINE fetch_msg_print_fmt_cb_args , flags=%s, date=%lld, size=%u
 //# DEFINE fetch_msg_print_pass_cb_args , fmt_flags( cmd->data->flags ).str, (long long)cmd->data->date, cmd->data->len
 //# DEFINE fetch_msg_print_cb_args
@@ -318,17 +378,23 @@ static @type@proxy_@name@( store_t *gctx@decl_args@, void (*cb)( @decl_cb_args@v
 		fflush( stdout );
 	}
 //# END
+//# DEFINE store_msg_driable 1
+//# DEFINE store_msg_fake_cb_args , cmd->to_trash ? 0 : ctx->fake_nextuid++
 //# DEFINE store_msg_counted 1
 
 //# DEFINE set_msg_flags_checked 1
 //# DEFINE set_msg_flags_print_fmt_args , uid=%u, add=%s, del=%s
 //# DEFINE set_msg_flags_print_pass_args , cmd->uid, fmt_flags( cmd->add ).str, fmt_flags( cmd->del ).str
+//# DEFINE set_msg_flags_driable 1
 //# DEFINE set_msg_flags_counted 1
 
 //# DEFINE trash_msg_print_fmt_args , uid=%u
 //# DEFINE trash_msg_print_pass_args , cmd->msg->uid
+//# DEFINE trash_msg_driable 1
 //# DEFINE trash_msg_counted 1
 
+//# DEFINE close_box_driable 1
+//# DEFINE close_box_fake_cb_args , 0
 //# DEFINE close_box_counted 1
 
 //# DEFINE commit_cmds_print_args

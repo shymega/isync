@@ -50,10 +50,14 @@ summary( void )
 	printf( "Processed %d box(es) in %d channel(s)", boxes_done, chans_done );
 	for (int t = 2; --t >= 0; ) {
 		if (ops_any[t])
-			printf( ",\n%sed %d new message(s) and %d flag update(s)",
+			printf( (DFlags & DRYRUN) ?
+			            ",\nwould %s %d new message(s) and %d flag update(s)" :
+			            ",\n%sed %d new message(s) and %d flag update(s)",
 			        str_hl[t], new_done[t], flags_done[t] );
 		if (trash_any[t])
-			printf( ",\nmoved %d %s message(s) to trash",
+			printf( (DFlags & DRYRUN) ?
+			            ",\nwould move %d %s message(s) to trash" :
+			            ",\nmoved %d %s message(s) to trash",
 			        trash_done[t], str_fn[t] );
 	}
 	puts( "." );

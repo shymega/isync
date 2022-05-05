@@ -46,6 +46,7 @@ PACKAGE " " VERSION " - mailbox synchronizer\n"
 "  -x, --expunge-solo	expunge deleted messages that are not paired\n"
 "  -c, --config CONFIG	read an alternate config file (default: ~/." EXE "rc)\n"
 "  -D, --debug		debugging modes (see manual)\n"
+"  -y, --dry-run		do not actually modify anything\n"
 "  -V, --verbose		display what is happening\n"
 "  -q, --quiet		don't display progress counters\n"
 "  -v, --version		display version\n"
@@ -217,6 +218,8 @@ main( int argc, char **argv )
 					else
 						goto badopt;
 					DFlags |= op;
+				} else if (!strcmp( opt, "dry-run" )) {
+					DFlags |= DRYRUN;
 				} else if (!strcmp( opt, "pull" )) {
 					cops |= XOP_PULL, mvars->ops[F] |= XOP_HAVE_TYPE;
 				} else if (!strcmp( opt, "push" )) {
@@ -453,6 +456,9 @@ main( int argc, char **argv )
 			if (!op)
 				op = DEBUG_ALL;
 			DFlags |= op;
+			break;
+		case 'y':
+			DFlags |= DRYRUN;
 			break;
 		case 'T':
 			for (; *ochar; ) {

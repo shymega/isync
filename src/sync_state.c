@@ -77,6 +77,9 @@ lock_state( sync_vars_t *svars )
 {
 	struct flock lck;
 
+	if (DFlags & DRYRUN)
+		return 1;
+
 	if (svars->lfd >= 0)
 		return 1;
 	memset( &lck, 0, sizeof(lck) );
@@ -451,6 +454,8 @@ jFprintf( sync_vars_t *svars, const char *msg, ... )
 	va_list va;
 
 	if (!svars->jfp) {
+		if (DFlags & DRYRUN)
+			goto dryout;
 		create_state( svars );
 		if (!(svars->jfp = fopen( svars->jname, svars->replayed ? "a" : "w" ))) {
 			sys_error( "Error: cannot create journal %s", svars->jname );
@@ -463,6 +468,7 @@ jFprintf( sync_vars_t *svars, const char *msg, ... )
 	va_start( va, msg );
 	vFprintf( svars->jfp, msg, va );
 	va_end( va );
+  dryout:
 	countStep();
 	JCount++;
 }
@@ -472,6 +478,10 @@ save_state( sync_vars_t *svars )
 {
 	// If no change was made, the state is also unmodified.
 	if (!svars->jfp && !svars->replayed)
+		return;
+
+	// jfp is NULL in this case anyway, but we might have replayed.
+	if (DFlags & DRYRUN)
 		return;
 
 	if (!svars->nfp)
@@ -506,6 +516,9 @@ save_state( sync_vars_t *svars )
 void
 delete_state( sync_vars_t *svars )
 {
+	if (DFlags & DRYRUN)
+		return;
+
 	unlink( svars->nname );
 	unlink( svars->jname );
 	if (unlink( svars->dname ) || unlink( svars->lname )) {

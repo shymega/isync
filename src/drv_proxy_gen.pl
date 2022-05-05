@@ -175,14 +175,48 @@ for (@ptypes) {
 		$replace{'print_pass_args'} = $replace{'pass_args'} = $pass_args;
 		$replace{'print_fmt_args'} = make_format($cmd_args);
 	}
+	my ($fake_cond, $fake_invoke, $fake_cb_args, $post_invoke) = (undef, "", "", "");
 	for (keys %defines) {
 		next if (!/^${cmd_name}_(.*)$/);
 		my ($key, $val) = ($1, delete $defines{$_});
 		if ($key eq 'counted') {
 			$replace{count_step} = "countStep();\n";
+		} elsif ($key eq 'fakeable') {
+			$fake_cond = "ctx->is_fake";
+			$replace{print_pass_dry} = ', '.$fake_cond.' ? " [FAKE]" : ""';
+		} elsif ($key eq 'driable') {
+			$fake_cond = "DFlags & DRYRUN";
+			$replace{print_pass_dry} = ', ('.$fake_cond.') ? " [DRY]" : ""';
+		} elsif ($key eq 'fake_invoke') {
+			$fake_invoke = $val;
+		} elsif ($key eq 'fake_cb_args') {
+			$fake_cb_args = $val;
+		} elsif ($key eq 'post_real_invoke') {
+			$post_invoke = $val;
 		} else {
 			$replace{$key} = $val;
 		}
+	}
+	if (defined($fake_cond)) {
+		$replace{print_fmt_dry} = '%s';
+		if ($inc_tpl eq 'CALLBACK_STS') {
+			$fake_invoke .= "proxy_${cmd_name}_cb( DRV_OK${fake_cb_args}, cmd );\n";
+		} elsif (length($fake_cb_args)) {
+			die("Unexpected fake callback arguments to $cmd_name\n");
+		}
+		my $num_fake = $fake_invoke =~ s/^(?=.)/\t/gsm;
+		my $num_real = $post_invoke =~ s/^(?=.)/\t/gsm;
+		my $pre_invoke = "if (".$fake_cond.")";
+		if ($num_fake > 1 || $num_real) {
+			$pre_invoke .= " {";
+			$fake_invoke .= "} else {\n";
+			$post_invoke .= "}\n";
+		} else {
+			$fake_invoke .= "else\n";
+		}
+		$replace{pre_invoke} = $pre_invoke."\n".$fake_invoke;
+		$replace{indent_invoke} = "\t";
+		$replace{post_invoke} = $post_invoke;
 	}
 	my %used;
 	my $text = $templates{$template};
