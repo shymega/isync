@@ -665,7 +665,7 @@ maildir_store_uidval( maildir_store_t *ctx )
 			return DRV_BOX_BAD;
 		}
 	}
-	conf_wakeup( &ctx->lcktmr, 2 );
+	conf_wakeup( &ctx->lcktmr, 2000 );
 	return DRV_OK;
 }
 
@@ -761,7 +761,7 @@ maildir_uidval_lock( maildir_store_t *ctx )
 		}
 	}
 	ctx->uvok = 1;
-	conf_wakeup( &ctx->lcktmr, 2 );
+	conf_wakeup( &ctx->lcktmr, 2000 );
 	return DRV_OK;
 }
 

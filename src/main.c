@@ -150,6 +150,7 @@ main( int argc, char **argv )
 	int oind, cops = 0, op, ms_warn = 0, renew_warn = 0, delete_warn = 0;
 
 	tzset();
+	init_timers();
 	gethostname( Hostname, sizeof(Hostname) );
 	if ((ochar = strchr( Hostname, '.' )))
 		*ochar = 0;

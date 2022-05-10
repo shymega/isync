@@ -12,6 +12,7 @@
 #include <errno.h>
 #include <ctype.h>
 #include <pwd.h>
+#include <sys/time.h>
 
 int Verbosity = TERSE;
 int DFlags;
@@ -1000,10 +1001,41 @@ wipe_notifier( notifier_t *sn )
 #endif
 }
 
-static time_t
+#if _POSIX_TIMERS - 0 > 0
+static clockid_t clkid;
+#endif
+
+void
+init_timers( void )
+{
+#if _POSIX_TIMERS - 0 > 0
+	struct timespec ts;
+# ifdef CLOCK_BOOTTIME
+	if (!clock_gettime( CLOCK_BOOTTIME, &ts )) {
+		clkid = CLOCK_BOOTTIME;
+	} else
+# endif
+# ifdef CLOCK_MONOTONIC_COARSE
+	if (!clock_gettime( CLOCK_MONOTONIC_COARSE, &ts )) {
+		clkid = CLOCK_MONOTONIC_COARSE;
+	} else
+# endif
+	clkid = CLOCK_MONOTONIC;
+#endif
+}
+
+int64_t
 get_now( void )
 {
-	return time( NULL );
+#if _POSIX_TIMERS - 0 > 0
+	struct timespec ts;
+	clock_gettime( clkid, &ts );
+	return ts.tv_sec * 1000LL + ts.tv_nsec / 1000000;
+#else
+	struct timeval tv;
+	gettimeofday( &tv, NULL );
+	return tv.tv_sec * 1000LL + tv.tv_usec / 1000;
+#endif
 }
 
 static list_head_t timers = { &timers, &timers };
@@ -1032,7 +1064,7 @@ conf_wakeup( wakeup_t *tmr, int to )
 		if (tmr->links.next)
 			list_unlink( &tmr->links );
 	} else {
-		time_t timeout = to;
+		int64_t timeout = to;
 		if (!to) {
 			/* We always prepend null timers, to cluster related events. */
 			succ = timers.next;
@@ -1066,13 +1098,13 @@ event_wait( void )
 	int timeout = -1;
 	if ((head = timers.next) != &timers) {
 		wakeup_t *tmr = (wakeup_t *)head;
-		time_t delta = tmr->timeout;
+		int64_t delta = tmr->timeout;
 		if (!delta || (delta -= get_now()) <= 0) {
 			list_unlink( head );
 			tmr->cb( tmr->aux );
 			return;
 		}
-		timeout = (int)delta * 1000;
+		timeout = (int)delta;
 	}
 	switch (poll( pollfds, npolls, timeout )) {
 	case 0:
@@ -1102,14 +1134,14 @@ event_wait( void )
 
 	if ((head = timers.next) != &timers) {
 		wakeup_t *tmr = (wakeup_t *)head;
-		time_t delta = tmr->timeout;
+		int64_t delta = tmr->timeout;
 		if (!delta || (delta -= get_now()) <= 0) {
 			list_unlink( head );
 			tmr->cb( tmr->aux );
 			return;
 		}
-		to_tv.tv_sec = delta;
-		to_tv.tv_usec = 0;
+		to_tv.tv_sec = delta / 1000;
+		to_tv.tv_usec = delta * 1000;
 		timeout = &to_tv;
 	}
 	FD_ZERO( &rfds );

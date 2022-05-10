@@ -9,7 +9,7 @@
 typedef struct {
 	int id;
 	int first, other, morph_at, morph_to;
-	time_t start;
+	int64_t start;
 	wakeup_t timer;
 	wakeup_t morph_timer;
 } tst_t;
@@ -18,7 +18,7 @@ static void
 timer_start( tst_t *timer, int to )
 {
 	printf( "starting timer %d, should expire after %d\n", timer->id, to );
-	time( &timer->start );
+	timer->start  = get_now();
 	conf_wakeup( &timer->timer, to );
 }
 
@@ -28,7 +28,7 @@ timed_out( void *aux )
 	tst_t *timer = (tst_t *)aux;
 
 	printf( "timer %d expired after %d, repeat %d\n",
-	        timer->id, (int)(time( 0 ) - timer->start), timer->other );
+	        timer->id, (int)(get_now() - timer->start), timer->other );
 	if (timer->other >= 0) {
 		timer_start( timer, timer->other );
 	} else {
@@ -44,7 +44,7 @@ morph_timed_out( void *aux )
 	tst_t *timer = (tst_t *)aux;
 
 	printf( "morphing timer %d after %d\n",
-	        timer->id, (int)(time( 0 ) - timer->start) );
+	        timer->id, (int)(get_now() - timer->start) );
 	timer_start( timer, timer->morph_to );
 }
 
@@ -55,6 +55,7 @@ main( int argc, char **argv )
 {
 	int i;
 
+	init_timers();
 	for (i = 1; i < argc; i++) {
 		char *val = argv[i];
 		tst_t *timer = nfmalloc( sizeof(*timer) );

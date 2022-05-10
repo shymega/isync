@@ -3713,7 +3713,7 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep )
 		return 0;
 	}
 
-	server->sconf.timeout = 20;
+	server->sconf.timeout = 20000;
 #ifdef HAVE_LIBSSL
 	server->ssl_type = -1;
 	server->sconf.ssl_versions = -1;
@@ -3761,7 +3761,7 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep )
 				server->sconf.port = (ushort)port;
 			}
 		} else if (!strcasecmp( "Timeout", cfg->cmd )) {
-			server->sconf.timeout = parse_int( cfg );
+			server->sconf.timeout = parse_int( cfg ) * 1000;
 		} else if (!strcasecmp( "PipelineDepth", cfg->cmd )) {
 			if ((server->max_in_progress = parse_int( cfg )) < 1) {
 				error( "%s:%d: PipelineDepth must be at least 1\n", cfg->file, cfg->line );

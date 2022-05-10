@@ -323,9 +323,11 @@ typedef struct {
 	list_head_t links;
 	void (*cb)( void *aux );
 	void *aux;
-	time_t timeout;
+	int64_t timeout;
 } wakeup_t;
 
+void init_timers( void );
+int64_t get_now( void );
 void init_wakeup( wakeup_t *tmr, void (*cb)( void * ), void *aux );
 void conf_wakeup( wakeup_t *tmr, int timeout );
 void wipe_wakeup( wakeup_t *tmr );
