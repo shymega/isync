@@ -17,6 +17,7 @@ uint BufferLimit = 10 * 1024 * 1024;
 int new_total[2], new_done[2];
 int flags_total[2], flags_done[2];
 int trash_total[2], trash_done[2];
+int expunge_total[2], expunge_done[2];
 
 static void sync_ref( sync_vars_t *svars ) { ++svars->ref_count; }
 static void sync_deref( sync_vars_t *svars );
@@ -285,6 +286,10 @@ message_expunged( message_t *msg, void *aux )
 		msg->srec->status |= S_GONE(t);
 		msg->srec->msg[t] = NULL;
 		msg->srec = NULL;
+	}
+	if (msg->status & M_EXPUNGE) {
+		expunge_done[t]++;
+		stats();
 	}
 }
 
@@ -1771,6 +1776,25 @@ sync_close( sync_vars_t *svars, int t )
 
 	if ((svars->chan->ops[t] & (OP_EXPUNGE | OP_EXPUNGE_SOLO)) && !(DFlags & FAKEEXPUNGE)
 	    /*&& !(svars->state[t] & ST_TRASH_BAD)*/) {
+		if (Verbosity >= TERSE) {
+			if (svars->opts[t] & OPEN_UID_EXPUNGE) {
+				for (message_t *tmsg = svars->msgs[t]; tmsg; tmsg = tmsg->next) {
+					if (tmsg->status & M_DEAD)
+						continue;
+					if (tmsg->status & M_EXPUNGE)
+						expunge_total[t]++;
+				}
+			} else {
+				for (sync_rec_t *srec = svars->srecs; srec; srec = srec->next) {
+					if (srec->status & S_DEAD)
+						continue;
+					if (srec->status & S_DEL(t))
+						expunge_total[t]++;
+				}
+			}
+			stats();
+		}
+
 		debug( "expunging %s\n", str_fn[t] );
 		svars->drv[t]->close_box( svars->ctx[t], box_closed, AUX );
 	} else {
@@ -1792,9 +1816,12 @@ box_closed( int sts, int reported, void *aux )
 			// by a refresh, and in the extremely unlikely case of this happening
 			// on both sides, we'd even get a duplicate. That's why this is only
 			// a fallback.
-			if (srec->status & S_DEL(t))
+			if (srec->status & S_DEL(t)) {
 				srec->status |= S_GONE(t);
+				expunge_done[t]++;
+			}
 		}
+		stats();
 	}
 	box_closed_p2( svars, t );
 }

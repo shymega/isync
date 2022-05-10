@@ -77,6 +77,7 @@ extern uint BufferLimit;
 extern int new_total[2], new_done[2];
 extern int flags_total[2], flags_done[2];
 extern int trash_total[2], trash_done[2];
+extern int expunge_total[2], expunge_done[2];
 
 extern const char *str_fn[2], *str_hl[2];
 

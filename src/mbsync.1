@@ -779,13 +779,13 @@ If \fBmbsync\fR's output is connected to a console, it will print progress
 counters by default. The output will look like this:
 .P
 .in +4
-C: 1/2  B: 3/4  F: +13/13 *23/42 #0/0  N: +0/7 *0/0 #0/0
+C: 1/2  B: 3/4  F: +13/13 *23/42 #0/0 -0/0  N: +0/7 *0/0 #0/0 -0/0
 .in -4
 .P
 This represents the cumulative progress over Channels, boxes, and messages
 affected on the far and near side, respectively.
 The message counts represent added messages, messages with updated flags,
-and trashed messages, respectively.
+trashed messages, and expunged messages, respectively.
 No attempt is made to calculate the totals in advance, so they grow over
 time as more information is gathered.
 .P

@@ -19,6 +19,7 @@ MaxMessages and MaxSize can be used together now.
 The unfiltered list of mailboxes in each Store can be printed now.
 
 A proper summary is now printed prior to exiting.
+This includes expunges, which are now included in the progress as well.
 
 Added new sync operation 'Old'.
 

@@ -9,7 +9,7 @@
 
 #define nz(a, b) ((a) ? (a) : (b))
 
-static int ops_any[2], trash_any[2];
+static int ops_any[2], trash_any[2], expunge_any[2];
 static int chans_total, chans_done;
 static int boxes_total, boxes_done;
 
@@ -20,7 +20,7 @@ static wakeup_t stats_wakeup;
 static void
 print_stats( void )
 {
-	char buf[3][64];
+	char buf[3][80];
 	char *cs;
 	static int cols = -1;
 
@@ -29,10 +29,11 @@ print_stats( void )
 	int ll = sprintf( buf[2], "C: %d/%d  B: %d/%d", chans_done, chans_total, boxes_done, boxes_total );
 	int cls = (cols - ll - 10) / 2;
 	for (int t = 0; t < 2; t++) {
-		int l = sprintf( buf[t], "+%d/%d *%d/%d #%d/%d",
+		int l = sprintf( buf[t], "+%d/%d *%d/%d #%d/%d -%d/%d",
 		                 new_done[t], new_total[t],
 		                 flags_done[t], flags_total[t],
-		                 trash_done[t], trash_total[t] );
+		                 trash_done[t], trash_total[t],
+		                 expunge_done[t], expunge_total[t] );
 		if (l > cls)
 			buf[t][cls - 1] = '~';
 	}
@@ -91,6 +92,11 @@ summary( void )
 			            ",\nwould move %d %s message(s) to trash" :
 			            ",\nmoved %d %s message(s) to trash",
 			        trash_done[t], str_fn[t] );
+		if (expunge_any[t])
+			printf( (DFlags & DRYRUN) ?
+			            ",\nwould expunge %d message(s) from %s" :
+			            ",\nexpunged %d message(s) from %s",
+			        expunge_done[t], str_fn[t] );
 	}
 	puts( "." );
 }
@@ -235,10 +241,12 @@ add_channel( chan_ent_t ***chanapp, channel_conf_t *chan, int ops[] )
 		}
 		if (chan->ops[t] & OP_MASK_TYPE)
 			ops_any[t] = 1;
-		if ((chan->ops[t] & (OP_EXPUNGE | OP_EXPUNGE_SOLO)) &&
-		    (chan->stores[t]->trash ||
-		     (chan->stores[t^1]->trash && chan->stores[t^1]->trash_remote_new)))
-			trash_any[t] = 1;
+		if (chan->ops[t] & (OP_EXPUNGE | OP_EXPUNGE_SOLO)) {
+			expunge_any[t] = 1;
+			if (chan->stores[t]->trash ||
+			    (chan->stores[t^1]->trash && chan->stores[t^1]->trash_remote_new))
+				trash_any[t] = 1;
+		}
 	}
 
 	**chanapp = ce;
