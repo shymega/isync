@@ -1776,7 +1776,7 @@ sync_close( sync_vars_t *svars, int t )
 
 	if ((svars->chan->ops[t] & (OP_EXPUNGE | OP_EXPUNGE_SOLO)) && !(DFlags & FAKEEXPUNGE)
 	    /*&& !(svars->state[t] & ST_TRASH_BAD)*/) {
-		if (Verbosity >= TERSE) {
+		if (Verbosity >= TERSE || (DFlags & EXT_EXIT)) {
 			if (svars->opts[t] & OPEN_UID_EXPUNGE) {
 				for (message_t *tmsg = svars->msgs[t]; tmsg; tmsg = tmsg->next) {
 					if (tmsg->status & M_DEAD)

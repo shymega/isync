@@ -47,6 +47,7 @@ PACKAGE " " VERSION " - mailbox synchronizer\n"
 "  -c, --config CONFIG	read an alternate config file (default: ~/." EXE "rc)\n"
 "  -D, --debug		debugging modes (see manual)\n"
 "  -y, --dry-run		do not actually modify anything\n"
+"  -e, --ext-exit		return extended exit code\n"
 "  -V, --verbose		display what is happening\n"
 "  -q, --quiet		don't display progress counters\n"
 "  -v, --version		display version\n"
@@ -221,6 +222,8 @@ main( int argc, char **argv )
 					DFlags |= op;
 				} else if (!strcmp( opt, "dry-run" )) {
 					DFlags |= DRYRUN;
+				} else if (!strcmp( opt, "ext-exit" )) {
+					DFlags |= EXT_EXIT;
 				} else if (!strcmp( opt, "pull" )) {
 					cops |= XOP_PULL, mvars->ops[F] |= XOP_HAVE_TYPE;
 				} else if (!strcmp( opt, "push" )) {
@@ -460,6 +463,9 @@ main( int argc, char **argv )
 			break;
 		case 'y':
 			DFlags |= DRYRUN;
+			break;
+		case 'e':
+			DFlags |= EXT_EXIT;
 			break;
 		case 'T':
 			for (; *ochar; ) {

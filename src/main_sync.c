@@ -388,6 +388,11 @@ sync_chans( core_vars_t *cvars, char **argv )
 	if (!cvars->list) {
 		flushn();
 		summary();
+		if (DFlags & EXT_EXIT) {
+			for (int t = 0; t < 2; t++)
+				if (new_done[t] || flags_done[t] || trash_done[t] || expunge_done[t])
+					cvars->ret |= 32 << t;
+		}
 	}
 }
 

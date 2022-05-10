@@ -79,6 +79,12 @@ Enter simulation mode: the Channel status is queried and all required
 operations are determined, but no modifications are actually made
 to either the mailboxes or the state files.
 .TP
+\fB-e\fR, \fB--ext-exit\fR
+Return an extended exit code: Add 32 resp. 64 to the code if any
+modifications were made on the far resp. near side.
+An error may be reported at the same time, so the code may be for example
+65 if some changes were successfully pulled, while others failed.
+.TP
 \fB-V\fR, \fB--verbose\fR
 Enable \fIverbose\fR mode, which displays what is currently happening.
 .TP

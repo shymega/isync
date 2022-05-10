@@ -27,6 +27,8 @@ Added support for mirroring deletions more accurately.
 
 Added --dry-run option.
 
+Added --ext-exit option.
+
 [1.4.0]
 
 The 'isync' compatibility wrapper was removed.
