@@ -607,20 +607,20 @@ maildir_validate( const char *box, int create, maildir_store_t *ctx )
 	bl = nfsnprintf( buf, sizeof(buf) - 4, "%s/", box );
 	if (stat( buf, &st )) {
 		if (errno != ENOENT) {
-			sys_error( "Maildir error: cannot access mailbox '%s'", box );
+			sys_error( "Maildir error: cannot access mailbox '%s'", buf );
 			return DRV_BOX_BAD;
 		}
 		if (!create)
 			return DRV_BOX_BAD;
 		if (make_box_dir( buf, bl )) {
-			sys_error( "Maildir error: cannot create mailbox '%s'", box );
+			sys_error( "Maildir error: cannot create mailbox '%s'", buf );
 			ctx->conf->failed = FAIL_FINAL;
 			maildir_invoke_bad_callback( ctx );
 			return DRV_CANCELED;
 		}
 	} else if (!S_ISDIR(st.st_mode)) {
 	  notdir:
-		error( "Maildir error: '%s' is no valid mailbox\n", box );
+		error( "Maildir error: '%s' is no valid mailbox\n", buf );
 		return DRV_BOX_BAD;
 	}
 	for (i = 0; i < 3; i++) {
@@ -691,7 +691,7 @@ maildir_store_uidval( maildir_store_t *ctx )
 		n = sprintf( buf, "%u\n%u\n", ctx->uidvalidity, ctx->nuid );
 		lseek( ctx->uvfd, 0, SEEK_SET );
 		if (write( ctx->uvfd, buf, (uint)n ) != n || ftruncate( ctx->uvfd, n ) || (UseFSync && fdatasync( ctx->uvfd ))) {
-			error( "Maildir error: cannot write UIDVALIDITY.\n" );
+			error( "Maildir error: cannot write UIDVALIDITY in %s\n", ctx->path );
 			return DRV_BOX_BAD;
 		}
 	}
@@ -717,7 +717,7 @@ maildir_init_uidval( maildir_store_t *ctx )
 static int
 maildir_init_uidval_new( maildir_store_t *ctx )
 {
-	notice( "Maildir notice: no UIDVALIDITY, creating new.\n" );
+	notice( "Maildir notice: no UIDVALIDITY in %s, creating new.\n", ctx->path );
 	return maildir_init_uidval( ctx );
 }
 
@@ -742,14 +742,14 @@ maildir_uidval_lock( maildir_store_t *ctx )
 #endif
 	lck.l_type = F_WRLCK;
 	if (fcntl( ctx->uvfd, F_SETLKW, &lck )) {
-		error( "Maildir error: cannot fcntl lock UIDVALIDITY.\n" );
+		error( "Maildir error: cannot fcntl lock UIDVALIDITY in %s.\n", ctx->path );
 		return DRV_BOX_BAD;
 	}
 
 #ifdef USE_DB
 	if (ctx->usedb) {
 		if (fstat( ctx->uvfd, &st )) {
-			sys_error( "Maildir error: cannot fstat UID database" );
+			sys_error( "Maildir error: cannot fstat UID database in %s", ctx->path );
 			return DRV_BOX_BAD;
 		}
 		if (db_create( &ctx->db, NULL, 0 )) {
@@ -783,7 +783,7 @@ maildir_uidval_lock( maildir_store_t *ctx )
 			 * But this would mess up the sync state completely. So better bail out and
 			 * give the user a chance to fix the mailbox. */
 			if (n) {
-				error( "Maildir error: cannot read UIDVALIDITY.\n" );
+				error( "Maildir error: cannot read UIDVALIDITY in %s.\n", ctx->path );
 				return DRV_BOX_BAD;
 			}
 #endif
@@ -1081,11 +1081,11 @@ maildir_scan( maildir_store_t *ctx, msg_t_array_alloc_t *msglist )
 				if (uid == entry->uid) {
 #if 1
 					/* See comment in maildir_uidval_lock() why this is fatal. */
-					error( "Maildir error: duplicate UID %u.\n", uid );
+					error( "Maildir error: duplicate UID %u in %s.\n", uid, ctx->path );
 					maildir_free_scan( msglist );
 					return DRV_BOX_BAD;
 #else
-					notice( "Maildir notice: duplicate UID; changing UIDVALIDITY.\n");
+					notice( "Maildir notice: duplicate UID in %s; changing UIDVALIDITY.\n", ctx->path );
 					if ((ret = maildir_init_uid( ctx )) != DRV_OK) {
 						maildir_free_scan( msglist );
 						return ret;
@@ -1098,7 +1098,8 @@ maildir_scan( maildir_store_t *ctx, msg_t_array_alloc_t *msglist )
 				if (uid > ctx->nuid) {
 					/* In principle, we could just warn and top up nuid. However, getting into this
 					 * situation might indicate some serious trouble, so let's not make it worse. */
-					error( "Maildir error: UID %u is beyond highest assigned UID %u.\n", uid, ctx->nuid );
+					error( "Maildir error: UID %u is beyond highest assigned UID %u in %s.\n",
+					       uid, ctx->nuid, ctx->path );
 					maildir_free_scan( msglist );
 					return DRV_BOX_BAD;
 				}
@@ -1180,7 +1181,7 @@ maildir_scan( maildir_store_t *ctx, msg_t_array_alloc_t *msglist )
 						break;
 					if (want_tuid && starts_with( lnbuf, bufl, "X-TUID: ", 8 )) {
 						if (bufl < 8 + TUIDL) {
-							error( "Maildir error: malformed X-TUID header (UID %u)\n", uid );
+							error( "Maildir error: malformed X-TUID header in %s\n", buf );
 							continue;
 						}
 						memcpy( entry->tuid, lnbuf + 8, TUIDL );
