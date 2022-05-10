@@ -168,9 +168,8 @@ union imap_store {
 		uint buffer_mem;  // Memory currently occupied by buffers in the queue
 
 		// Used during sequential operations like connect
-		enum { GreetingPending = 0, GreetingBad, GreetingOk, GreetingPreauth } greeting;
+		enum { GreetingPending = 0, GreetingOk, GreetingPreauth } greeting;
 		int expectBYE;  // LOGOUT is in progress
-		int expectEOF;  // received LOGOUT's OK or unsolicited BYE
 		int canceling;  // imap_cancel_cmds() is in progress
 		union {
 			void (*imap_open)( int sts, void *aux );
@@ -1759,8 +1758,7 @@ imap_socket_read( void *aux )
 			return;
 		}
 		if (cmd == (void *)~0) {
-			if (!ctx->expectEOF)
-				error( "IMAP error: unexpected EOF from %s\n", ctx->conn.name );
+			error( "IMAP error: unexpected EOF from %s\n", ctx->conn.name );
 			/* A clean shutdown sequence ends with bad_callback as well (see imap_cleanup()). */
 			break;
 		}
@@ -1796,14 +1794,10 @@ imap_socket_read( void *aux )
 				}
 			} else if (equals( arg, argl, "BYE", 3 )) {
 				if (!ctx->expectBYE) {
-					ctx->greeting = GreetingBad;
 					error( "IMAP error: unexpected BYE response: %s\n", cmd );
-					/* We just wait for the server to close the connection now. */
-					ctx->expectEOF = 1;
-					socket_expect_eof( &ctx->conn );
-				} else {
-					/* We still need to wait for the LOGOUT's tagged OK. */
+					break;
 				}
+				// We still need to wait for the LOGOUT's tagged OK.
 			} else if (ctx->greeting == GreetingPending) {
 				error( "IMAP error: bogus greeting response %s\n", arg );
 				break;
@@ -2085,14 +2079,9 @@ imap_cleanup( void )
 
 static void
 imap_cleanup_p2( imap_store_t *ctx,
-                 imap_cmd_t *cmd ATTR_UNUSED, int response )
+                 imap_cmd_t *cmd ATTR_UNUSED, int response ATTR_UNUSED )
 {
-	if (response == RESP_NO) {
-		imap_cancel_store( &ctx->gen );
-	} else if (response == RESP_OK) {
-		ctx->expectEOF = 1;
-		socket_expect_eof( &ctx->conn );
-	}
+	imap_cancel_store( &ctx->gen );
 }
 
 /******************* imap_open_store *******************/

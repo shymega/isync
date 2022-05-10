@@ -823,15 +823,6 @@ socket_expect_activity( conn_t *conn, int expect )
 }
 
 void
-socket_expect_eof( conn_t *sock )
-{
-#ifdef SSL_OP_IGNORE_UNEXPECTED_EOF  // implies HAVE_LIBSSL
-	if (sock->ssl)
-		SSL_set_options( sock->ssl, SSL_OP_IGNORE_UNEXPECTED_EOF );
-#endif
-}
-
-void
 socket_expect_bytes( conn_t *conn, uint len )
 {
 	conn->wanted = len;

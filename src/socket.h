@@ -134,7 +134,6 @@ void socket_start_tls(conn_t *conn, void (*cb)( int ok, void *aux ) );
 void socket_start_deflate( conn_t *conn );
 void socket_close( conn_t *sock );
 void socket_expect_activity( conn_t *sock, int expect );
-void socket_expect_eof( conn_t *sock );
 void socket_expect_bytes( conn_t *sock, uint len );
 // Don't free return values. These functions never wait.
 char *socket_read( conn_t *conn, uint min_len, uint max_len, uint *out_len );
