@@ -451,12 +451,7 @@ box_confirmed2( sync_vars_t *svars, int t )
 static void
 box_deleted( int sts, void *aux )
 {
-	DECL_SVARS;
-
-	if (check_ret( sts, aux ))
-		return;
-	INIT_SVARS(aux);
-
+	SVARS_CHECK_RET;
 	delete_state( svars );
 	svars->drv[t]->finish_delete_box( svars->ctx[t] );
 	sync_bail( svars );
@@ -465,12 +460,7 @@ box_deleted( int sts, void *aux )
 static void
 box_created( int sts, void *aux )
 {
-	DECL_SVARS;
-
-	if (check_ret( sts, aux ))
-		return;
-	INIT_SVARS(aux);
-
+	SVARS_CHECK_RET;
 	svars->drv[t]->open_box( svars->ctx[t], box_opened, AUX );
 }
 
@@ -779,7 +769,6 @@ static void msgs_copied( sync_vars_t *svars, int t );
 static void
 box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux )
 {
-	DECL_SVARS;
 	sync_rec_t *srec, **srecmap;
 	message_t *tmsg;
 	flag_vars_t *fv;
@@ -787,9 +776,7 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 	uchar sflags, nflags, aflags, dflags;
 	uint hashsz, idx;
 
-	if (check_ret( sts, aux ))
-		return;
-	INIT_SVARS(aux);
+	SVARS_CHECK_RET;
 	svars->state[t] |= ST_LOADED;
 	svars->msgs[t] = msgs;
 	info( "%s: %d messages, %d recent\n", str_fn[t], total_msgs, recent_msgs );
@@ -1722,14 +1709,9 @@ msgs_flags_set( sync_vars_t *svars, int t )
 static void
 msg_trashed( int sts, void *aux )
 {
-	trash_vars_t *vars = (trash_vars_t *)aux;
-	DECL_SVARS;
-
 	if (sts == DRV_MSG_BAD)
 		sts = DRV_BOX_BAD;
-	if (check_ret( sts, vars->aux ))
-		return;
-	INIT_SVARS(vars->aux);
+	SVARS_CHECK_RET_VARS(trash_vars_t);
 	JLOG( "T %d %u", (t, vars->msg->uid), "trashed on %s", str_fn[t] );
 	free( vars );
 	trash_done[t]++;
