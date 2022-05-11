@@ -240,11 +240,9 @@ check_cancel( sync_vars_t *svars )
 static int
 check_ret( int sts, void *aux )
 {
-	DECL_SVARS;
-
 	if (sts == DRV_CANCELED)
 		return 1;
-	INIT_SVARS(aux);
+	DECL_INIT_SVARS(aux);
 	if (sts == DRV_BOX_BAD) {
 		svars->ret |= SYNC_FAIL;
 		cancel_sync( svars );
@@ -254,27 +252,24 @@ check_ret( int sts, void *aux )
 }
 
 #define SVARS_CHECK_RET \
-	DECL_SVARS; \
 	if (check_ret( sts, aux )) \
 		return; \
-	INIT_SVARS(aux)
+	DECL_INIT_SVARS(aux)
 
 #define SVARS_CHECK_RET_VARS(type) \
 	type *vars = (type *)aux; \
-	DECL_SVARS; \
 	if (check_ret( sts, vars->aux )) { \
 		free( vars ); \
 		return; \
 	} \
-	INIT_SVARS(vars->aux)
+	DECL_INIT_SVARS(vars->aux)
 
 #define SVARS_CHECK_CANCEL_RET \
-	DECL_SVARS; \
 	if (sts == SYNC_CANCELED) { \
 		free( vars ); \
 		return; \
 	} \
-	INIT_SVARS(vars->aux)
+	DECL_INIT_SVARS(vars->aux)
 
 static void
 message_expunged( message_t *msg, void *aux )
@@ -376,11 +371,9 @@ sync_boxes( store_t *ctx[], const char * const names[], int present[], channel_c
 static void
 box_confirmed( int sts, uint uidvalidity, void *aux )
 {
-	DECL_SVARS;
-
 	if (sts == DRV_CANCELED)
 		return;
-	INIT_SVARS(aux);
+	DECL_INIT_SVARS(aux);
 	if (check_cancel( svars ))
 		return;
 
@@ -467,11 +460,9 @@ box_created( int sts, void *aux )
 static void
 box_opened( int sts, uint uidvalidity, void *aux )
 {
-	DECL_SVARS;
-
 	if (sts == DRV_CANCELED)
 		return;
-	INIT_SVARS(aux);
+	DECL_INIT_SVARS(aux);
 	if (check_cancel( svars ))
 		return;
 
