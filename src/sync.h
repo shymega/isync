@@ -84,8 +84,6 @@ extern const char *str_fn[2], *str_hl[2];
 #define SYNC_OK       0 /* assumed to be 0 */
 #define SYNC_FAIL     1
 #define SYNC_BAD(fn)  (4<<(fn))
-#define SYNC_NOGOOD   16 /* internal */
-#define SYNC_CANCELED 32 /* internal */
 
 #define BOX_POSSIBLE -1
 #define BOX_ABSENT    0

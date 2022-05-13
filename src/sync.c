@@ -80,6 +80,13 @@ sanitize_flags( uchar tflags, sync_vars_t *svars, int t )
 }
 
 
+enum {
+	COPY_OK,
+	COPY_NOGOOD,
+	COPY_CANCELED,
+	COPY_FAIL,
+};
+
 static void msg_fetched( int sts, void *aux );
 
 static void
@@ -108,7 +115,7 @@ msg_fetched( int sts, void *aux )
 		INIT_SVARS(vars->aux);
 		if (check_cancel( svars )) {
 			free( vars->data.data );
-			vars->cb( SYNC_CANCELED, 0, vars );
+			vars->cb( COPY_CANCELED, 0, vars );
 			return;
 		}
 
@@ -138,7 +145,7 @@ msg_fetched( int sts, void *aux )
 			const char *err;
 			if ((err = copy_msg_convert( scr, tcr, vars ))) {
 				warn( "Warning: message %u from %s %s; skipping.\n", vars->msg->uid, str_fn[t^1], err );
-				vars->cb( SYNC_NOGOOD, 0, vars );
+				vars->cb( COPY_NOGOOD, 0, vars );
 				return;
 			}
 		}
@@ -146,13 +153,13 @@ msg_fetched( int sts, void *aux )
 		svars->drv[t]->store_msg( svars->ctx[t], &vars->data, !srec, msg_stored, vars );
 		break;
 	case DRV_CANCELED:
-		vars->cb( SYNC_CANCELED, 0, vars );
+		vars->cb( COPY_CANCELED, 0, vars );
 		break;
 	case DRV_MSG_BAD:
-		vars->cb( SYNC_NOGOOD, 0, vars );
+		vars->cb( COPY_NOGOOD, 0, vars );
 		break;
 	default:  // DRV_BOX_BAD
-		vars->cb( SYNC_FAIL, 0, vars );
+		vars->cb( COPY_FAIL, 0, vars );
 		break;
 	}
 }
@@ -165,20 +172,20 @@ msg_stored( int sts, uint uid, void *aux )
 
 	switch (sts) {
 	case DRV_OK:
-		vars->cb( SYNC_OK, uid, vars );
+		vars->cb( COPY_OK, uid, vars );
 		break;
 	case DRV_CANCELED:
-		vars->cb( SYNC_CANCELED, 0, vars );
+		vars->cb( COPY_CANCELED, 0, vars );
 		break;
 	case DRV_MSG_BAD:
 		INIT_SVARS(vars->aux);
 		(void)svars;
 		warn( "Warning: %s refuses to store message %u from %s.\n",
 		      str_fn[t], vars->msg->uid, str_fn[t^1] );
-		vars->cb( SYNC_NOGOOD, 0, vars );
+		vars->cb( COPY_NOGOOD, 0, vars );
 		break;
 	default:  // DRV_BOX_BAD
-		vars->cb( SYNC_FAIL, 0, vars );
+		vars->cb( COPY_FAIL, 0, vars );
 		break;
 	}
 }
@@ -265,7 +272,7 @@ check_ret( int sts, void *aux )
 	DECL_INIT_SVARS(vars->aux)
 
 #define SVARS_CHECK_CANCEL_RET \
-	if (sts == SYNC_CANCELED) { \
+	if (sts == COPY_CANCELED) { \
 		free( vars ); \
 		return; \
 	} \
@@ -1390,17 +1397,17 @@ msg_copied( int sts, uint uid, copy_vars_t *vars )
 	SVARS_CHECK_CANCEL_RET;
 	sync_rec_t *srec = vars->srec;
 	switch (sts) {
-	case SYNC_OK:
+	case COPY_OK:
 		if (!uid)  // Stored to a non-UIDPLUS mailbox
 			svars->state[t] |= ST_FIND_NEW;
 		else
 			ASSIGN_UID( srec, t, uid, "%sed message", str_hl[t] );
 		break;
-	case SYNC_NOGOOD:
+	case COPY_NOGOOD:
 		srec->status = S_DEAD;
 		JLOG( "- %u %u", (srec->uid[F], srec->uid[N]), "%s failed", str_hl[t] );
 		break;
-	default:
+	default:  // COPY_FAIL
 		cancel_sync( svars );
 		free( vars );
 		return;
@@ -1716,10 +1723,10 @@ msg_rtrashed( int sts, uint uid ATTR_UNUSED, copy_vars_t *vars )
 {
 	SVARS_CHECK_CANCEL_RET;
 	switch (sts) {
-	case SYNC_OK:
-	case SYNC_NOGOOD: /* the message is gone or heavily busted */
+	case COPY_OK:
+	case COPY_NOGOOD: /* the message is gone or heavily busted */
 		break;
-	default:
+	default:  // COPY_FAIL
 		cancel_sync( svars );
 		free( vars );
 		return;
