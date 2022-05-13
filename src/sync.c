@@ -271,13 +271,6 @@ check_ret( int sts, void *aux )
 	} \
 	DECL_INIT_SVARS(vars->aux)
 
-#define SVARS_CHECK_CANCEL_RET \
-	if (sts == COPY_CANCELED) { \
-		free( vars ); \
-		return; \
-	} \
-	DECL_INIT_SVARS(vars->aux)
-
 static void
 message_expunged( message_t *msg, void *aux )
 {
@@ -1394,7 +1387,7 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 static void
 msg_copied( int sts, uint uid, copy_vars_t *vars )
 {
-	SVARS_CHECK_CANCEL_RET;
+	DECL_INIT_SVARS(vars->aux);
 	sync_rec_t *srec = vars->srec;
 	switch (sts) {
 	case COPY_OK:
@@ -1409,6 +1402,8 @@ msg_copied( int sts, uint uid, copy_vars_t *vars )
 		break;
 	default:  // COPY_FAIL
 		cancel_sync( svars );
+		FALLTHROUGH
+	case COPY_CANCELED:
 		free( vars );
 		return;
 	}
@@ -1721,13 +1716,15 @@ msg_trashed( int sts, void *aux )
 static void
 msg_rtrashed( int sts, uint uid ATTR_UNUSED, copy_vars_t *vars )
 {
-	SVARS_CHECK_CANCEL_RET;
+	DECL_INIT_SVARS(vars->aux);
 	switch (sts) {
 	case COPY_OK:
 	case COPY_NOGOOD: /* the message is gone or heavily busted */
 		break;
 	default:  // COPY_FAIL
 		cancel_sync( svars );
+		FALLTHROUGH
+	case COPY_CANCELED:
 		free( vars );
 		return;
 	}
