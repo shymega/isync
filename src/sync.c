@@ -255,13 +255,20 @@ check_ret( int sts, void *aux )
 		cancel_sync( svars );
 		return 1;
 	}
-	return check_cancel( svars );
+	return 0;
 }
 
 #define SVARS_CHECK_RET \
 	if (check_ret( sts, aux )) \
 		return; \
 	DECL_INIT_SVARS(aux)
+
+// After drv->cancel_cmds() on our side, commands may still complete
+// successfully, while the other side is already dead.
+#define SVARS_CHECK_RET_CANCEL \
+	SVARS_CHECK_RET; \
+	if (check_cancel( svars )) \
+		return
 
 #define SVARS_CHECK_RET_VARS(type) \
 	type *vars = (type *)aux; \
@@ -444,7 +451,7 @@ box_confirmed2( sync_vars_t *svars, int t )
 static void
 box_deleted( int sts, void *aux )
 {
-	SVARS_CHECK_RET;
+	SVARS_CHECK_RET_CANCEL;
 	delete_state( svars );
 	svars->drv[t]->finish_delete_box( svars->ctx[t] );
 	sync_bail( svars );
@@ -453,7 +460,7 @@ box_deleted( int sts, void *aux )
 static void
 box_created( int sts, void *aux )
 {
-	SVARS_CHECK_RET;
+	SVARS_CHECK_RET_CANCEL;
 	svars->drv[t]->open_box( svars->ctx[t], box_opened, AUX );
 }
 
@@ -767,7 +774,7 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 	uchar sflags, nflags, aflags, dflags;
 	uint hashsz, idx;
 
-	SVARS_CHECK_RET;
+	SVARS_CHECK_RET_CANCEL;
 	svars->state[t] |= ST_LOADED;
 	svars->msgs[t] = msgs;
 	info( "%s: %d messages, %d recent\n", str_fn[t], total_msgs, recent_msgs );
@@ -1411,6 +1418,8 @@ msg_copied( int sts, uint uid, copy_vars_t *vars )
 	new_done[t]++;
 	stats();
 	svars->new_pending[t]--;
+	if (check_cancel( svars ))
+		return;
 	msgs_copied( svars, t );
 }
 
@@ -1484,6 +1493,8 @@ msgs_found_new( int sts, message_t *msgs, void *aux )
 	int num_lost = match_tuids( svars, t, msgs );
 	if (num_lost)
 		warn( "Warning: lost track of %d %sed message(s)\n", num_lost, str_hl[t] );
+	if (check_cancel( svars ))
+		return;
 	msgs_new_done( svars, t );
 }
 
@@ -1512,6 +1523,8 @@ flags_set( int sts, void *aux )
 	flags_done[t]++;
 	stats();
 	svars->flags_pending[t]--;
+	if (check_cancel( svars ))
+		return;
 	msgs_flags_set( svars, t );
 }
 
@@ -1710,6 +1723,8 @@ msg_trashed( int sts, void *aux )
 	trash_done[t]++;
 	stats();
 	svars->trash_pending[t]--;
+	if (check_cancel( svars ))
+		return;
 	sync_close( svars, t );
 }
 
@@ -1734,6 +1749,8 @@ msg_rtrashed( int sts, uint uid ATTR_UNUSED, copy_vars_t *vars )
 	trash_done[t]++;
 	stats();
 	svars->trash_pending[t]--;
+	if (check_cancel( svars ))
+		return;
 	sync_close( svars, t );
 }
 
@@ -1782,7 +1799,7 @@ sync_close( sync_vars_t *svars, int t )
 static void
 box_closed( int sts, int reported, void *aux )
 {
-	SVARS_CHECK_RET;
+	SVARS_CHECK_RET_CANCEL;
 	if (!reported) {
 		for (sync_rec_t *srec = svars->srecs; srec; srec = srec->next) {
 			if (srec->status & S_DEAD)
