@@ -313,7 +313,7 @@ Define the IMAP4 Account \fIname\fR, opening a section for its parameters.
 \fBHost\fR \fIhost\fR
 Specify the DNS name or IP address of the IMAP server.
 .br
-If \fBTunnel\fR is used, this setting is needed only if \fBSSLType\fR is
+If \fBTunnel\fR is used, this setting is needed only if \fBTLSType\fR is
 not \fBNone\fR and \fBCertificateFile\fR is not used,
 in which case the host name is used for certificate subject verification.
 .
@@ -394,13 +394,13 @@ The list of acceptable authentication mechanisms.
 In addition to the mechanisms listed in the SASL registry (link below),
 the legacy IMAP \fBLOGIN\fR mechanism is known.
 The wildcard \fB*\fR represents all mechanisms that are deemed secure
-enough for the current \fBSSLType\fR setting.
+enough for the current \fBTLSType\fR setting.
 The actually used mechanism is the most secure choice from the intersection
 of this list, the list supplied by the server, and the installed SASL modules.
 (Default: \fB*\fR)
 .
 .TP
-\fBSSLType\fR {\fBNone\fR|\fBSTARTTLS\fR|\fBIMAPS\fR}
+\fBTLSType\fR {\fBNone\fR|\fBSTARTTLS\fR|\fBIMAPS\fR}
 Select the connection security/encryption method:
 .br
 \fBNone\fR - no security.
@@ -410,7 +410,7 @@ This is the default when \fBTunnel\fR is set, as tunnels are usually secure.
 after connecting the regular IMAP port 143. Most servers support this,
 so it is the default (unless a tunnel is used).
 .br
-\fBIMAPS\fR - security is established by starting SSL/TLS negotiation
+\fBIMAPS\fR - security is established by starting TLS negotiation
 right after connecting the secure IMAP port 993.
 .
 .TP

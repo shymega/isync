@@ -3786,7 +3786,15 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep )
 			}
 		} else if (!strcasecmp( "CipherString", cfg->cmd )) {
 			server->sconf.cipher_string = nfstrdup( cfg->val );
+		} else if (!strcasecmp( "TLSType", cfg->cmd )) {
+			goto tlstype;
 		} else if (!strcasecmp( "SSLType", cfg->cmd )) {
+			static int sslt_warned;
+			if (!sslt_warned) {
+				sslt_warned = 1;
+				warn( "Notice: SSLType is deprecated. Use TLSType instead.\n" );
+			}
+		  tlstype:
 			if (!strcasecmp( "None", cfg->val )) {
 				server->ssl_type = SSL_None;
 			} else if (!strcasecmp( "STARTTLS", cfg->val )) {
@@ -3794,7 +3802,7 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep )
 			} else if (!strcasecmp( "IMAPS", cfg->val )) {
 				server->ssl_type = SSL_IMAPS;
 			} else {
-				error( "%s:%d: Invalid SSL type\n", cfg->file, cfg->line );
+				error( "%s:%d: Invalid TLS type\n", cfg->file, cfg->line );
 				cfg->err = 1;
 			}
 		} else if (!strcasecmp( "TLSVersions", cfg->cmd )) {
