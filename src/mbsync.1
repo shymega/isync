@@ -414,10 +414,12 @@ so it is the default (unless a tunnel is used).
 right after connecting the secure IMAP port 993.
 .
 .TP
-\fBSSLVersions\fR [\fBSSLv3\fR] [\fBTLSv1\fR] [\fBTLSv1.1\fR] [\fBTLSv1.2\fR] [\fBTLSv1.3\fR]
-Select the acceptable SSL/TLS versions.
+\fBTLSVersions\fR {\fB+\fR|\fB-\fR}{\fB1.0\fR|\fB1.1\fR|\fB1.2\fR|\fB1.3\fR} ...
+Add/remove the specified TLS versions to/from the set of acceptable choices.
 Use old versions only when the server has problems with newer ones.
-(Default: [\fBTLSv1\fR] [\fBTLSv1.1\fR] [\fBTLSv1.2\fR] [\fBTLSv1.3\fR]).
+Note that new versions are automatically enabled as soon as OpenSSL supports
+them, even if \fBmbsync\fR does not recognize them yet.
+(Default: All starting with 1.0).
 .
 .TP
 \fBSystemCertificates\fR \fByes\fR|\fBno\fR

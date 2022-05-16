@@ -36,7 +36,7 @@ Sync PullNew Push
 IMAPStore personal
 Host host.play.com
 Port 6789
-SSLType None
+TLSType None
 
 Channel personal
 Far :personal:
@@ -66,7 +66,7 @@ CertificateFile ~/.st1-certificate.crt
 IMAPStore st2
 Host imap.another-domain.com
 Path non-standard/
-SSLVersions TLSv1.3
+TLSVersions -1.2
 
 Channel rst
 Far :st1:somebox

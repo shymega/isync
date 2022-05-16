@@ -3797,8 +3797,44 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep )
 				error( "%s:%d: Invalid SSL type\n", cfg->file, cfg->line );
 				cfg->err = 1;
 			}
+		} else if (!strcasecmp( "TLSVersions", cfg->cmd )) {
+			arg = cfg->val;
+			do {
+				int or_mask = 0, and_mask = 0, val;
+				if (*arg == '+') {
+					or_mask = ~0;
+				} else if (*arg == '-') {
+					and_mask = ~0;
+				} else {
+					error( "%s:%d: TLSVersions arguments must start with +/-\n", cfg->file, cfg->line );
+					cfg->err = 1;
+					continue;
+				}
+				arg++;
+				if (!strcmp( "1.0", arg )) {
+					val = TLSv1;
+				} else if (!strcmp( "1.1", arg )) {
+					val = TLSv1_1;
+				} else if (!strcmp( "1.2", arg )) {
+					val = TLSv1_2;
+				} else if (!strcmp( "1.3", arg )) {
+					val = TLSv1_3;
+				} else {
+					error( "%s:%d: Unrecognized TLS version '%s'\n", cfg->file, cfg->line, arg );
+					cfg->err = 1;
+					continue;
+				}
+				or_mask &= val;
+				and_mask &= val;
+				server->sconf.ssl_versions = (server->sconf.ssl_versions & ~and_mask) | or_mask;
+			} while ((arg = get_arg( cfg, ARG_OPTIONAL, NULL )));
 		} else if (!strcasecmp( "SSLVersion", cfg->cmd ) ||
 		           !strcasecmp( "SSLVersions", cfg->cmd )) {
+			static int sslv_warned;
+			if (!sslv_warned) {
+				sslv_warned = 1;
+				warn( "Notice: SSLVersions is deprecated. Use TLSVersions instead.\n" );
+			}
 			server->sconf.ssl_versions = 0;
 			arg = cfg->val;
 			do {
