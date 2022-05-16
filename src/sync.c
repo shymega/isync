@@ -57,6 +57,7 @@ BIT_ENUM(
 	ST_FIND_NEW,
 	ST_FOUND_NEW,
 	ST_SENT_TRASH,
+	ST_TRASH_BAD,
 	ST_CLOSING,
 	ST_CLOSED,
 	ST_SENT_CANCEL,
@@ -82,6 +83,7 @@ sanitize_flags( uchar tflags, sync_vars_t *svars, int t )
 
 enum {
 	COPY_OK,
+	COPY_GONE,
 	COPY_NOGOOD,
 	COPY_CANCELED,
 	COPY_FAIL,
@@ -144,7 +146,8 @@ msg_fetched( int sts, void *aux )
 		if (srec || scr != tcr) {
 			const char *err;
 			if ((err = copy_msg_convert( scr, tcr, vars ))) {
-				warn( "Warning: message %u from %s %s; skipping.\n", vars->msg->uid, str_fn[t^1], err );
+				error( "Error: message %u from %s %s; skipping.\n", vars->msg->uid, str_fn[t^1], err );
+				svars->ret |= SYNC_FAIL;
 				vars->cb( COPY_NOGOOD, 0, vars );
 				return;
 			}
@@ -156,7 +159,15 @@ msg_fetched( int sts, void *aux )
 		vars->cb( COPY_CANCELED, 0, vars );
 		break;
 	case DRV_MSG_BAD:
-		vars->cb( COPY_NOGOOD, 0, vars );
+		if (vars->msg->status & M_DEAD) {
+			// The message was expunged under our feet; this is no error.
+			vars->cb( COPY_GONE, 0, vars );
+		} else {
+			INIT_SVARS(vars->aux);
+			// Driver already reported error.
+			svars->ret |= SYNC_FAIL;
+			vars->cb( COPY_NOGOOD, 0, vars );
+		}
 		break;
 	default:  // DRV_BOX_BAD
 		vars->cb( COPY_FAIL, 0, vars );
@@ -179,9 +190,10 @@ msg_stored( int sts, uint uid, void *aux )
 		break;
 	case DRV_MSG_BAD:
 		INIT_SVARS(vars->aux);
-		(void)svars;
-		warn( "Warning: %s refuses to store message %u from %s.\n",
-		      str_fn[t], vars->msg->uid, str_fn[t^1] );
+		// Driver already reported error, but we still need to report the source.
+		error( "Error: %s refuses to store message %u from %s.\n",
+		       str_fn[t], vars->msg->uid, str_fn[t^1] );
+		svars->ret |= SYNC_FAIL;
 		vars->cb( COPY_NOGOOD, 0, vars );
 		break;
 	default:  // DRV_BOX_BAD
@@ -1404,6 +1416,7 @@ msg_copied( int sts, uint uid, copy_vars_t *vars )
 			ASSIGN_UID( srec, t, uid, "%sed message", str_hl[t] );
 		break;
 	case COPY_NOGOOD:
+	case COPY_GONE:
 		srec->status = S_DEAD;
 		JLOG( "- %u %u", (srec->uid[F], srec->uid[N]), "%s failed", str_hl[t] );
 		break;
@@ -1715,10 +1728,22 @@ msgs_flags_set( sync_vars_t *svars, int t )
 static void
 msg_trashed( int sts, void *aux )
 {
-	if (sts == DRV_MSG_BAD)
-		sts = DRV_BOX_BAD;
 	SVARS_CHECK_RET_VARS(trash_vars_t);
-	JLOG( "T %d %u", (t, vars->msg->uid), "trashed on %s", str_fn[t] );
+	switch (sts) {
+	case DRV_OK:
+		JLOG( "T %d %u", (t, vars->msg->uid), "trashed on %s", str_fn[t] );
+		break;
+	case DRV_MSG_BAD:
+		if (vars->msg->status & M_DEAD)
+			break;
+		// Driver already reported error.
+		svars->ret |= SYNC_FAIL;
+		if (svars->opts[t] & OPEN_UID_EXPUNGE)
+			vars->msg->status &= ~M_EXPUNGE;
+		else
+			svars->state[t] |= ST_TRASH_BAD;
+		break;
+	}
 	free( vars );
 	trash_done[t]++;
 	stats();
@@ -1732,9 +1757,18 @@ static void
 msg_rtrashed( int sts, uint uid ATTR_UNUSED, copy_vars_t *vars )
 {
 	DECL_INIT_SVARS(vars->aux);
+	t ^= 1;
 	switch (sts) {
 	case COPY_OK:
-	case COPY_NOGOOD: /* the message is gone or heavily busted */
+		JLOG( "T %d %u", (t, vars->msg->uid), "trashed remotely on %s", str_fn[t^1] );
+		break;
+	case COPY_GONE:
+		break;
+	case COPY_NOGOOD:
+		if (svars->opts[t] & OPEN_UID_EXPUNGE)
+			vars->msg->status &= ~M_EXPUNGE;
+		else
+			svars->state[t] |= ST_TRASH_BAD;
 		break;
 	default:  // COPY_FAIL
 		cancel_sync( svars );
@@ -1743,8 +1777,6 @@ msg_rtrashed( int sts, uint uid ATTR_UNUSED, copy_vars_t *vars )
 		free( vars );
 		return;
 	}
-	t ^= 1;
-	JLOG( "T %d %u", (t, vars->msg->uid), "trashed remotely on %s", str_fn[t^1] );
 	free( vars );
 	trash_done[t]++;
 	stats();
@@ -1769,7 +1801,7 @@ sync_close( sync_vars_t *svars, int t )
 	svars->state[t] |= ST_CLOSING;
 
 	if ((svars->chan->ops[t] & (OP_EXPUNGE | OP_EXPUNGE_SOLO)) && !(DFlags & FAKEEXPUNGE)
-	    /*&& !(svars->state[t] & ST_TRASH_BAD)*/) {
+	    && !(svars->state[t] & ST_TRASH_BAD)) {
 		if (Verbosity >= TERSE || (DFlags & EXT_EXIT)) {
 			if (svars->opts[t] & OPEN_UID_EXPUNGE) {
 				for (message_t *tmsg = svars->msgs[t]; tmsg; tmsg = tmsg->next) {
