@@ -3711,7 +3711,7 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep )
 	server->sconf.timeout = 20000;
 #ifdef HAVE_LIBSSL
 	server->ssl_type = -1;
-	server->sconf.ssl_versions = TLSv1 | TLSv1_1 | TLSv1_2 | TLSv1_3;
+	server->sconf.ssl_versions = TLSv1_2 | TLSv1_3;
 	server->sconf.system_certs = 1;
 #endif
 	server->max_in_progress = INT_MAX;
