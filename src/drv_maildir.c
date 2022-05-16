@@ -1879,9 +1879,14 @@ maildir_parse_store( conffile_t *cfg, store_conf_t **storep )
 			store->inbox = expand_strdup( cfg->val, cfg );
 		} else if (!strcasecmp( "Path", cfg->cmd )) {
 			store->path = expand_strdup( cfg->val, cfg );
-#ifdef USE_DB
 		} else if (!strcasecmp( "AltMap", cfg->cmd )) {
+#ifdef USE_DB
 			store->alt_map = parse_bool( cfg );
+#else
+			if (parse_bool( cfg )) {
+				error( "Error: AltMap=true is not supported by this build.\n" );
+				cfg->err = 1;
+			}
 #endif /* USE_DB */
 		} else if (!strcasecmp( "InfoDelimiter", cfg->cmd )) {
 			if (strlen( cfg->val ) != 1) {

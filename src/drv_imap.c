@@ -3786,25 +3786,6 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep )
 			}
 		} else if (!strcasecmp( "CipherString", cfg->cmd )) {
 			server->sconf.cipher_string = nfstrdup( cfg->val );
-		} else if (!strcasecmp( "TLSType", cfg->cmd )) {
-			goto tlstype;
-		} else if (!strcasecmp( "SSLType", cfg->cmd )) {
-			static int sslt_warned;
-			if (!sslt_warned) {
-				sslt_warned = 1;
-				warn( "Notice: SSLType is deprecated. Use TLSType instead.\n" );
-			}
-		  tlstype:
-			if (!strcasecmp( "None", cfg->val )) {
-				server->ssl_type = SSL_None;
-			} else if (!strcasecmp( "STARTTLS", cfg->val )) {
-				server->ssl_type = SSL_STARTTLS;
-			} else if (!strcasecmp( "IMAPS", cfg->val )) {
-				server->ssl_type = SSL_IMAPS;
-			} else {
-				error( "%s:%d: Invalid TLS type\n", cfg->file, cfg->line );
-				cfg->err = 1;
-			}
 		} else if (!strcasecmp( "TLSVersions", cfg->cmd )) {
 			arg = cfg->val;
 			do {
@@ -3863,7 +3844,44 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep )
 					cfg->err = 1;
 				}
 			} while ((arg = get_arg( cfg, ARG_OPTIONAL, NULL )));
+#else
+		} else if (!strcasecmp( "CertificateFile", cfg->cmd ) ||
+		           !strcasecmp( "SystemCertificates", cfg->cmd ) ||
+		           !strcasecmp( "ClientCertificate", cfg->cmd ) ||
+		           !strcasecmp( "ClientKey", cfg->cmd ) ||
+		           !strcasecmp( "CipherString", cfg->cmd ) ||
+		           !strcasecmp( "SSLVersion", cfg->cmd ) ||
+		           !strcasecmp( "SSLVersions", cfg->cmd ) ||
+		           !strcasecmp( "TLSVersions", cfg->cmd )) {
+			error( "Error: " EXE " built without OpenSSL; %s is not supported.\n", cfg->cmd );
+			cfg->err = 1;
 #endif
+		} else if (!strcasecmp( "TLSType", cfg->cmd )) {
+			goto tlstype;
+		} else if (!strcasecmp( "SSLType", cfg->cmd )) {
+			static int sslt_warned;
+			if (!sslt_warned) {
+				sslt_warned = 1;
+				warn( "Notice: SSLType is deprecated. Use TLSType instead.\n" );
+			}
+		  tlstype:
+			if (!strcasecmp( "None", cfg->val )) {
+#ifdef HAVE_LIBSSL
+				server->ssl_type = SSL_None;
+			} else if (!strcasecmp( "STARTTLS", cfg->val )) {
+				server->ssl_type = SSL_STARTTLS;
+			} else if (!strcasecmp( "IMAPS", cfg->val )) {
+				server->ssl_type = SSL_IMAPS;
+#else
+			} else if (!strcasecmp( "STARTTLS", cfg->val ) ||
+			           !strcasecmp( "IMAPS", cfg->val )) {
+				error( "Error: " EXE " built without OpenSSL; only TLSType None is supported.\n" );
+				cfg->err = 1;
+#endif
+			} else {
+				error( "%s:%d: Invalid TLS type\n", cfg->file, cfg->line );
+				cfg->err = 1;
+			}
 		} else if (!strcasecmp( "AuthMech", cfg->cmd ) ||
 		         !strcasecmp( "AuthMechs", cfg->cmd )) {
 			arg = cfg->val;
@@ -3948,6 +3966,15 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep )
 			if (require_cram)
 				add_string_list(&server->auth_mechs, "CRAM-MD5");
 		}
+#ifndef HAVE_LIBSASL
+		for (string_list_t *mech = server->auth_mechs; mech; mech = mech->next) {
+			if (strcmp( mech->string, "*" ) && strcasecmp( mech->string, "LOGIN" )) {
+				error( "Error: " EXE " built without LibSASL; only AuthMech LOGIN is supported.\n" );
+				cfg->err = 1;
+				break;
+			}
+		}
+#endif
 		if (!server->auth_mechs)
 			add_string_list( &server->auth_mechs, "*" );
 		if (!server->sconf.port) {
