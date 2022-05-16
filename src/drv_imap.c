@@ -3684,11 +3684,6 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep )
 	const char *type, *name, *arg;
 	unsigned u;
 	int acc_opt = 0;
-#ifdef HAVE_LIBSSL
-	/* Legacy SSL options */
-	int require_ssl = -1, use_imaps = -1;
-	int use_tlsv1 = -1, use_tlsv11 = -1, use_tlsv12 = -1, use_tlsv13 = -1;
-#endif
 	/* Legacy SASL option */
 	int require_cram = -1;
 
@@ -3716,30 +3711,14 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep )
 	server->sconf.timeout = 20000;
 #ifdef HAVE_LIBSSL
 	server->ssl_type = -1;
-	server->sconf.ssl_versions = -1;
+	server->sconf.ssl_versions = TLSv1 | TLSv1_1 | TLSv1_2 | TLSv1_3;
 	server->sconf.system_certs = 1;
 #endif
 	server->max_in_progress = INT_MAX;
 
 	while (getcline( cfg ) && cfg->cmd) {
 		if (!strcasecmp( "Host", cfg->cmd )) {
-			/* The imap[s]: syntax is just a backwards compat hack. */
-			arg = cfg->val;
-			if (starts_with( arg, -1, "imap:", 5 ))
-				arg += 5;
-#ifdef HAVE_LIBSSL
-			else if (starts_with( arg, -1, "imaps:", 6 )) {
-				arg += 6;
-				server->ssl_type = SSL_IMAPS;
-				if (server->sconf.ssl_versions == -1)
-					server->sconf.ssl_versions = TLSv1 | TLSv1_1 | TLSv1_2 | TLSv1_3;
-			}
-#endif
-			if (starts_with( arg, -1, "//", 2 ))
-				arg += 2;
-			if (arg != cfg->val)
-				warn( "%s:%d: Notice: URL notation is deprecated; use a plain host name and possibly 'SSLType IMAPS' instead\n", cfg->file, cfg->line );
-			server->sconf.host = nfstrdup( arg );
+			server->sconf.host = nfstrdup( cfg->val );
 		} else if (!strcasecmp( "User", cfg->cmd )) {
 			server->user = nfstrdup( cfg->val );
 		} else if (!strcasecmp( "UserCmd", cfg->cmd )) {
@@ -3840,22 +3819,6 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep )
 					cfg->err = 1;
 				}
 			} while ((arg = get_arg( cfg, ARG_OPTIONAL, NULL )));
-		} else if (!strcasecmp( "RequireSSL", cfg->cmd )) {
-			require_ssl = parse_bool( cfg );
-		} else if (!strcasecmp( "UseIMAPS", cfg->cmd )) {
-			use_imaps = parse_bool( cfg );
-		} else if (!strcasecmp( "UseSSLv2", cfg->cmd )) {
-			warn( "Warning: UseSSLv2 is no longer supported\n" );
-		} else if (!strcasecmp( "UseSSLv3", cfg->cmd )) {
-			warn( "Warning: UseSSLv3 is no longer supported\n" );
-		} else if (!strcasecmp( "UseTLSv1", cfg->cmd )) {
-			use_tlsv1 = parse_bool( cfg );
-		} else if (!strcasecmp( "UseTLSv1.1", cfg->cmd )) {
-			use_tlsv11 = parse_bool( cfg );
-		} else if (!strcasecmp( "UseTLSv1.2", cfg->cmd )) {
-			use_tlsv12 = parse_bool( cfg );
-		} else if (!strcasecmp( "UseTLSv1.3", cfg->cmd )) {
-			use_tlsv13 = parse_bool( cfg );
 #endif
 		} else if (!strcasecmp( "AuthMech", cfg->cmd ) ||
 		         !strcasecmp( "AuthMechs", cfg->cmd )) {
@@ -3928,39 +3891,8 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep )
 		}
 #endif
 #ifdef HAVE_LIBSSL
-		if ((use_tlsv1 & use_tlsv11 & use_tlsv12 & use_tlsv13) != -1 || use_imaps >= 0 || require_ssl >= 0) {
-			if (server->ssl_type >= 0 || server->sconf.ssl_versions >= 0) {
-				error( "%s '%s': The deprecated UseSSL*, UseTLS*, UseIMAPS, and RequireSSL options are mutually exclusive with SSLType and SSLVersions.\n", type, name );
-				cfg->err = 1;
-				return 1;
-			}
-			warn( "Notice: %s '%s': UseSSL*, UseTLS*, UseIMAPS, and RequireSSL are deprecated. Use SSLType and SSLVersions instead.\n", type, name );
-			server->sconf.ssl_versions =
-					(use_tlsv1 == 0 ? 0 : TLSv1) |
-					(use_tlsv11 != 1 ? 0 : TLSv1_1) |
-					(use_tlsv12 != 1 ? 0 : TLSv1_2) |
-					(use_tlsv13 != 1 ? 0 : TLSv1_3);
-			if (use_imaps == 1) {
-				server->ssl_type = SSL_IMAPS;
-			} else if (require_ssl) {
-				server->ssl_type = SSL_STARTTLS;
-			} else if (!server->sconf.ssl_versions) {
-				server->ssl_type = SSL_None;
-			} else {
-				warn( "Notice: %s '%s': 'RequireSSL no' is being ignored\n", type, name );
-				server->ssl_type = SSL_STARTTLS;
-			}
-			if (server->ssl_type != SSL_None && !server->sconf.ssl_versions) {
-				error( "%s '%s' requires SSL but no SSL versions enabled\n", type, name );
-				cfg->err = 1;
-				return 1;
-			}
-		} else {
-			if (server->sconf.ssl_versions < 0)
-				server->sconf.ssl_versions = TLSv1 | TLSv1_1 | TLSv1_2 | TLSv1_3;
-			if (server->ssl_type < 0)
-				server->ssl_type = server->sconf.tunnel ? SSL_None : SSL_STARTTLS;
-		}
+		if (server->ssl_type < 0)
+			server->ssl_type = server->sconf.tunnel ? SSL_None : SSL_STARTTLS;
 #endif
 		if (require_cram >= 0) {
 			if (server->auth_mechs) {
