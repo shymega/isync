@@ -115,7 +115,7 @@ copy_msg_convert( int in_cr, int out_cr, copy_vars_t *vars )
 			}
 			break;
 		}
-		app_cr = out_cr && (!in_cr || hdr_crs);
+		app_cr = out_cr && (!in_cr || hdr_crs || !lines);
 		if (fix_tuid || fix_subj || fix_hdr)
 			extra += app_cr + 1;
 		if (end_hdr)
