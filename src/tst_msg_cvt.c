@@ -37,6 +37,9 @@ strip_cr( char *buf )
 #define REGULAR 0
 #define FLAGGED 1
 
+#define OK_HEADER 0
+#define PARTIAL_HEADER 1
+
 #define BIG_SIZE 2345687
 #define BIG_SIZE_STR "2.2MiB"
 
@@ -105,7 +108,7 @@ test( const char *name, const char *in, int scr, int rscr, const char *out, int 
 }
 
 static void
-tests( const char *name, const char *in, const char *out, int add_tuid, int minimal, int flagged )
+tests( const char *name, const char *in, const char *out, int add_tuid, int minimal, int flagged, int hdr_sts )
 {
 	test( name, in, NL_UNIX, NL_UNIX, out, NL_ANY, NL_ANY, add_tuid, minimal, flagged );
 	test( name, in, NL_ANY, NL_UNIX, out, NL_UNIX, NL_UNIX, add_tuid, minimal, flagged );
@@ -113,7 +116,12 @@ tests( const char *name, const char *in, const char *out, int add_tuid, int mini
 	// Skip if (scr == tcr && !srec), like copy_msg() does.
 	if (add_tuid) {
 		test( name, in, NL_UNIX, NL_UNIX, out, NL_UNIX, NL_UNIX, ADD_TUID, minimal, flagged );
-		test( name, in, NL_ANY, NL_UNIX, out, NL_ANY, NL_UNIX, ADD_TUID, minimal, flagged );
+		if (hdr_sts == OK_HEADER) {
+			test( name, in, NL_ANY, NL_UNIX, out, NL_ANY, NL_UNIX, ADD_TUID, minimal, flagged );
+		} else {
+			// If there are no line breaks to detect the style, the output defaults to CRLF.
+			test( name, in, NL_ANY, NL_UNIX, out, NL_ANY, NL_ANY, ADD_TUID, minimal, flagged );
+		}
 		test( name, in, NL_ANY, NL_ANY, out, NL_ANY, NL_ANY, ADD_TUID, minimal, flagged );
 	}
 }
@@ -121,13 +129,25 @@ tests( const char *name, const char *in, const char *out, int add_tuid, int mini
 static void
 fulltests( const char *name, const char *in, const char *out, int add_tuid )
 {
-	tests( name, in, out, add_tuid, FULL, REGULAR );
+	tests( name, in, out, add_tuid, FULL, REGULAR, OK_HEADER );
+}
+
+static void
+fulltests_ih( const char *name, const char *in, const char *out, int add_tuid )
+{
+	tests( name, in, out, add_tuid, FULL, REGULAR, PARTIAL_HEADER );
 }
 
 static void
 mintests( const char *name, const char *in, const char *out, int flagged )
 {
-	tests( name, in, out, ADD_TUID, MINIMAL, flagged );
+	tests( name, in, out, ADD_TUID, MINIMAL, flagged, OK_HEADER );
+}
+
+static void
+mintests_ih( const char *name, const char *in, const char *out, int flagged )
+{
+	tests( name, in, out, ADD_TUID, MINIMAL, flagged, PARTIAL_HEADER );
 }
 
 #define FROM "From: de\rvil\r\n"
@@ -253,6 +273,34 @@ main( void )
 	mintests( "from / tuid / subject / to w/o crlf", in_from_tuid_subj_to_b3, out_from_tuid_subj_to, REGULAR );
 	scc in_from_tuid_to_subj_b3[] = FROM IN_TUID TO R_SUBJECT;
 	mintests( "from / tuid / to / subject w/o crlf", in_from_tuid_to_subj_b3, out_from_tuid_to_subj_b1, REGULAR );
+
+	scc in_to_b1[] = R_TO "\r";
+	fulltests_ih( "to w/o lf", in_to_b1, in_to_b1, AS_IS );
+	scc out_to_b1[] = TO OUT_TUID "\r";
+	fulltests_ih( "to w/o lf", in_to_b1, out_to_b1, ADD_TUID );
+	scc out_to_b1_ph[] = TO OUT_TUID NO_SUBJECT PH_BODY;
+	mintests_ih( "to w/o lf", in_to_b1, out_to_b1_ph, REGULAR );
+
+	scc in_to_b2[] = R_TO;
+	fulltests_ih( "to w/o crlf", in_to_b2, in_to_b2, AS_IS );
+	scc out_to_b2[] = TO OUT_TUID;
+	fulltests_ih( "to w/o crlf", in_to_b2, out_to_b2, ADD_TUID );
+	scc out_to_b2_ph[] = TO OUT_TUID NO_SUBJECT PH_BODY;
+	mintests_ih( "to w/o crlf", in_to_b2, out_to_b2_ph, REGULAR );
+
+	scc in_no_hdr[] = BODY;
+	fulltests( "no header", in_no_hdr, in_no_hdr, AS_IS );
+	scc out_no_hdr[] = OUT_TUID BODY;
+	fulltests( "no header", in_no_hdr, out_no_hdr, ADD_TUID );
+	scc out_no_hdr_ph[] = OUT_TUID NO_SUBJECT PH_BODY;
+	mintests( "no header", in_no_hdr, out_no_hdr_ph, REGULAR );
+
+	scc in_empty[] = "";
+	fulltests_ih( "empty", in_empty, in_empty, AS_IS );
+	scc out_empty[] = OUT_TUID;
+	fulltests_ih( "empty", in_empty, out_empty, ADD_TUID );
+	scc out_empty_ph[] = OUT_TUID NO_SUBJECT PH_BODY;
+	mintests_ih( "empty", in_empty, out_empty_ph, REGULAR );
 
 	return 0;
 }
