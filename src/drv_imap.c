@@ -3704,6 +3704,7 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep )
 		} else {
 			error( "%s:%d: keyword '%s' is not recognized in IMAPAccount sections\n",
 			       cfg->file, cfg->line, cfg->cmd );
+			cfg->rest = NULL;
 			cfg->err = 1;
 			continue;
 		}

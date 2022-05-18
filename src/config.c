@@ -475,6 +475,7 @@ load_config( const char *where )
 				} else if (!getopt_helper( &cfile, &cops, channel )) {
 					error( "%s:%d: keyword '%s' is not recognized in Channel sections\n",
 					       cfile.file, cfile.line, cfile.cmd );
+					cfile.rest = NULL;
 					cfile.err = 1;
 				}
 			}
@@ -522,6 +523,7 @@ load_config( const char *where )
 				} else {
 					error( "%s:%d: keyword '%s' is not recognized in Group sections\n",
 					       cfile.file, cfile.line, cfile.cmd );
+					cfile.rest = NULL;
 					cfile.err = 1;
 				}
 			}
@@ -550,6 +552,7 @@ load_config( const char *where )
 			error( "%s:%d: '%s' is not a recognized section-starting or global keyword\n",
 			       cfile.file, cfile.line, cfile.cmd );
 			cfile.err = 1;
+			cfile.rest = NULL;
 			while (getcline( &cfile ))
 				if (!cfile.cmd)
 					goto reloop;

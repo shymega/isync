@@ -77,6 +77,7 @@ parse_generic_store( store_conf_t *store, conffile_t *cfg, const char *type )
 		store->flat_delim = nfstrdup( cfg->val );
 	} else {
 		error( "%s:%d: keyword '%s' is not recognized in %s sections\n", cfg->file, cfg->line, cfg->cmd, type );
+		cfg->rest = NULL;
 		cfg->err = 1;
 	}
 }
