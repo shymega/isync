@@ -35,7 +35,7 @@ PACKAGE " " VERSION " - mailbox synchronizer\n"
 "  -l, --list		list mailboxes instead of syncing them\n"
 "  -ls, --list-stores	raw listing of stores' mailboxes\n"
 "  -n, --new		propagate new messages\n"
-"  -d, --delete		propagate message deletions\n"
+"  -g, --gone		propagate message disappearances (expunges)\n"
 "  -f, --flags		propagate message flag changes\n"
 "  -u, --upgrade		upgrade placeholders to full messages\n"
 "  -L, --pull		propagate from far to near side\n"
@@ -50,7 +50,7 @@ PACKAGE " " VERSION " - mailbox synchronizer\n"
 "  -v, --version		display version\n"
 "  -h, --help		display this help message\n"
 "\nIf neither --pull nor --push are specified, both are active.\n"
-"If neither --new, --delete, --flags, nor --upgrade are specified, all are\n"
+"If neither --new, --gone, --flags, nor --upgrade are specified, all are\n"
 "active. Direction and operation can be concatenated like --pull-new, etc.\n"
 "--create, --remove, and --expunge can be suffixed with -far/-near.\n"
 "See the man page for details.\n"
@@ -144,7 +144,7 @@ main( int argc, char **argv )
 {
 	core_vars_t mvars[1];
 	char *config = NULL, *opt, *ochar;
-	int oind, cops = 0, op, ms_warn = 0, renew_warn = 0;
+	int oind, cops = 0, op, ms_warn = 0, renew_warn = 0, delete_warn = 0;
 
 	tzset();
 	gethostname( Hostname, sizeof(Hostname) );
@@ -279,8 +279,11 @@ main( int argc, char **argv )
 					} else if (!strcmp( opt, "renew" )) {
 						renew_warn = 1;
 						op |= OP_UPGRADE;
+					} else if (!strcmp( opt, "gone" )) {
+						op |= OP_GONE;
 					} else if (!strcmp( opt, "delete" )) {
-						op |= OP_DELETE;
+						delete_warn = 1;
+						op |= OP_GONE;
 					} else if (!strcmp( opt, "flags" )) {
 						op |= OP_FLAGS;
 					} else {
@@ -352,6 +355,7 @@ main( int argc, char **argv )
 			break;
 		case 'n':
 		case 'd':
+		case 'g':
 		case 'f':
 		case 'N':
 		case 'u':
@@ -361,8 +365,10 @@ main( int argc, char **argv )
 			for (;; ochar++) {
 				if (*ochar == 'n')
 					op |= OP_NEW;
+				else if (*ochar == 'g')
+					op |= OP_GONE;
 				else if (*ochar == 'd')
-					op |= OP_DELETE;
+					op |= OP_GONE, delete_warn = 1;
 				else if (*ochar == 'f')
 					op |= OP_FLAGS;
 				else if (*ochar == 'u')
@@ -475,6 +481,8 @@ main( int argc, char **argv )
 		warn( "Notice: -master/-slave/m/s suffixes are deprecated; use -far/-near/f/n instead.\n" );
 	if (renew_warn)
 		warn( "Notice: --renew/-N are deprecated; use --upgrade/-u instead.\n" );
+	if (delete_warn)
+		warn( "Notice: --delete/-d are deprecated; use --gone/-g instead.\n" );
 
 	if (DFlags & DEBUG_ANY) {
 		Verbosity = VERBOSE;

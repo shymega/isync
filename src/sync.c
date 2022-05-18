@@ -752,7 +752,7 @@ box_opened2( sync_vars_t *svars, int t )
 			opts[t] |= OPEN_NEW | OPEN_FIND;
 			svars->state[t] |= ST_FIND_OLD;
 		}
-		if (chan->ops[t] & (OP_DELETE|OP_FLAGS)) {
+		if (chan->ops[t] & (OP_GONE | OP_FLAGS)) {
 			opts[t] |= OPEN_SETFLAGS;
 			opts[t^1] |= OPEN_OLD;
 			if (chan->ops[t] & OP_FLAGS)
@@ -1112,7 +1112,7 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 						     // ... except for undeletion, as that's the opposite.
 						     (!(srec->msg[t]->flags & F_DELETED) && (srec->flags & F_DELETED))))
 							notice( "Notice: conflicting changes in (%u,%u)\n", srec->uid[F], srec->uid[N] );
-						if (svars->chan->ops[t] & OP_DELETE) {
+						if (svars->chan->ops[t] & OP_GONE) {
 							debug( "  %sing delete\n", str_hl[t] );
 							srec->aflags[t] = F_DELETED;
 							srec->status |= S_DELETE;

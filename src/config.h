@@ -17,7 +17,7 @@ typedef struct {
 	int bufl;
 	int line;
 	int err;
-	int ms_warn, renew_warn;
+	int ms_warn, renew_warn, delete_warn;
 	int path_len;
 	char *cmd, *val, *rest;
 } conffile_t;

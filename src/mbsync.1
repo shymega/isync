@@ -61,11 +61,11 @@ Override any \fBRemove\fR options from the config file. See below.
 \fB-X\fR[\fBf\fR][\fBn\fR], \fB--expunge\fR[\fB-far\fR|\fB-near\fR]
 Override any \fBExpunge\fR options from the config file. See below.
 .TP
-{\fB-n\fR|\fB-u\fR|\fB-d\fR|\fB-f\fR|\fB-0\fR|\fB-F\fR},\
- {\fB--new\fR|\fB--upgrade\fR|\fB--delete\fR|\fB--flags\fR|\fB--noop\fR|\fB--full\fR}
+{\fB-n\fR|\fB-u\fR|\fB-g\fR|\fB-f\fR|\fB-0\fR|\fB-F\fR},\
+ {\fB--new\fR|\fB--upgrade\fR|\fB--gone\fR|\fB--flags\fR|\fB--noop\fR|\fB--full\fR}
 .TP
-\r{\fB-L\fR|\fB-H\fR}[\fBn\fR][\fBu\fR][\fBd\fR][\fBf\fR],\
- {\fB--pull\fR|\fB--push\fR}[\fB-new\fR|\fB-upgrade\fR|\fB-delete\fR|\fB-flags\fR]
+\r{\fB-L\fR|\fB-H\fR}[\fBn\fR][\fBu\fR][\fBg\fR][\fBf\fR],\
+ {\fB--pull\fR|\fB--push\fR}[\fB-new\fR|\fB-upgrade\fR|\fB-gone\fR|\fB-flags\fR]
 Override any \fBSync\fR options from the config file. See below.
 .TP
 \fB-h\fR, \fB--help\fR
@@ -574,7 +574,7 @@ case you need to enable this option.
 (Global default: \fBno\fR).
 .
 .TP
-\fBSync\fR {\fBNone\fR|[\fBPull\fR] [\fBPush\fR] [\fBNew\fR] [\fBUpgrade\fR] [\fBDelete\fR] [\fBFlags\fR]|\fBAll\fR}
+\fBSync\fR {\fBNone\fR|[\fBPull\fR] [\fBPush\fR] [\fBNew\fR] [\fBUpgrade\fR] [\fBGone\fR] [\fBFlags\fR]|\fBAll\fR}
 Select the synchronization operation(s) to perform:
 .br
 \fBPull\fR - propagate changes from far to near side.
@@ -586,7 +586,7 @@ Select the synchronization operation(s) to perform:
 \fBUpgrade\fR - upgrade placeholders to full messages. Useful only with
 a configured \fBMaxSize\fR.
 .br
-\fBDelete\fR - propagate message deletions. This applies only to messages that
+\fBGone\fR - propagate message disappearances. This applies only to messages that
 are actually gone, i.e., were expunged. The affected messages in the opposite
 Store are marked as deleted only, i.e., they won't be really deleted until
 that Store is expunged.
@@ -602,7 +602,7 @@ This is the global default.
 Useful if you want to expunge only.
 .IP
 \fBPull\fR and \fBPush\fR are direction flags, while \fBNew\fR, \fBUpgrade\fR,
-\fBDelete\fR and \fBFlags\fR are type flags. The two flag classes make up a
+\fBGone\fR and \fBFlags\fR are type flags. The two flag classes make up a
 two-dimensional matrix (a table). Its cells are the individual actions to
 perform. There are two styles of asserting the cells:
 .br
@@ -611,7 +611,7 @@ the cells which are selected both horizontally and vertically are asserted.
 Specifying no flags from a class is like specifying all flags from this class.
 For example, "\fBSync\fR\ \fBPull\fR\ \fBNew\fR\ \fBFlags\fR" will propagate
 new messages and flag changes from the far side to the near side,
-"\fBSync\fR\ \fBNew\fR\ \fBDelete\fR" will propagate message arrivals and
+"\fBSync\fR\ \fBNew\fR\ \fBGone\fR" will propagate message arrivals and
 deletions both ways, and "\fBSync\fR\ \fBPush\fR" will propagate all changes
 from the near side to the far side.
 .br
@@ -620,13 +620,13 @@ compound flag immediately asserts a cell in the matrix. In addition to at least
 one compound flag, the individual flags can be used as well, but as opposed to
 the first style, they immediately assert all cells in their respective
 row/column. For example,
-"\fBSync\fR\ \fBPullNew\fR\ \fBPullDelete\fR\ \fBPush\fR" will propagate
+"\fBSync\fR\ \fBPullNew\fR\ \fBPullGone\fR\ \fBPush\fR" will propagate
 message arrivals and deletions from the far side to the near side and any
 changes from the near side to the far side.
 .br
 Note that it is not allowed to assert a cell in two ways, e.g.
 "\fBSync\fR\ \fBPullNew\fR\ \fBPull\fR" and
-"\fBSync\fR\ \fBPullNew\fR\ \fBDelete\fR\ \fBPush\fR" induce error messages.
+"\fBSync\fR\ \fBPullNew\fR\ \fBGone\fR\ \fBPush\fR" induce error messages.
 .br
 \fBNone\fR may not be combined with any other operation.
 .
@@ -766,7 +766,7 @@ Make sure your IMAP server does not auto-expunge deleted messages - it is
 slow, and semantically somewhat questionable. Specifically, Gmail needs to
 be configured not to do it.
 .P
-By default, \fBmbsync\fR will not delete any messages - deletions are
+By default, \fBmbsync\fR will not delete any messages - expunges are
 propagated by marking the messages as deleted in the opposite Store.
 Once you have verified that your setup works, you will typically want to
 set \fBExpunge\fR to \fBBoth\fR, so that deletions become effective.

@@ -1051,7 +1051,7 @@ my @X05 = (
 );
 test("flags", \@x01, \@X05, \@O05);
 
-my @O06 = ("", "", "Sync Delete\n");
+my @O06 = ("", "", "Sync Gone\n");
 my @X06 = (
   I, 0, I,
   P, "", "/", "",
@@ -1059,7 +1059,7 @@ my @X06 = (
   Q, "", "<", "",
   I, "", "<", "+T",
 );
-test("deletions", \@x01, \@X06, \@O06);
+test("gone", \@x01, \@X06, \@O06);
 
 my @O07 = ("", "", "Sync New\n");
 my @X07 = (
@@ -1071,7 +1071,7 @@ my @X07 = (
 );
 test("new", \@x01, \@X07, \@O07);
 
-my @O08 = ("", "", "Sync PushFlags PullDelete\n");
+my @O08 = ("", "", "Sync PushFlags PullGone\n");
 my @X08 = (
   I, 0, I,
   P, "", "/", "",
@@ -1081,7 +1081,7 @@ my @X08 = (
   Q, "", "<", "",
   I, "", "<", "+T",
 );
-test("push flags + pull deletions", \@x01, \@X08, \@O08);
+test("push flags + pull gone", \@x01, \@X08, \@O08);
 
 my @O09 = ("", "", "Sync None\nExpunge Both\n");
 my @X09 = (

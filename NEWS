@@ -9,7 +9,8 @@ is now the file's containing directory.
 Placeholders will be now created for messages exceeding MaxSize even if
 they are flagged on the source side.
 
-Renamed the ReNew/--renew/-N options to Upgrade/--upgrade/-u.
+Renamed the ReNew/--renew/-N options to Upgrade/--upgrade/-u
+and Delete/--delete/-d to Gone/--gone/-g.
 
 MaxMessages and MaxSize can be used together now.
 

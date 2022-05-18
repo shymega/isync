@@ -198,8 +198,11 @@ getopt_helper( conffile_t *cfile, int *cops, channel_conf_t *conf )
 				*cops |= OP_UPGRADE;
 			} else if (!strcasecmp( "New", arg )) {
 				*cops |= OP_NEW;
+			} else if (!strcasecmp( "Gone", arg )) {
+				*cops |= OP_GONE;
 			} else if (!strcasecmp( "Delete", arg )) {
-				*cops |= OP_DELETE;
+				cfile->delete_warn = 1;
+				*cops |= OP_GONE;
 			} else if (!strcasecmp( "Flags", arg )) {
 				*cops |= OP_FLAGS;
 			} else if (!strcasecmp( "PullUpgrade", arg )) {
@@ -209,8 +212,11 @@ getopt_helper( conffile_t *cfile, int *cops, channel_conf_t *conf )
 				conf->ops[N] |= OP_UPGRADE;
 			} else if (!strcasecmp( "PullNew", arg )) {
 				conf->ops[N] |= OP_NEW;
+			} else if (!strcasecmp( "PullGone", arg )) {
+				conf->ops[N] |= OP_GONE;
 			} else if (!strcasecmp( "PullDelete", arg )) {
-				conf->ops[N] |= OP_DELETE;
+				cfile->delete_warn = 1;
+				conf->ops[N] |= OP_GONE;
 			} else if (!strcasecmp( "PullFlags", arg )) {
 				conf->ops[N] |= OP_FLAGS;
 			} else if (!strcasecmp( "PushUpgrade", arg )) {
@@ -220,8 +226,11 @@ getopt_helper( conffile_t *cfile, int *cops, channel_conf_t *conf )
 				conf->ops[F] |= OP_UPGRADE;
 			} else if (!strcasecmp( "PushNew", arg )) {
 				conf->ops[F] |= OP_NEW;
+			} else if (!strcasecmp( "PushGone", arg )) {
+				conf->ops[F] |= OP_GONE;
 			} else if (!strcasecmp( "PushDelete", arg )) {
-				conf->ops[F] |= OP_DELETE;
+				cfile->delete_warn = 1;
+				conf->ops[F] |= OP_GONE;
 			} else if (!strcasecmp( "PushFlags", arg )) {
 				conf->ops[F] |= OP_FLAGS;
 			} else if (!strcasecmp( "All", arg ) || !strcasecmp( "Full", arg )) {
@@ -345,7 +354,7 @@ merge_ops( int cops, int ops[], const char *chan_name )
 				if (cops & (XOP_PUSH | OP_MASK_TYPE)) {
 					// Mixing instant effect flags with row/column flags would be confusing,
 					// so instead everything is instant effect. This implies that mixing
-					// direction with type would cause overlaps, so PullNew Push Delete, etc.
+					// direction with type would cause overlaps, so PullNew Push Gone, etc.
 					// is invalid.
 					// Pull Push covers everything, so makes no sense to combine.
 				  ivl:
@@ -456,6 +465,7 @@ load_config( const char *where )
 	cfile.err = 0;
 	cfile.ms_warn = 0;
 	cfile.renew_warn = 0;
+	cfile.delete_warn = 0;
 	cfile.rest = NULL;
 
 	gcops = 0;
@@ -629,6 +639,8 @@ load_config( const char *where )
 		warn( "Notice: Master/Slave are deprecated; use Far/Near instead.\n" );
 	if (cfile.renew_warn)
 		warn( "Notice: ReNew is deprecated; use Upgrade instead.\n" );
+	if (cfile.delete_warn)
+		warn( "Notice: Delete is deprecated; use Gone instead.\n" );
 	cfile.err |= merge_ops( gcops, global_conf.ops, "" );
 	if (!global_conf.sync_state) {
 		const char *state_home = getenv( "XDG_STATE_HOME" );

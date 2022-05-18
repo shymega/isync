@@ -17,7 +17,7 @@
 BIT_ENUM(
 	OP_NEW,
 	OP_UPGRADE,
-	OP_DELETE,
+	OP_GONE,
 	OP_FLAGS,
 	OP_EXPUNGE,
 	OP_CREATE,
@@ -38,7 +38,7 @@ BIT_ENUM(
 	XOP_REMOVE_NOOP,
 )
 
-#define OP_MASK_TYPE (OP_NEW | OP_UPGRADE | OP_DELETE | OP_FLAGS)  // Asserted in the target side ops
+#define OP_MASK_TYPE (OP_NEW | OP_UPGRADE | OP_GONE | OP_FLAGS)  // Asserted in the target side ops
 #define XOP_MASK_DIR (XOP_PUSH | XOP_PULL)
 
 DECL_BIT_FORMATTER_FUNCTION(ops, OP)
