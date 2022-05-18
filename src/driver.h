@@ -31,6 +31,8 @@ typedef struct store_conf {
 	STORE_CONF
 } store_conf_t;
 
+extern store_conf_t *stores;
+
 /* For message->flags */
 // Keep the MESSAGE_FLAGS in sync (grep that)!
 /* The order is according to alphabetical maildir flag sort */

@@ -7,6 +7,8 @@
 
 #include "driver.h"
 
+store_conf_t *stores;
+
 driver_t *drivers[N_DRIVERS] = { &maildir_driver, &imap_driver };
 
 void

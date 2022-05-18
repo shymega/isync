@@ -20,8 +20,6 @@ char FieldDelimiter = ';';
 char FieldDelimiter = ':';
 #endif
 
-static store_conf_t *stores;
-
 char *
 expand_strdup( const char *s, const conffile_t *cfile )
 {

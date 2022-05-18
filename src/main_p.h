@@ -20,5 +20,6 @@ typedef struct {
 } core_vars_t;
 
 void sync_chans( core_vars_t *cvars, char **argv );
+void list_stores( core_vars_t *cvars, char **argv );
 
 #endif

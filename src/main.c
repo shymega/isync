@@ -33,6 +33,7 @@ PACKAGE " " VERSION " - mailbox synchronizer\n"
 " " EXE " [flags] {{channel[:box,...]|group} ...|-a}\n"
 "  -a, --all		operate on all defined channels\n"
 "  -l, --list		list mailboxes instead of syncing them\n"
+"  -ls, --list-stores	raw listing of stores' mailboxes\n"
 "  -n, --new		propagate new messages\n"
 "  -d, --delete		propagate message deletions\n"
 "  -f, --flags		propagate message flag changes\n"
@@ -173,6 +174,8 @@ main( int argc, char **argv )
 					mvars->all = 1;
 				} else if (!strcmp( opt, "list" )) {
 					mvars->list = 1;
+				} else if (!strcmp( opt, "list-stores" )) {
+					mvars->list_stores = 1;
 				} else if (!strcmp( opt, "help" )) {
 					usage( 0 );
 				} else if (!strcmp( opt, "version" )) {
@@ -295,7 +298,10 @@ main( int argc, char **argv )
 			mvars->all = 1;
 			break;
 		case 'l':
-			mvars->list = 1;
+			if (*ochar == 's')
+				mvars->list_stores = 1, ochar++;
+			else
+				mvars->list = 1;
 			break;
 		case 'c':
 			if (oind >= argc) {
@@ -468,6 +474,9 @@ main( int argc, char **argv )
 	if (load_config( config ))
 		return 1;
 
-	sync_chans( mvars, argv + oind );
+	if (mvars->list_stores)
+		list_stores( mvars, argv + oind );
+	else
+		sync_chans( mvars, argv + oind );
 	return mvars->ret;
 }

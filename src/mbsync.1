@@ -11,6 +11,8 @@ mbsync - synchronize IMAP4 and Maildir mailboxes
 .
 .SH SYNOPSIS
 \fBmbsync\fR [\fIoptions\fR ...] {{\fIchannel\fR[\fB:\fIbox\fR[{\fB,\fR|\fB\\n\fR}...]]|\fIgroup\fR} ...|\fB-a\fR}
+.br
+\fBmbsync\fR --list-stores [\fIoptions\fR ...] [\fIstore\fR} ...]
 .
 .SH DESCRIPTION
 \fBmbsync\fR is a command line application which synchronizes mailboxes;
@@ -42,6 +44,13 @@ command line are ignored.
 \fB-l\fR, \fB--list\fR
 Don't synchronize anything, but list all mailboxes in the selected Channels
 and exit.
+.TP
+\fB-ls\fR, \fB--list-stores\fR
+Don't synchronize anything, but list all mailboxes in the selected Stores
+and exit.
+If no Stores are specified, all configured ones are listed.
+These are raw Store contents, not filtered by any Channel's \fBPatterns\fR.
+This option may be used to verify each Store's configuration.
 .TP
 \fB-C\fR[\fBf\fR][\fBn\fR], \fB--create\fR[\fB-far\fR|\fB-near\fR]
 Override any \fBCreate\fR options from the config file. See below.
