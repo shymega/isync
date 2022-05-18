@@ -2577,9 +2577,9 @@ imap_open_store_authenticate2( imap_store_t *ctx )
 			if (any || !strcasecmp( mech->string, cmech->string )) {
 				if (!strcasecmp( cmech->string, "LOGIN" )) {
 #ifdef HAVE_LIBSSL
-					if (ctx->conn.ssl || !any)
+					if (ctx->conn.ssl || ctx->conn.conf->tunnel || !any)
 #else
-					if (!any)
+					if (ctx->conn.conf->tunnel || !any)
 #endif
 						auth_login = 1;
 					else
@@ -2680,7 +2680,7 @@ imap_open_store_authenticate2( imap_store_t *ctx )
 		if (!ensure_user( srvc ) || !ensure_password( srvc ))
 			goto bail;
 #ifdef HAVE_LIBSSL
-		if (!ctx->conn.ssl)
+		if (!ctx->conn.ssl && !ctx->conn.conf->tunnel)
 #endif
 			warn( "*** IMAP Warning *** Password is being sent in the clear\n" );
 		ctx->caps = 0;
