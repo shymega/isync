@@ -8,6 +8,8 @@ is now the file's containing directory.
 
 The unfiltered list of mailboxes in each Store can be printed now.
 
+A proper summary is now printed prior to exiting.
+
 [1.4.0]
 
 The 'isync' compatibility wrapper was removed.

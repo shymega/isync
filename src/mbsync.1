@@ -102,7 +102,7 @@ Without category specification, all categories except net-all are enabled.
 .TP
 \fB-q\fR, \fB--quiet\fR
 Suppress progress counters (this is implicit if stdout is no TTY,
-or any debugging categories are enabled) and notices.
+or any debugging categories are enabled), notices, and the summary.
 If specified twice, suppress warning messages as well.
 .
 .SH CONFIGURATION
@@ -754,6 +754,9 @@ The message counts represent added messages, messages with updated flags,
 and trashed messages, respectively.
 No attempt is made to calculate the totals in advance, so they grow over
 time as more information is gathered.
+.P
+Irrespective of output redirection, \fBmbsync\fR will print a summary
+of the above in plain language upon completion, except in quiet mode.
 .
 .SH RECOMMENDATIONS
 Make sure your IMAP server does not auto-expunge deleted messages - it is

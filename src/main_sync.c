@@ -9,6 +9,7 @@
 
 #define nz(a, b) ((a) ? (a) : (b))
 
+static int ops_any[2], trash_any[2];
 static int chans_total, chans_done;
 static int boxes_total, boxes_done;
 
@@ -35,6 +36,27 @@ stats( void )
 			buf[t][cls - 1] = '~';
 	}
 	progress( "\r%s  F: %.*s  N: %.*s", buf[2], cls, buf[0], cls, buf[1] );
+}
+
+static void
+summary( void )
+{
+	if (Verbosity < TERSE)
+		return;
+
+	if (!boxes_done)
+		return;  // Shut up if we errored out early.
+
+	printf( "Processed %d box(es) in %d channel(s)", boxes_done, chans_done );
+	for (int t = 2; --t >= 0; ) {
+		if (ops_any[t])
+			printf( ",\n%sed %d new message(s) and %d flag update(s)",
+			        str_hl[t], new_done[t], flags_done[t] );
+		if (trash_any[t])
+			printf( ",\nmoved %d %s message(s) to trash",
+			        trash_done[t], str_fn[t] );
+	}
+	puts( "." );
 }
 
 static int
@@ -164,6 +186,15 @@ add_channel( chan_ent_t ***chanapp, channel_conf_t *chan, int ops[] )
 	merge_actions( chan, ops, XOP_HAVE_CREATE, OP_CREATE, 0 );
 	merge_actions( chan, ops, XOP_HAVE_REMOVE, OP_REMOVE, 0 );
 	merge_actions( chan, ops, XOP_HAVE_EXPUNGE, OP_EXPUNGE, 0 );
+
+	for (int t = 0; t < 2; t++) {
+		if (chan->ops[t] & OP_MASK_TYPE)
+			ops_any[t] = 1;
+		if ((chan->ops[t] & OP_EXPUNGE) &&
+		    (chan->stores[t]->trash ||
+		     (chan->stores[t^1]->trash && chan->stores[t^1]->trash_remote_new)))
+			trash_any[t] = 1;
+	}
 
 	**chanapp = ce;
 	*chanapp = &ce->next;
@@ -296,8 +327,10 @@ sync_chans( core_vars_t *cvars, char **argv )
 		stats();
 	do_sync_chans( mvars );
 	main_loop();
-	if (!cvars->list)
+	if (!cvars->list) {
 		flushn();
+		summary();
+	}
 }
 
 enum {

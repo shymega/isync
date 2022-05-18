@@ -22,7 +22,7 @@ int Pid;
 char Hostname[256];
 const char *Home;
 
-static int need_nl;
+static int need_nl, need_del;
 
 void
 flushn( void )
@@ -31,6 +31,16 @@ flushn( void )
 		putchar( '\n' );
 		fflush( stdout );
 		need_nl = 0;
+	} else if (need_del) {
+		static const char delstr[] =
+		        "                                                            "
+		        "                                                            ";
+		if (need_del > (int)sizeof(delstr) - 1)
+			need_del = (int)sizeof(delstr) - 1;
+		// We could use ^[[K instead, but we assume a dumb terminal.
+		printf( "\r%.*s\r", need_del, delstr );
+		fflush( stdout );
+		need_del = 0;
 	}
 }
 
@@ -75,10 +85,9 @@ progress( const char *msg, ... )
 	va_list va;
 
 	va_start( va, msg );
-	vprintf( msg, va );
+	need_del = vprintf( msg, va ) - 1;
 	va_end( va );
 	fflush( stdout );
-	need_nl = 1;
 }
 
 static void ATTR_PRINTFLIKE(1, 0)
