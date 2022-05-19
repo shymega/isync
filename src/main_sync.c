@@ -13,15 +13,16 @@ static int ops_any[2], trash_any[2];
 static int chans_total, chans_done;
 static int boxes_total, boxes_done;
 
-void
-stats( void )
+static int stats_steps;
+static int64_t stats_stamp;
+static wakeup_t stats_wakeup;
+
+static void
+print_stats( void )
 {
 	char buf[3][64];
 	char *cs;
 	static int cols = -1;
-
-	if (!(DFlags & PROGRESS))
-		return;
 
 	if (cols < 0 && (!(cs = getenv( "COLUMNS" )) || !(cols = atoi( cs ))))
 		cols = 80;
@@ -36,6 +37,37 @@ stats( void )
 			buf[t][cls - 1] = '~';
 	}
 	progress( "\r%s  F: %.*s  N: %.*s", buf[2], cls, buf[0], cls, buf[1] );
+}
+
+static void
+stats_timeout( void *aux ATTR_UNUSED )
+{
+	stats_steps = -1;
+	conf_wakeup( &stats_wakeup, 200 );
+	print_stats();
+}
+
+void
+stats( void )
+{
+	if (!(DFlags & PROGRESS))
+		return;
+
+	// If the main loop appears to be running, skip the sync path.
+	if (stats_steps < 0)
+		return;
+
+	// Rate-limit the (somewhat) expensive timer queries.
+	if (++stats_steps < 10)
+		return;
+	stats_steps = 0;
+
+	int64_t now = get_now();
+	if (now < stats_stamp + 300)
+		return;
+	stats_stamp = now;
+
+	print_stats();
 }
 
 static void
@@ -339,8 +371,10 @@ sync_chans( core_vars_t *cvars, char **argv )
 	}
 	mvars->chanptr = chans;
 
-	if (!cvars->list)
-		stats();
+	if (!cvars->list && (DFlags & PROGRESS)) {
+		init_wakeup( &stats_wakeup, stats_timeout, NULL );
+		stats_timeout( NULL );
+	}
 	do_sync_chans( mvars );
 	main_loop();
 	if (!cvars->list) {
@@ -398,6 +432,7 @@ static void
 do_sync_chans( main_vars_t *mvars )
 {
 	while (mvars->chanptr) {
+		stats_steps = 0;  // Determine main loop use afresh
 		mvars->chan = mvars->chanptr->conf;
 		info( "Channel %s\n", mvars->chan->name );
 		for (int t = 0; t < 2; t++) {
@@ -445,6 +480,8 @@ do_sync_chans( main_vars_t *mvars )
 		advance_chan( mvars );
 	}
 	cleanup_drivers();
+	if (!mvars->cvars->list && (DFlags & PROGRESS))
+		wipe_wakeup( &stats_wakeup );
 }
 
 static void
