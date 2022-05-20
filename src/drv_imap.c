@@ -1839,6 +1839,11 @@ imap_free_store( store_t *gctx )
 
 	assert( !ctx->pending && !ctx->in_progress && !ctx->wait_check );
 
+	if (ctx->state == SST_BAD) {
+		imap_cancel_store( gctx );
+		return;
+	}
+
 	free_generic_messages( &ctx->msgs->gen );
 	ctx->msgs = NULL;
 	imap_set_bad_callback( gctx, imap_cancel_unowned, gctx );
@@ -1858,12 +1863,8 @@ imap_cleanup( void )
 	for (ctx = unowned; ctx; ctx = nctx) {
 		nctx = ctx->next;
 		imap_set_bad_callback( &ctx->gen, (void (*)(void *))imap_cancel_store, ctx );
-		if (ctx->state != SST_BAD) {
-			ctx->expectBYE = 1;
-			imap_exec( ctx, NULL, imap_cleanup_p2, "LOGOUT" );
-		} else {
-			imap_cancel_store( &ctx->gen );
-		}
+		ctx->expectBYE = 1;
+		imap_exec( ctx, NULL, imap_cleanup_p2, "LOGOUT" );
 	}
 }
 
@@ -1924,7 +1925,7 @@ imap_alloc_store( store_conf_t *conf, const char *label )
 
 	/* Then try to recycle a server connection. */
 	for (ctxp = &unowned; (ctx = *ctxp); ctxp = &ctx->next)
-		if (ctx->state != SST_BAD && ctx->conf->server == srvc) {
+		if (ctx->conf->server == srvc) {
 			*ctxp = ctx->next;
 			free_string_list( ctx->boxes );
 			ctx->boxes = NULL;
