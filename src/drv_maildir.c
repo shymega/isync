@@ -1841,7 +1841,7 @@ maildir_close_box( store_t *gctx,
 			cb( DRV_OK, aux );
 			return;
 		}
-		if ((ret = maildir_rescan( (maildir_store_t *)gctx )) != DRV_OK) {
+		if ((ret = maildir_rescan( ctx )) != DRV_OK) {
 			cb( ret, aux );
 			return;
 		}

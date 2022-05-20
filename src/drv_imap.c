@@ -1858,9 +1858,9 @@ imap_cleanup( void )
 	for (ctx = unowned; ctx; ctx = nctx) {
 		nctx = ctx->next;
 		imap_set_bad_callback( &ctx->gen, (void (*)(void *))imap_cancel_store, ctx );
-		if (((imap_store_t *)ctx)->state != SST_BAD) {
-			((imap_store_t *)ctx)->expectBYE = 1;
-			imap_exec( (imap_store_t *)ctx, NULL, imap_cleanup_p2, "LOGOUT" );
+		if (ctx->state != SST_BAD) {
+			ctx->expectBYE = 1;
+			imap_exec( ctx, NULL, imap_cleanup_p2, "LOGOUT" );
 		} else {
 			imap_cancel_store( &ctx->gen );
 		}
@@ -3289,7 +3289,7 @@ imap_find_new_msgs( store_t *gctx, uint newuid,
 	cmd->out_msgs = ctx->msgapp;
 	cmd->uid = newuid;
 	// Some servers fail to enumerate recently STOREd messages without syncing first.
-	imap_exec( (imap_store_t *)ctx, &cmd->gen, imap_find_new_msgs_p2, "CHECK" );
+	imap_exec( ctx, &cmd->gen, imap_find_new_msgs_p2, "CHECK" );
 }
 
 static void
@@ -3342,7 +3342,7 @@ imap_find_new_msgs_p3( imap_store_t *ctx, imap_cmd_t *gcmd, int response )
 	ctx->fetch_sts = FetchMsgs;
 	INIT_IMAP_CMD(imap_cmd_find_new_t, cmd, cmdp->callback, cmdp->callback_aux)
 	cmd->out_msgs = cmdp->out_msgs;
-	imap_exec( (imap_store_t *)ctx, &cmd->gen, imap_find_new_msgs_p4,
+	imap_exec( ctx, &cmd->gen, imap_find_new_msgs_p4,
 	           "UID FETCH %u:%u (UID BODY.PEEK[HEADER.FIELDS (X-TUID)])", cmdp->uid, ctx->uidnext - 1 );
 }
 
