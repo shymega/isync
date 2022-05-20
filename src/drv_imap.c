@@ -126,6 +126,7 @@ union imap_store {
 		enum { FetchNone, FetchMsgs, FetchUidNext } fetch_sts;
 		uint got_namespace:1;
 		uint has_forwarded:1;
+		uint capability_hack:1;
 		char delimiter[2];  // Hierarchy delimiter
 		char *ns_prefix, ns_delimiter;  // NAMESPACE info
 		string_list_t *boxes;  // _list results
@@ -1311,6 +1312,8 @@ parse_response_code( imap_store_t *ctx, imap_cmd_t *cmd, char *s )
 		}
 		*p = 0;
 		parse_capability( ctx, s );
+		if (strstr( p + 1, "mac.com IMAP4 service (Oracle Communications Messaging Server" ))
+			ctx->capability_hack = 1;
 	} else if (!strcmp( "ALERT]", arg )) {
 		/* RFC2060 says that these messages MUST be displayed
 		 * to the user
@@ -2519,7 +2522,13 @@ imap_open_store_authenticate2_p2( imap_store_t *ctx, imap_cmd_t *cmd ATTR_UNUSED
 	if (response == RESP_NO) {
 		imap_open_store_bail( ctx, FAIL_FINAL );
 	} else if (response == RESP_OK) {
-		if (!ctx->caps)
+		// iCloud (imap.mail.me.com) apparently runs the real server behind a
+		// proxy that injects XAPPLEPUSHSERVICE into (and deletes STARTTLS from)
+		// the server's outgoing data stream following occurrences of CAPABILITY.
+		// This process is rather indiscriminate, so it will mess up IMAP
+		// literals if it is not deactivated in time by issuing a (redundant)
+		// CAPABILITY command after logging in.
+		if (!ctx->caps || ctx->capability_hack)
 			imap_exec( ctx, NULL, imap_open_store_authenticate2_p3, "CAPABILITY" );
 		else
 			imap_open_store_compress( ctx );
