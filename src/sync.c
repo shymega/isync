@@ -604,10 +604,8 @@ static void cancel_done( void *aux );
 static void
 cancel_sync( sync_vars_t *svars )
 {
-	int t;
-
-	for (t = 0; t < 2; t++) {
-		int other_state = svars->state[1-t];
+	int state1 = svars->state[1];
+	for (int t = 0; ; t++) {
 		if (svars->ret & SYNC_BAD(t)) {
 			cancel_done( AUX );
 		} else if (!(svars->state[t] & ST_SENT_CANCEL)) {
@@ -615,7 +613,7 @@ cancel_sync( sync_vars_t *svars )
 			svars->state[t] |= ST_SENT_CANCEL;
 			svars->drv[t]->cancel_cmds( svars->ctx[t], cancel_done, AUX );
 		}
-		if (other_state & ST_CANCELED)
+		if (t || (state1 & ST_CANCELED))
 			break;
 	}
 }
