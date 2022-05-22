@@ -45,11 +45,26 @@ prepare_state( sync_vars_t *svars )
 		if (chan->sync_state) {
 			nfasprintf( &svars->dname, "%s%s", chan->sync_state, cnname );
 		} else {
+			char *dname, *dname2;
 			char c = FieldDelimiter;
 			char *cfname = clean_strdup( svars->box_name[F] );
-			nfasprintf( &svars->dname, "%s%c%s%c%s_%c%s%c%s", global_conf.sync_state,
+			nfasprintf( &dname, "%s%s%c%s_%s%c%s", global_conf.sync_state,
+			            chan->stores[F]->name, c, cfname, chan->stores[N]->name, c, cnname );
+			nfasprintf( &dname2, "%s%c%s%c%s_%c%s%c%s", global_conf.sync_state,
 			            c, chan->stores[F]->name, c, cfname, c, chan->stores[N]->name, c, cnname );
 			free( cfname );
+			struct stat st;
+			int ex = !lstat( dname, &st );
+			int ex2 = !lstat( dname2, &st );
+			if (ex2 && !ex) {
+				svars->dname = dname2;
+				free( dname );
+			} else {
+				if (ex && ex2)
+					warn( "Warning: both %s and %s exist; using the former.\n", dname, dname2 );
+				svars->dname = dname;
+				free( dname2 );
+			}
 		}
 		free( cnname );
 		char *s;
