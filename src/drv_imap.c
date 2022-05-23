@@ -286,6 +286,8 @@ enum CAPABILITY {
 	LITERALMINUS,
 	MOVE,
 	NAMESPACE,
+	UTF8_ACCEPT,
+	UTF8_ONLY,
 	COMPRESS_DEFLATE
 };
 
@@ -306,6 +308,8 @@ static const struct {
 	{ "LITERAL-", 8 },
 	{ "MOVE", 4 },
 	{ "NAMESPACE", 9 },
+	{ "UTF8=ACCEPT", 11 },
+	{ "UTF8=ONLY", 9 },
 	{ "COMPRESS=DEFLATE", 16 },
 };
 
@@ -2090,6 +2094,8 @@ static void imap_open_store_compress( imap_store_t * );
 #ifdef HAVE_LIBZ
 static void imap_open_store_compress_p2( imap_store_t *, imap_cmd_t *, int );
 #endif
+static void imap_open_store_enable_utf8( imap_store_t * );
+static void imap_open_store_enable_utf8_p2( imap_store_t *, imap_cmd_t *, int );
 static void imap_open_store_namespace( imap_store_t * );
 static void imap_open_store_namespace_p2( imap_store_t *, imap_cmd_t *, int );
 static void imap_open_store_namespace2( imap_store_t * );
@@ -2737,7 +2743,7 @@ imap_open_store_compress( imap_store_t *ctx )
 		return;
 	}
 #endif
-	imap_open_store_namespace( ctx );
+	imap_open_store_enable_utf8( ctx );
 }
 
 #ifdef HAVE_LIBZ
@@ -2746,13 +2752,34 @@ imap_open_store_compress_p2( imap_store_t *ctx, imap_cmd_t *cmd ATTR_UNUSED, int
 {
 	if (response == RESP_NO) {
 		/* We already reported an error, but it's not fatal to us. */
-		imap_open_store_namespace( ctx );
+		imap_open_store_enable_utf8( ctx );
 	} else if (response == RESP_OK) {
 		socket_start_deflate( &ctx->conn );
-		imap_open_store_namespace( ctx );
+		imap_open_store_enable_utf8( ctx );
 	}
 }
 #endif
+
+static void
+imap_open_store_enable_utf8( imap_store_t *ctx )
+{
+	if (CAP(UTF8_ACCEPT) || CAP(UTF8_ONLY)) {
+		// We just assume that a server that announces UTF8= also supports ENABLE.
+		imap_exec( ctx, NULL, imap_open_store_enable_utf8_p2, "ENABLE UTF8=ACCEPT" );
+	} else {
+		imap_open_store_namespace( ctx );
+	}
+}
+
+static void
+imap_open_store_enable_utf8_p2( imap_store_t *ctx, imap_cmd_t *cmd ATTR_UNUSED, int response )
+{
+	if (response == RESP_NO) {
+		imap_open_store_bail( ctx, FAIL_FINAL );
+	} else if (response == RESP_OK) {
+		imap_open_store_namespace( ctx );
+	}
+}
 
 static void
 imap_open_store_namespace( imap_store_t *ctx )

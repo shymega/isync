@@ -19,6 +19,8 @@ Made the Channel side to expire with MaxMessages configurable.
 
 MaxMessages and MaxSize can be used together now.
 
+Added support for IMAP mailbox names with non-ASCII characters.
+
 The unfiltered list of mailboxes in each Store can be printed now.
 
 A proper summary is now printed prior to exiting.
