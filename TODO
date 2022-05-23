@@ -6,8 +6,6 @@ automatically resume upon transient errors, e.g. "connection reset by peer"
 or timeout after some data was already transmitted.
 possibly also try to handle Exchange's "glitches" somehow.
 
-add support for IMAP UTF-7 (for internationalized mailbox names).
-
 uidvalidity lock timeout handling would be a good idea.
 
 should complain when multiple Channels match the same folders.

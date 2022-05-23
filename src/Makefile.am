@@ -5,7 +5,7 @@
 mbsync_SOURCES = \
 	util.c config.c socket.c \
 	driver.c drv_proxy.c \
-	drv_imap.c imap_msgs.c \
+	drv_imap.c imap_msgs.c imap_utf7.c \
 	drv_maildir.c \
 	sync.c sync_state.c sync_msg_cvt.c \
 	main.c main_sync.c main_list.c
@@ -54,10 +54,12 @@ man_MANS = mbsync.1 $(mdconvert_man)
 
 tst_imap_msgs_SOURCES = tst_imap_msgs.c imap_msgs.c util.c
 
+tst_imap_utf7_SOURCES = tst_imap_utf7.c imap_utf7.c util.c
+
 tst_msg_cvt_SOURCES = tst_msg_cvt.c sync_msg_cvt.c util.c
 tst_msg_cvt_CFLAGS = -DQPRINTF_BUFF=10000
 
-check_PROGRAMS = tst_imap_msgs tst_msg_cvt
+check_PROGRAMS = tst_imap_msgs tst_imap_utf7 tst_msg_cvt
 TESTS = $(check_PROGRAMS)
 
 tst_timers_SOURCES = tst_timers.c util.c

@@ -10,6 +10,7 @@
 #include "driver.h"
 
 //#define DEBUG_IMAP_MSGS
+//#define DEBUG_IMAP_UTF7
 
 typedef union imap_message {
 	message_t gen;
@@ -44,5 +45,8 @@ imap_message_t *imap_expunge_msg( imap_messages_t *msgs, uint fseq );
 void reset_imap_messages( imap_messages_t *msgs );
 void imap_ensure_relative( imap_messages_t *msgs );
 void imap_ensure_absolute( imap_messages_t *msgs );
+
+char *imap_utf8_to_utf7( const char *buf );
+int imap_utf7_to_utf8( const char *buf, int argl, char *outbuf );
 
 #endif

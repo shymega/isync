@@ -1577,6 +1577,7 @@ list3_rsp_atom( imap_store_t *ctx, char *arg, uint len, int type ATTR_UNUSED )
 	string_list_t *narg;
 	int argl = (int)len;
 	uint l;
+	char rarg[1130];  // See imap_utf7_to_utf8() for the origin of that number
 
 	if (!arg)
 		return LIST_BAD;
@@ -1608,6 +1609,16 @@ list3_rsp_atom( imap_store_t *ctx, char *arg, uint len, int type ATTR_UNUSED )
 	}
 	if (argl >= 5 && !memcmp( arg + argl - 5, ".lock", 5 )) /* workaround broken servers */
 		return LIST_OK;
+	if (!(CAP(UTF8_ACCEPT) || CAP(UTF8_ONLY))) {
+		int rargl = imap_utf7_to_utf8( arg, argl, rarg );
+		if (rargl < 0) {
+			error( "IMAP error: invalid modified-UTF-7 string '%.*s'.\n", argl, arg );
+			return LIST_BAD;
+		}
+		assert( (uint)rargl < sizeof(rarg) );
+		arg = rarg;
+		argl = rargl;
+	}
 	if (map_name( arg, argl, (char **)&narg, offsetof(string_list_t, string), ctx->delimiter, "/") < 0) {
 		warn( "IMAP warning: ignoring mailbox %.*s (reserved character '/' in name)\n", argl, arg );
 		return LIST_OK;
@@ -1665,6 +1676,16 @@ prepare_name( char **buf, const imap_store_t *ctx, const char *prefix, const cha
 		return -1;
 	default:
 		memcpy( *buf, prefix, pl );
+		if (!(CAP(UTF8_ACCEPT) || CAP(UTF8_ONLY))) {
+			char *nbuf = imap_utf8_to_utf7( *buf );
+			if (!nbuf) {
+				error( "IMAP error: invalid UTF-8 string '%s'\n", *buf );
+				free( *buf );
+				return -1;
+			}
+			free( *buf );
+			*buf = nbuf;
+		}
 		return 0;
 	}
 }
