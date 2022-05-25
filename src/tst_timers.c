@@ -1,6 +1,6 @@
 /*
  * mbsync - mailbox synchronizer
- * Copyright (C) 2014 Oswald Buddenhagen <ossi@users.sf.net>
+ * Copyright (C) 2014-2022 Oswald Buddenhagen <ossi@users.sf.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
