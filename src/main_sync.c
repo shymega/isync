@@ -159,8 +159,12 @@ filter_boxes( string_list_t *boxes, const char *prefix, string_list_t *patterns 
 
 	uint pfxl = prefix ? strlen( prefix ) : 0;
 	for (; boxes; boxes = boxes->next) {
-		if (!starts_with( boxes->string, -1, prefix, pfxl ))
-			continue;
+		const char *box = boxes->string;
+		if (!is_inbox( box )) {
+			if (!starts_with( box, -1, prefix, pfxl ))
+				continue;
+			box += pfxl;
+		}
 		uint fnot = 1, not;
 		for (string_list_t *cpat = patterns; cpat; cpat = cpat->next) {
 			const char *ps = cpat->string;
@@ -170,7 +174,7 @@ filter_boxes( string_list_t *boxes, const char *prefix, string_list_t *patterns 
 			} else {
 				not = 0;
 			}
-			if (matches( boxes->string + pfxl, ps )) {
+			if (matches( box, ps )) {
 				fnot = not;
 				break;
 			}
@@ -178,7 +182,7 @@ filter_boxes( string_list_t *boxes, const char *prefix, string_list_t *patterns 
 		if (!fnot) {
 			if (num + 1 >= rnum)
 				boxarr = nfrealloc( boxarr, (rnum = (rnum + 10) * 2) * sizeof(*boxarr) );
-			boxarr[num++] = nfstrdup( boxes->string + pfxl );
+			boxarr[num++] = nfstrdup( box );
 			boxarr[num] = NULL;
 		}
 	}
@@ -523,13 +527,11 @@ store_connected( int sts, void *aux )
 			for (string_list_t *cpat = mvars->chan->patterns; cpat; cpat = cpat->next) {
 				const char *pat = cpat->string;
 				if (*pat != '!') {
-					char buf[8];
-					int bufl = snprintf( buf, sizeof(buf), "%s%s", nz( mvars->chan->boxes[t], "" ), pat );
 					int flags = 0;
 					// Partial matches like "INB*" or even "*" are not considered,
 					// except implicity when the INBOX lives under Path.
-					if (starts_with( buf, bufl, "INBOX", 5 )) {
-						char c = buf[5];
+					if (starts_with( pat, -1, "INBOX", 5 )) {
+						char c = pat[5];
 						if (!c) {
 							// User really wants the INBOX.
 							flags |= LIST_INBOX;
@@ -549,8 +551,8 @@ store_connected( int sts, void *aux )
 					} else {
 						flags |= LIST_PATH;
 					}
-					debug( "pattern '%s' (effective '%s'): %sPath, %sINBOX\n",
-					       pat, buf, (flags & LIST_PATH) ? "" : "no ",  (flags & LIST_INBOX) ? "" : "no ");
+					debug( "pattern '%s': %sPath, %sINBOX\n",
+					       pat, (flags & LIST_PATH) ? "" : "no ",  (flags & LIST_INBOX) ? "" : "no ");
 					cflags |= flags;
 				}
 			}
@@ -675,7 +677,7 @@ do_sync_boxes( main_vars_t *mvars )
 				break;
 			mvars->boxptr = mbox->next;
 			mvars->box_done = 0;
-			if (mvars->chan->boxes[F] || mvars->chan->boxes[N]) {
+			if ((mvars->chan->boxes[F] || mvars->chan->boxes[N]) && !is_inbox( mbox->name )) {
 				const char *fpfx = nz( mvars->chan->boxes[F], "" );
 				const char *npfx = nz( mvars->chan->boxes[N], "" );
 				if (mvars->cvars->list) {
