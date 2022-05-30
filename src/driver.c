@@ -55,15 +55,6 @@ fmt_lone_flags( uchar flags )
 	return buf;
 }
 
-uint
-count_generic_messages( message_t *msgs )
-{
-	uint count = 0;
-	for (; msgs; msgs = msgs->next)
-		count++;
-	return count;
-}
-
 void
 free_generic_messages( message_t *msgs )
 {

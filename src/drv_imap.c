@@ -113,6 +113,7 @@ union imap_store {
 		int total_msgs, recent_msgs;
 		uint uidvalidity, uidnext;
 		imap_message_t **msgapp, *msgs;  // FETCH results
+		uint msgcnt;
 		uint caps;  // CAPABILITY results
 		string_list_t *auth_mechs;
 		parse_list_state_t parse_list_sts;
@@ -1208,6 +1209,7 @@ parse_fetch_rsp( imap_store_t *ctx, list_t *list, char *s ATTR_UNUSED )
 		cur = nfzalloc( sizeof(*cur) );
 		*ctx->msgapp = cur;
 		ctx->msgapp = &cur->next;
+		ctx->msgcnt++;
 		cur->uid = uid;
 		cur->flags = mask;
 		cur->status = status;
@@ -2631,6 +2633,7 @@ imap_select_box( store_t *gctx, const char *name )
 	free_generic_messages( &ctx->msgs->gen );
 	ctx->msgs = NULL;
 	ctx->msgapp = &ctx->msgs;
+	ctx->msgcnt = 0;
 
 	ctx->name = name;
 	return DRV_OK;
@@ -2935,7 +2938,7 @@ imap_sort_msgs_comp( const void *a_, const void *b_ )
 static void
 imap_sort_msgs( imap_store_t *ctx )
 {
-	uint count = count_generic_messages( &ctx->msgs->gen );
+	uint count = ctx->msgcnt;
 	if (count <= 1)
 		return;
 
