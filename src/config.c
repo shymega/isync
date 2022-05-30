@@ -11,6 +11,8 @@
 
 #include <pwd.h>
 #include <ctype.h>
+#include <errno.h>
+#include <sys/stat.h>
 
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__) || defined(__CYGWIN__)
 char FieldDelimiter = ';';
@@ -348,12 +350,26 @@ load_config( const char *where )
 	char *arg, *p;
 	uint len, max_size;
 	int cops, gcops, glob_ok, fn, i;
-	char path[_POSIX_PATH_MAX];
+	char path[_POSIX_PATH_MAX], path2[_POSIX_PATH_MAX];
 	char buf[1024];
 
 	if (!where) {
-		nfsnprintf( path, sizeof(path), "%s/." EXE "rc", Home );
-		cfile.file = path;
+		const char *config_home = getenv( "XDG_CONFIG_HOME" );
+		if (config_home)
+			nfsnprintf( path, sizeof(path), "%s/isyncrc", config_home );
+		else
+			nfsnprintf( path, sizeof(path), "%s/.config/isyncrc", Home );
+		nfsnprintf( path2, sizeof(path2), "%s/.mbsyncrc", Home );
+		struct stat st;
+		int ex = !lstat( path, &st );
+		int ex2 = !lstat( path2, &st );
+		if (ex2 && !ex) {
+			cfile.file = path2;
+		} else {
+			if (ex && ex2)
+				warn( "Both %s and %s exist; using the former.\n", path, path2 );
+			cfile.file = path;
+		}
 	} else {
 		cfile.file = where;
 	}
@@ -538,7 +554,25 @@ load_config( const char *where )
 	if (cfile.ms_warn)
 		warn( "Notice: Master/Slave are deprecated; use Far/Near instead.\n" );
 	cfile.err |= merge_ops( gcops, global_conf.ops );
-	if (!global_conf.sync_state)
-		global_conf.sync_state = expand_strdup( "~/." EXE "/" );
+	if (!global_conf.sync_state) {
+		const char *state_home = getenv( "XDG_STATE_HOME" );
+		if (state_home)
+			nfsnprintf( path, sizeof(path), "%s/isync/", state_home );
+		else
+			nfsnprintf( path, sizeof(path), "%s/.local/state/isync/", Home );
+		nfsnprintf( path2, sizeof(path2), "%s/.mbsync/", Home );
+		struct stat st;
+		int ex = !lstat( path, &st );
+		int ex2 = !lstat( path2, &st );
+		if (ex2 && !ex) {
+			global_conf.sync_state = nfstrdup( path2 );
+		} else {
+			if (ex && ex2) {
+				error( "Error: both %s and %s exist; delete one or set SyncState globally.\n", path, path2 );
+				cfile.err = 1;
+			}
+			global_conf.sync_state = nfstrdup( path );
+		}
+	}
 	return cfile.err;
 }

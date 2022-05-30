@@ -32,7 +32,8 @@ Multiple replicas of each mailbox can be maintained.
 .TP
 \fB-c\fR, \fB--config\fR \fIfile\fR
 Read configuration from \fIfile\fR.
-By default, the configuration is read from ~/.mbsyncrc.
+By default, the configuration is read from $XDG_CONFIG_HOME/isyncrc, and
+if that does not exist, ~/.mbsyncrc is tried in turn.
 .TP
 \fB-a\fR, \fB--all\fR
 Select all configured Channels. Any Channel/Group specifications on the
@@ -672,7 +673,8 @@ the appended string is made up according to the pattern
 \fB:\fIfar-store\fB:\fIfar-box\fB_:\fInear-store\fB:\fInear-box\fR
 (see also \fBFieldDelimiter\fR below).
 .br
-(Global default: \fI~/.mbsync/\fR).
+(Global default: \fI$XDG_STATE_HOME/isync/\fR, with a fallback to
+\fI~/.mbsync/\fR if only that exists)
 .
 .SS Groups
 .TP
@@ -795,12 +797,18 @@ There is no risk as long as the IMAP mailbox is accessed by only one client
 .
 .SH FILES
 .TP
-.B ~/.mbsyncrc
+.B $XDG_CONFIG_HOME/isyncrc
 Default configuration file.
 See also the example file in the documentation directory.
 .TP
+.B $XDG_STATE_HOME/isync/
+Directory containing synchronization state files.
+.TP
+.B ~/.mbsyncrc
+Legacy configuration file.
+.TP
 .B ~/.mbsync/
-Directory containing synchronization state files
+Legacy directory containing synchronization state files.
 .
 .SH SEE ALSO
 mdconvert(1), mutt(1), maildir(5)
