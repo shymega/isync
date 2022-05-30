@@ -18,6 +18,7 @@ typedef struct {
 	int line;
 	int err;
 	int ms_warn;
+	int path_len;
 	char *cmd, *val, *rest;
 } conffile_t;
 
@@ -26,7 +27,7 @@ extern char FieldDelimiter;
 #define ARG_OPTIONAL 0
 #define ARG_REQUIRED 1
 
-char *expand_strdup( const char *s );
+char *expand_strdup( const char *s, const conffile_t *cfile );
 
 char *get_arg( conffile_t *cfile, int required, int *comment );
 

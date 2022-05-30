@@ -105,6 +105,8 @@ and literal double quotes and backslashes (\fB\\\fR) must be backslash-escaped.
 All keywords (including those used as arguments) are case-insensitive.
 Bash-like home directory expansion using the tilde (\fB~\fR) is supported
 in all options which represent local paths.
+The reference point for relative local paths is the configuration file's
+containing directory.
 There are a few global options, the others apply to particular sections.
 Sections begin with a section-starting keyword and are terminated by an empty
 line or end of file.
@@ -205,7 +207,8 @@ yet all messages are archived.
 (Default: \fBno\fR)
 .
 .SS Maildir Stores
-The reference point for relative \fBPath\fRs is the current working directory.
+The reference point for relative \fBPath\fRs is the configuration file's
+containing directory.
 .P
 As \fBmbsync\fR needs UIDs, but no standardized UID storage scheme exists for
 Maildir, \fBmbsync\fR supports two schemes, each with its pros and cons.

@@ -23,7 +23,7 @@ char FieldDelimiter = ':';
 static store_conf_t *stores;
 
 char *
-expand_strdup( const char *s )
+expand_strdup( const char *s, const conffile_t *cfile )
 {
 	struct passwd *pw;
 	const char *p, *q;
@@ -50,6 +50,9 @@ expand_strdup( const char *s )
 			q = pw->pw_dir;
 		}
 		nfasprintf( &r, "%s%s", q, p ? p : "" );
+		return r;
+	} else if (*s != '/') {
+		nfasprintf( &r, "%.*s%s", cfile->path_len, cfile->file, s );
 		return r;
 	} else {
 		return nfstrdup( s );
@@ -220,7 +223,7 @@ getopt_helper( conffile_t *cfile, int *cops, channel_conf_t *conf )
 		} while ((arg = get_arg( cfile, ARG_OPTIONAL, NULL )));
 		conf->ops[F] |= XOP_HAVE_TYPE;
 	} else if (!strcasecmp( "SyncState", cfile->cmd )) {
-		conf->sync_state = expand_strdup( cfile->val );
+		conf->sync_state = !strcmp( cfile->val, "*" ) ? "*" : expand_strdup( cfile->val, cfile );
 	} else if (!strcasecmp( "CopyArrivalDate", cfile->cmd )) {
 		conf->use_internal_date = parse_bool( cfile );
 	} else if (!strcasecmp( "MaxMessages", cfile->cmd )) {
@@ -354,24 +357,34 @@ load_config( const char *where )
 	char buf[1024];
 
 	if (!where) {
+		int path_len, path_len2;
 		const char *config_home = getenv( "XDG_CONFIG_HOME" );
 		if (config_home)
-			nfsnprintf( path, sizeof(path), "%s/isyncrc", config_home );
+			nfsnprintf( path, sizeof(path), "%s/%nisyncrc", config_home, &path_len );
 		else
-			nfsnprintf( path, sizeof(path), "%s/.config/isyncrc", Home );
-		nfsnprintf( path2, sizeof(path2), "%s/.mbsyncrc", Home );
+			nfsnprintf( path, sizeof(path), "%s/.config/%nisyncrc", Home, &path_len );
+		nfsnprintf( path2, sizeof(path2), "%s/%n.mbsyncrc", Home, &path_len2 );
 		struct stat st;
 		int ex = !lstat( path, &st );
 		int ex2 = !lstat( path2, &st );
 		if (ex2 && !ex) {
 			cfile.file = path2;
+			cfile.path_len = path_len2;
 		} else {
 			if (ex && ex2)
 				warn( "Both %s and %s exist; using the former.\n", path, path2 );
 			cfile.file = path;
+			cfile.path_len = path_len;
 		}
 	} else {
-		cfile.file = where;
+		const char *sl = strrchr( where, '/' );
+		if (!sl) {
+			nfsnprintf( path, sizeof(path), "./%n%s", &cfile.path_len, where );
+			cfile.file = path;
+		} else {
+			cfile.path_len = sl - where + 1;
+			cfile.file = where;
+		}
 	}
 
 	info( "Reading configuration file %s\n", cfile.file );

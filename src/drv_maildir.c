@@ -1857,9 +1857,9 @@ maildir_parse_store( conffile_t *cfg, store_conf_t **storep )
 
 	while (getcline( cfg ) && cfg->cmd) {
 		if (!strcasecmp( "Inbox", cfg->cmd )) {
-			store->inbox = expand_strdup( cfg->val );
+			store->inbox = expand_strdup( cfg->val, cfg );
 		} else if (!strcasecmp( "Path", cfg->cmd )) {
-			store->path = expand_strdup( cfg->val );
+			store->path = expand_strdup( cfg->val, cfg );
 #ifdef USE_DB
 		} else if (!strcasecmp( "AltMap", cfg->cmd )) {
 			store->alt_map = parse_bool( cfg );
@@ -1892,7 +1892,7 @@ maildir_parse_store( conffile_t *cfg, store_conf_t **storep )
 		}
 	}
 	if (!store->inbox)
-		store->inbox = expand_strdup( "~/Maildir" );
+		store->inbox = expand_strdup( "~/Maildir", NULL );
 	if (store->sub_style == SUB_MAILDIRPP && store->path) {
 		error( "Maildir store '%s': Setting Path is incompatible with 'SubFolders Maildir++'\n", store->name );
 		cfg->err = 1;

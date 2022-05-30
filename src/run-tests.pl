@@ -289,12 +289,12 @@ sub writecfg($)
 "FSync no
 
 MaildirStore far
-Path ./
-Inbox ./far
+Path \"\"
+Inbox far
 ".$$sfx[0]."
 MaildirStore near
-Path ./
-Inbox ./near
+Path \"\"
+Inbox near
 ".$$sfx[1]."
 Channel test
 Far :far:

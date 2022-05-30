@@ -3590,7 +3590,7 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep )
 			} while ((arg = get_arg( cfg, ARG_OPTIONAL, NULL )));
 #ifdef HAVE_LIBSSL
 		} else if (!strcasecmp( "CertificateFile", cfg->cmd )) {
-			server->sconf.cert_file = expand_strdup( cfg->val );
+			server->sconf.cert_file = expand_strdup( cfg->val, cfg );
 			if (access( server->sconf.cert_file, R_OK )) {
 				sys_error( "%s:%d: CertificateFile '%s'",
 				           cfg->file, cfg->line, server->sconf.cert_file );
@@ -3599,14 +3599,14 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep )
 		} else if (!strcasecmp( "SystemCertificates", cfg->cmd )) {
 			server->sconf.system_certs = parse_bool( cfg );
 		} else if (!strcasecmp( "ClientCertificate", cfg->cmd )) {
-			server->sconf.client_certfile = expand_strdup( cfg->val );
+			server->sconf.client_certfile = expand_strdup( cfg->val, cfg );
 			if (access( server->sconf.client_certfile, R_OK )) {
 				sys_error( "%s:%d: ClientCertificate '%s'",
 				           cfg->file, cfg->line, server->sconf.client_certfile );
 				cfg->err = 1;
 			}
 		} else if (!strcasecmp( "ClientKey", cfg->cmd )) {
-			server->sconf.client_keyfile = expand_strdup( cfg->val );
+			server->sconf.client_keyfile = expand_strdup( cfg->val, cfg );
 			if (access( server->sconf.client_keyfile, R_OK )) {
 				sys_error( "%s:%d: ClientKey '%s'",
 				           cfg->file, cfg->line, server->sconf.client_keyfile );

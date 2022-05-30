@@ -35,7 +35,7 @@ typedef struct channel_conf {
 	const char *name;
 	store_conf_t *stores[2];
 	const char *boxes[2];
-	char *sync_state;
+	const char *sync_state;
 	string_list_t *patterns;
 	int ops[2];
 	int max_messages;  // For near side only.
