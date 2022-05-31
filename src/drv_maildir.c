@@ -1565,7 +1565,7 @@ maildir_store_msg( store_t *gctx, msg_data_t *data, int to_trash,
 	const char *box;
 	int ret, fd, bl;
 	uint uid;
-	char buf[_POSIX_PATH_MAX], nbuf[_POSIX_PATH_MAX], fbuf[NUM_FLAGS + 3], base[128];
+	char buf[_POSIX_PATH_MAX], nbuf[_POSIX_PATH_MAX], fbuf[as(MsgFlags) + 3], base[128];
 
 	bl = nfsnprintf( base, sizeof(base), "%lld.%d_%d.%s", (long long)time( NULL ), Pid, ++MaildirCount, Hostname );
 	if (!to_trash) {

@@ -9,26 +9,31 @@
 #define SYNC_H
 
 #include "driver.h"
+#include "sync_enum.h"
 
 #define F 0  // far side
 #define N 1  // near side
 
-#define OP_NEW             (1<<0)
-#define OP_RENEW           (1<<1)
-#define OP_DELETE          (1<<2)
-#define OP_FLAGS           (1<<3)
-#define  OP_MASK_TYPE      (OP_NEW|OP_RENEW|OP_DELETE|OP_FLAGS) /* asserted in the target ops */
-#define OP_EXPUNGE         (1<<4)
-#define OP_CREATE          (1<<5)
-#define OP_REMOVE          (1<<6)
-#define XOP_PUSH           (1<<8)
-#define XOP_PULL           (1<<9)
-#define  XOP_MASK_DIR      (XOP_PUSH|XOP_PULL)
-#define XOP_HAVE_TYPE      (1<<10)  // Aka mode; at least one of dir and type
-// The following must all have the same bit shift from the corresponding OP_* flags.
-#define XOP_HAVE_EXPUNGE   (1<<11)
-#define XOP_HAVE_CREATE    (1<<12)
-#define XOP_HAVE_REMOVE    (1<<13)
+BIT_ENUM(
+	OP_NEW,
+	OP_RENEW,
+	OP_DELETE,
+	OP_FLAGS,
+	OP_EXPUNGE,
+	OP_CREATE,
+	OP_REMOVE,
+
+	XOP_PUSH,
+	XOP_PULL,
+	XOP_HAVE_TYPE,  // Aka mode; have at least one of dir and type (see below)
+	// The following must all have the same bit shift from the corresponding OP_* flags.
+	XOP_HAVE_EXPUNGE,
+	XOP_HAVE_CREATE,
+	XOP_HAVE_REMOVE,
+)
+
+#define OP_MASK_TYPE (OP_NEW | OP_RENEW | OP_DELETE | OP_FLAGS)  // Asserted in the target side ops
+#define XOP_MASK_DIR (XOP_PUSH | XOP_PULL)
 
 typedef struct channel_conf {
 	struct channel_conf *next;

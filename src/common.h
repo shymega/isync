@@ -21,6 +21,8 @@
 #include <string.h>
 #include <time.h>
 
+#include "common_enum.h"
+
 typedef unsigned char uchar;
 typedef unsigned short ushort;
 typedef unsigned int uint;
@@ -40,6 +42,8 @@ typedef unsigned long ulong;
 
 #define shifted_bit(in, from, to) \
 	((int)(((uint)(in) / (from > to ? from / to : 1) * (to > from ? to / from : 1)) & to))
+
+#define BIT_ENUM(...)
 
 #if __GNUC__ > 2 || (__GNUC__ == 2 && __GNUC_MINOR__ > 4)
 # define ATTR_UNUSED __attribute__((unused))
@@ -90,18 +94,23 @@ enum {
 	VERBOSE,
 };
 
-#define DEBUG_CRASH     0x01
-#define DEBUG_MAILDIR   0x02
-#define DEBUG_NET       0x04
-#define DEBUG_NET_ALL   0x08
-#define DEBUG_SYNC      0x10
-#define DEBUG_MAIN      0x20
-#define DEBUG_DRV       0x40
-#define DEBUG_DRV_ALL   0x80
-#define PROGRESS        0x400
-#define KEEPJOURNAL     0x1000
-#define ZERODELAY       0x2000
-#define FORCEASYNC      0x4000
+BIT_ENUM(
+	DEBUG_MAILDIR,
+	DEBUG_NET,
+	DEBUG_NET_ALL,
+	DEBUG_SYNC,
+	DEBUG_MAIN,
+	DEBUG_DRV,
+	DEBUG_DRV_ALL,
+
+	DEBUG_CRASH,
+
+	PROGRESS,
+
+	ZERODELAY,
+	KEEPJOURNAL,
+	FORCEASYNC,
+)
 
 #define DEBUG_ANY (DEBUG_MAILDIR | DEBUG_NET | DEBUG_SYNC | DEBUG_MAIN | DEBUG_DRV)
 #define DEBUG_ALL (DEBUG_ANY | DEBUG_CRASH)

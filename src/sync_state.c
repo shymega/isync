@@ -13,7 +13,7 @@
 #include <errno.h>
 #include <sys/stat.h>
 
-#define JOURNAL_VERSION "4"
+#define JOURNAL_VERSION "5"
 
 const char *str_fn[] = { "far side", "near side" }, *str_hl[] = { "push", "pull" };
 

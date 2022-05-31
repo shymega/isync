@@ -9,6 +9,7 @@
 #define DRIVER_H
 
 #include "config.h"
+#include "driver_enum.h"
 
 typedef struct driver driver_t;
 
@@ -33,26 +34,29 @@ typedef struct store_conf {
 /* For message->flags */
 // Keep the MESSAGE_FLAGS in sync (grep that)!
 /* The order is according to alphabetical maildir flag sort */
-#define F_DRAFT	     (1<<0) /* Draft */
-#define F_FLAGGED    (1<<1) /* Flagged */
-#define F_FORWARDED  (1<<2) /* Passed */
-#define F_ANSWERED   (1<<3) /* Replied */
-#define F_SEEN       (1<<4) /* Seen */
-#define F_DELETED    (1<<5) /* Trashed */
-#define NUM_FLAGS 6
+BIT_ENUM(
+	F_DRAFT,      // Draft
+	F_FLAGGED,    // Flagged
+	F_FORWARDED,  // Passed
+	F_ANSWERED,   // Replied
+	F_SEEN,       // Seen
+	F_DELETED,    // Trashed
+)
 
-extern const char MsgFlags[NUM_FLAGS];
+extern const char MsgFlags[F__NUM_BITS];
 void make_flags( uchar flags, char *buf );
 
 /* For message->status */
-#define M_RECENT       (1<<0) /* unsyncable flag; maildir_* depend on this being 1<<0 */
-#define M_DEAD         (1<<1) /* expunged */
-#define M_FLAGS        (1<<2) /* flags fetched */
-// The following are only for IMAP FETCH response parsing
-#define M_DATE         (1<<3)
-#define M_SIZE         (1<<4)
-#define M_BODY         (1<<5)
-#define M_HEADER       (1<<6)
+BIT_ENUM(
+	M_RECENT,   // unsyncable flag; maildir_*() depend on this being bit 0
+	M_DEAD,     // expunged
+	M_FLAGS,    // flags are valid
+	// The following are only for IMAP FETCH response parsing
+	M_DATE,
+	M_SIZE,
+	M_BODY,
+	M_HEADER,
+)
 
 #define TUIDL 12
 
@@ -74,15 +78,17 @@ typedef struct message {
 // The drivers don't use the first two, but may set them if loading the
 // particular range is required to handle some other flag; note that these
 // ranges may overlap.
-#define OPEN_OLD        (1<<0)  // Paired messages *in* this store.
-#define OPEN_NEW        (1<<1)  // Messages (possibly) not yet propagated *from* this store.
-#define OPEN_FLAGS      (1<<2)  // Note that fetch_msg() gets the flags regardless.
-#define OPEN_NEW_SIZE   (1<<4)
-#define OPEN_EXPUNGE    (1<<5)
-#define OPEN_SETFLAGS   (1<<6)
-#define OPEN_APPEND     (1<<7)
-#define OPEN_FIND       (1<<8)
-#define OPEN_OLD_IDS    (1<<9)
+BIT_ENUM(
+	OPEN_OLD,         // Paired messages *in* this store.
+	OPEN_NEW,         // Messages (possibly) not yet propagated *from* this store.
+	OPEN_FIND,
+	OPEN_FLAGS,       // Note that fetch_msg() gets the flags regardless.
+	OPEN_NEW_SIZE,
+	OPEN_OLD_IDS,
+	OPEN_APPEND,
+	OPEN_SETFLAGS,
+	OPEN_EXPUNGE,
+)
 
 #define UIDVAL_BAD ((uint)-1)
 

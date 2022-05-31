@@ -6,6 +6,7 @@
  */
 
 #include "sync_p.h"
+#include "sync_c_enum.h"
 
 channel_conf_t global_conf;
 channel_conf_t *channels;
@@ -43,23 +44,24 @@ static int check_cancel( sync_vars_t *svars );
    cleanup: close(F) & close(N)
 */
 
-#define ST_LOADED          (1<<0)
-#define ST_FIND_OLD        (1<<1)
-#define ST_SENT_NEW        (1<<2)
-#define ST_FIND_NEW        (1<<3)
-#define ST_FOUND_NEW       (1<<4)
-#define ST_SENT_FLAGS      (1<<5)
-#define ST_SENT_TRASH      (1<<6)
-#define ST_CLOSED          (1<<7)
-#define ST_SENT_CANCEL     (1<<8)
-#define ST_CANCELED        (1<<9)
-#define ST_SELECTED        (1<<10)
-#define ST_DID_EXPUNGE     (1<<11)
-#define ST_CLOSING         (1<<12)
-#define ST_CONFIRMED       (1<<13)
-#define ST_PRESENT         (1<<14)
-#define ST_SENDING_NEW     (1<<15)
-
+BIT_ENUM(
+	ST_PRESENT,
+	ST_CONFIRMED,
+	ST_SELECTED,
+	ST_FIND_OLD,
+	ST_LOADED,
+	ST_SENT_FLAGS,
+	ST_SENDING_NEW,
+	ST_SENT_NEW,
+	ST_FIND_NEW,
+	ST_FOUND_NEW,
+	ST_SENT_TRASH,
+	ST_CLOSING,
+	ST_CLOSED,
+	ST_DID_EXPUNGE,
+	ST_SENT_CANCEL,
+	ST_CANCELED,
+)
 
 static uchar
 sanitize_flags( uchar tflags, sync_vars_t *svars, int t )

@@ -7,23 +7,28 @@
 #define DEBUG_FLAG DEBUG_SYNC
 
 #include "sync.h"
+#include "sync_p_enum.h"
 
 // This is the (mostly) persistent status of the sync record.
 // Most of these bits are actually mutually exclusive. It is a
 // bitfield to allow for easy testing for multiple states.
-#define S_EXPIRE       (1<<0)  // the entry is being expired (near side message removal scheduled)
-#define S_EXPIRED      (1<<1)  // the entry is expired (near side message removal confirmed)
-#define S_PENDING      (1<<2)  // the entry is new and awaits propagation (possibly a retry)
-#define S_DUMMY(fn)    (1<<(3+(fn)))  // f/n message is only a placeholder
-#define S_SKIPPED      (1<<5)  // pre-1.4 legacy: the entry was not propagated (message is too big)
-#define S_DEAD         (1<<7)  // ephemeral: the entry was killed and should be ignored
+BIT_ENUM(
+	S_DEAD,         // ephemeral: the entry was killed and should be ignored
+	S_EXPIRE,       // the entry is being expired (near side message removal scheduled)
+	S_EXPIRED,      // the entry is expired (near side message removal confirmed)
+	S_PENDING,      // the entry is new and awaits propagation (possibly a retry)
+	S_DUMMY(2),     // f/n message is only a placeholder
+	S_SKIPPED,      // pre-1.4 legacy: the entry was not propagated (message is too big)
+)
 
 // Ephemeral working set.
-#define W_NEXPIRE      (1<<0)  // temporary: new expiration state
-#define W_DELETE       (1<<1)  // ephemeral: flags propagation is a deletion
-#define W_DEL(fn)      (1<<(2+(fn)))  // ephemeral: f/n message would be subject to expunge
-#define W_UPGRADE      (1<<4)  // ephemeral: upgrading placeholder, do not apply MaxSize
-#define W_PURGE        (1<<5)  // ephemeral: placeholder is being nuked
+BIT_ENUM(
+	W_NEXPIRE,      // temporary: new expiration state
+	W_DELETE,       // ephemeral: flags propagation is a deletion
+	W_DEL(2),       // ephemeral: f/n message would be subject to expunge
+	W_UPGRADE,      // ephemeral: upgrading placeholder, do not apply MaxSize
+	W_PURGE,        // ephemeral: placeholder is being nuked
+)
 
 typedef struct sync_rec {
 	struct sync_rec *next;
