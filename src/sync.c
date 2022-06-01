@@ -808,40 +808,36 @@ box_opened2( sync_vars_t *svars, int t )
 	svars->opts[N] = svars->drv[N]->prepare_load_box( ctx[N], opts[N] );
 
 	ARRAY_INIT( &mexcs );
-	if (svars->opts[F] & OPEN_OLD) {
-		if (chan->max_messages) {
-			/* When messages have been expired on the near side, the far side fetch is split into
-			 * two ranges: The bulk fetch which corresponds with the most recent messages, and an
-			 * exception list of messages which would have been expired if they weren't important. */
-			debug( "preparing far side selection - max expired far uid is %u\n", svars->maxxfuid );
-			/* First, find out the lower bound for the bulk fetch. */
-			minwuid = svars->maxxfuid + 1;
-			/* Next, calculate the exception fetch. */
-			for (srec = svars->srecs; srec; srec = srec->next) {
-				if (srec->status & S_DEAD)
-					continue;
-				if (!srec->uid[F])
-					continue;  // No message; other state is irrelevant
-				if (srec->uid[F] >= minwuid)
-					continue;  // Message is in non-expired range
-				if ((svars->opts[F] & OPEN_NEW) && srec->uid[F] > svars->maxuid[F])
-					continue;  // Message is in expired range, but new range overlaps that
-				if (!srec->uid[N] && !(srec->status & S_PENDING))
-					continue;  // Only actually paired up messages matter
-				// The pair is alive, but outside the bulk range
-				*uint_array_append( &mexcs ) = srec->uid[F];
-			}
-			sort_uint_array( mexcs.array );
-		} else {
-			minwuid = 1;
+	if ((svars->opts[F] & OPEN_OLD) && chan->max_messages) {
+		/* When messages have been expired on the near side, the far side fetch is split into
+		 * two ranges: The bulk fetch which corresponds with the most recent messages, and an
+		 * exception list of messages which would have been expired if they weren't important. */
+		debug( "preparing far side selection - max expired far uid is %u\n", svars->maxxfuid );
+		/* First, find out the lower bound for the bulk fetch. */
+		minwuid = svars->maxxfuid + 1;
+		/* Next, calculate the exception fetch. */
+		for (srec = svars->srecs; srec; srec = srec->next) {
+			if (srec->status & S_DEAD)
+				continue;
+			if (!srec->uid[F])
+				continue;  // No message; other state is irrelevant
+			if (srec->uid[F] >= minwuid)
+				continue;  // Message is in non-expired range
+			if ((svars->opts[F] & OPEN_NEW) && srec->uid[F] > svars->maxuid[F])
+				continue;  // Message is in expired range, but new range overlaps that
+			if (!srec->uid[N] && !(srec->status & S_PENDING))
+				continue;  // Only actually paired up messages matter
+			// The pair is alive, but outside the bulk range
+			*uint_array_append( &mexcs ) = srec->uid[F];
 		}
+		sort_uint_array( mexcs.array );
 	} else {
-		minwuid = UINT_MAX;
+		minwuid = 1;
 	}
 	sync_ref( svars );
 	load_box( svars, F, minwuid, mexcs.array );
 	if (!check_cancel( svars ))
-		load_box( svars, N, (svars->opts[N] & OPEN_OLD) ? 1 : UINT_MAX, (uint_array_t){ NULL, 0 } );
+		load_box( svars, N, 1, (uint_array_t){ NULL, 0 } );
 	sync_deref( svars );
 }
 
@@ -863,13 +859,15 @@ load_box( sync_vars_t *svars, int t, uint minwuid, uint_array_t mexcs )
 	uint maxwuid = 0, pairuid = UINT_MAX;
 
 	if (svars->opts[t] & OPEN_NEW) {
-		if (minwuid > svars->maxuid[t] + 1)
+		if (!(svars->opts[t] & OPEN_OLD) || (minwuid > svars->maxuid[t] + 1))
 			minwuid = svars->maxuid[t] + 1;
 		maxwuid = UINT_MAX;
 		if (svars->opts[t] & OPEN_OLD_IDS)  // Implies OPEN_OLD
 			pairuid = get_seenuid( svars, t );
 	} else if (svars->opts[t] & OPEN_OLD) {
 		maxwuid = get_seenuid( svars, t );
+	} else {
+		minwuid = UINT_MAX;
 	}
 	info( "Loading %s box...\n", str_fn[t] );
 	svars->drv[t]->load_box( svars->ctx[t], minwuid, maxwuid, svars->finduid[t], pairuid, svars->maxuid[t], mexcs, box_loaded, AUX );
