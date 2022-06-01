@@ -737,11 +737,13 @@ box_opened2( sync_vars_t *svars, int t )
 			if (srec->status & S_PURGE) {
 				t = srec->uid[F] ? F : N;
 				opts[t] |= OPEN_SETFLAGS;
-			}
-			if (srec->status & S_UPGRADE) {
+			} else if (srec->status & S_PENDING) {
 				t = !srec->uid[F] ? F : N;
 				opts[t] |= OPEN_APPEND;
-				opts[t^1] |= OPEN_OLD;
+				if (srec->status & S_UPGRADE)
+					opts[t^1] |= OPEN_OLD;
+				else
+					opts[t^1] |= OPEN_NEW;
 				if (chan->ops[t] & OP_EXPUNGE)  // Don't propagate doomed msgs
 					opts[t^1] |= OPEN_FLAGS;
 			}
