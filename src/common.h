@@ -100,7 +100,6 @@ typedef unsigned long ulong;
 #define DEBUG_MAIN      0x20
 #define DEBUG_DRV       0x40
 #define DEBUG_DRV_ALL   0x80
-#define DEBUG_ALL       (0xFF & ~(DEBUG_NET_ALL | DEBUG_DRV_ALL))
 #define QUIET           0x100
 #define VERYQUIET       0x200
 #define PROGRESS        0x400
@@ -108,6 +107,9 @@ typedef unsigned long ulong;
 #define KEEPJOURNAL     0x1000
 #define ZERODELAY       0x2000
 #define FORCEASYNC      0x4000
+
+#define DEBUG_ANY (DEBUG_MAILDIR | DEBUG_NET | DEBUG_SYNC | DEBUG_MAIN | DEBUG_DRV)
+#define DEBUG_ALL (DEBUG_ANY | DEBUG_CRASH)
 
 extern int DFlags;
 extern int JLimit;

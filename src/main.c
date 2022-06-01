@@ -741,7 +741,7 @@ main( int argc, char **argv )
 	if (ms_warn)
 		warn( "Notice: -master/-slave/m/s suffixes are deprecated; use -far/-near/f/n instead.\n" );
 
-	if (!(DFlags & (QUIET | DEBUG_ALL)) && isatty( 1 ))
+	if (!(DFlags & (QUIET | DEBUG_ANY)) && isatty( 1 ))
 		DFlags |= PROGRESS;
 
 #ifdef __linux__
