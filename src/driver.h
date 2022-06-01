@@ -82,16 +82,17 @@ static_assert_bits(F, message_t, flags);
 static_assert_bits(M, message_t, status);
 
 // For driver_t->prepare_load_box(), which may amend the passed flags.
-// The drivers don't use the first two, but may set them if loading the
+// The drivers don't use the first three, but may set them if loading the
 // particular range is required to handle some other flag; note that these
 // ranges may overlap.
 BIT_ENUM(
-	OPEN_OLD,         // Paired messages *in* this store.
+	OPEN_PAIRED,      // Paired messages *in* this store.
+	OPEN_OLD,         // Messages that should be already propagated *from* this store.
 	OPEN_NEW,         // Messages (possibly) not yet propagated *from* this store.
 	OPEN_FIND,
 	OPEN_FLAGS,       // Note that fetch_msg() gets the flags regardless.
 	OPEN_NEW_SIZE,
-	OPEN_OLD_IDS,
+	OPEN_PAIRED_IDS,
 	OPEN_APPEND,
 	OPEN_SETFLAGS,
 	OPEN_EXPUNGE,
@@ -235,7 +236,7 @@ struct driver {
 	 * and those named in the excs array (smaller than minuid).
 	 * The driver takes ownership of the excs array.
 	 * Messages starting with finduid need to have the TUID populated when OPEN_FIND is set.
-	 * Messages up to pairuid need to have the Message-Id populated when OPEN_OLD_IDS is set.
+	 * Messages up to pairuid need to have the Message-Id populated when OPEN_PAIRED_IDS is set.
 	 * Messages up to newuid need to have the size populated when OPEN_OLD_SIZE is set;
 	 * likewise messages above newuid when OPEN_NEW_SIZE is set.
 	 * The returned message list remains owned by the driver. */

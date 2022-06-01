@@ -741,7 +741,7 @@ box_opened2( sync_vars_t *svars, int t )
 
 	opts[F] = opts[N] = 0;
 	if (fails)
-		opts[F] = opts[N] = OPEN_OLD|OPEN_OLD_IDS;
+		opts[F] = opts[N] = OPEN_PAIRED | OPEN_PAIRED_IDS;
 	for (t = 0; t < 2; t++) {
 		if (any_purges[t]) {
 			debug( "resuming %d %s purge(s)\n", any_purges[t], str_fn[t] );
@@ -754,7 +754,7 @@ box_opened2( sync_vars_t *svars, int t )
 		}
 		if (chan->ops[t] & (OP_GONE | OP_FLAGS)) {
 			opts[t] |= OPEN_SETFLAGS;
-			opts[t^1] |= OPEN_OLD;
+			opts[t^1] |= OPEN_PAIRED;
 			if (chan->ops[t] & OP_FLAGS)
 				opts[t^1] |= OPEN_FLAGS;
 		}
@@ -773,8 +773,8 @@ box_opened2( sync_vars_t *svars, int t )
 			if ((chan->ops[t] & OP_UPGRADE) || any_upgrades[t]) {
 				debug( "resuming %s of %d upgrade(s)\n", str_hl[t], any_upgrades[t] );
 				if (chan->ops[t] & OP_UPGRADE)
-					opts[t] |= OPEN_OLD | OPEN_FLAGS | OPEN_SETFLAGS;
-				opts[t^1] |= OPEN_OLD;
+					opts[t] |= OPEN_PAIRED | OPEN_FLAGS | OPEN_SETFLAGS;
+				opts[t^1] |= OPEN_PAIRED;
 			}
 			if ((chan->ops[t] | chan->ops[t^1]) & OP_EXPUNGE)  // Don't propagate doomed msgs
 				opts[t^1] |= OPEN_FLAGS;
@@ -798,9 +798,9 @@ box_opened2( sync_vars_t *svars, int t )
 	if ((chan->ops[N] & (OP_NEW | OP_UPGRADE | OP_FLAGS)) && chan->max_messages)
 		svars->any_expiring = 1;
 	if (svars->any_expiring) {
-		opts[N] |= OPEN_OLD | OPEN_FLAGS;
+		opts[N] |= OPEN_PAIRED | OPEN_FLAGS;
 		if (any_dummies[N])
-			opts[F] |= OPEN_OLD | OPEN_FLAGS;
+			opts[F] |= OPEN_PAIRED | OPEN_FLAGS;
 		else if (chan->ops[N] & (OP_NEW | OP_UPGRADE))
 			opts[F] |= OPEN_FLAGS;
 	}
@@ -808,7 +808,7 @@ box_opened2( sync_vars_t *svars, int t )
 	svars->opts[N] = svars->drv[N]->prepare_load_box( ctx[N], opts[N] );
 
 	ARRAY_INIT( &mexcs );
-	if ((svars->opts[F] & OPEN_OLD) && chan->max_messages) {
+	if ((svars->opts[F] & OPEN_PAIRED) && !(svars->opts[F] & OPEN_OLD) && chan->max_messages) {
 		/* When messages have been expired on the near side, the far side fetch is split into
 		 * two ranges: The bulk fetch which corresponds with the most recent messages, and an
 		 * exception list of messages which would have been expired if they weren't important. */
@@ -859,13 +859,29 @@ load_box( sync_vars_t *svars, int t, uint minwuid, uint_array_t mexcs )
 	uint maxwuid = 0, pairuid = UINT_MAX;
 
 	if (svars->opts[t] & OPEN_NEW) {
-		if (!(svars->opts[t] & OPEN_OLD) || (minwuid > svars->maxuid[t] + 1))
+		if (svars->opts[t] & OPEN_OLD) {
+			svars->opts[t] |= OPEN_PAIRED;
+			minwuid = 1;
+		} else if (!(svars->opts[t] & OPEN_PAIRED) || (minwuid > svars->maxuid[t] + 1)) {
 			minwuid = svars->maxuid[t] + 1;
+		}
 		maxwuid = UINT_MAX;
-		if (svars->opts[t] & OPEN_OLD_IDS)  // Implies OPEN_OLD
+		if (svars->opts[t] & OPEN_PAIRED_IDS)  // Implies OPEN_PAIRED
 			pairuid = get_seenuid( svars, t );
-	} else if (svars->opts[t] & OPEN_OLD) {
-		maxwuid = get_seenuid( svars, t );
+	} else if (svars->opts[t] & (OPEN_PAIRED | OPEN_OLD)) {
+		uint seenuid = get_seenuid( svars, t );
+		if (svars->opts[t] & OPEN_OLD) {
+			minwuid = 1;
+			maxwuid = svars->maxuid[t];
+			if (maxwuid < seenuid) {
+				if (svars->opts[t] & OPEN_PAIRED)
+					maxwuid = seenuid;
+			} else {
+				svars->opts[t] |= OPEN_PAIRED;
+			}
+		} else {  // OPEN_PAIRED
+			maxwuid = seenuid;
+		}
 	} else {
 		minwuid = UINT_MAX;
 	}
@@ -1030,8 +1046,8 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 		debug( "pair (%u,%u)\n", srec->uid[F], srec->uid[N] );
 		assert( !srec->tuid[0] );
 		// no[] means that a message is known to be not there.
-		no[F] = !srec->msg[F] && (svars->opts[F] & OPEN_OLD);
-		no[N] = !srec->msg[N] && (svars->opts[N] & OPEN_OLD);
+		no[F] = !srec->msg[F] && (svars->opts[F] & OPEN_PAIRED);
+		no[N] = !srec->msg[N] && (svars->opts[N] & OPEN_PAIRED);
 		if (no[F] && no[N]) {
 			// It does not matter whether one side was already known to be missing
 			// (never stored [skipped or failed] or expunged [possibly expired]) -

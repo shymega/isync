@@ -2885,7 +2885,7 @@ imap_load_box( store_t *gctx, uint minuid, uint maxuid, uint finduid, uint pairu
 				if (i != j)
 					bl += sprintf( buf + bl, ":%u", excs.data[i] );
 			}
-			imap_submit_load( ctx, buf, shifted_bit( ctx->opts, OPEN_OLD_IDS, WantMsgids ), sts );
+			imap_submit_load( ctx, buf, shifted_bit( ctx->opts, OPEN_PAIRED_IDS, WantMsgids ), sts );
 		}
 		if (maxuid == UINT_MAX)
 			maxuid = ctx->uidnext - 1;
@@ -2899,7 +2899,7 @@ imap_load_box( store_t *gctx, uint minuid, uint maxuid, uint finduid, uint pairu
 				imap_set_range( ranges, &nranges, 0, WantSize, newuid );
 			if (ctx->opts & OPEN_FIND)
 				imap_set_range( ranges, &nranges, 0, WantTuids, finduid - 1 );
-			if (ctx->opts & OPEN_OLD_IDS)
+			if (ctx->opts & OPEN_PAIRED_IDS)
 				imap_set_range( ranges, &nranges, WantMsgids, 0, pairuid );
 			for (uint r = 0; r < nranges; r++) {
 				sprintf( buf, "%u:%u", ranges[r].first, ranges[r].last );

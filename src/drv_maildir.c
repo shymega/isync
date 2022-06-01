@@ -1113,7 +1113,7 @@ maildir_scan( maildir_store_t *ctx, msg_t_array_alloc_t *msglist )
 			}
 			int want_size = ((ctx->opts & OPEN_NEW_SIZE) && uid > ctx->newuid);
 			int want_tuid = ((ctx->opts & OPEN_FIND) && uid >= ctx->finduid);
-			int want_msgid = ((ctx->opts & OPEN_OLD_IDS) && uid <= ctx->pairuid);
+			int want_msgid = ((ctx->opts & OPEN_PAIRED_IDS) && uid <= ctx->pairuid);
 			if (!want_size && !want_tuid && !want_msgid)
 				continue;
 			if (!fnl)
@@ -1401,9 +1401,9 @@ maildir_prepare_load_box( store_t *gctx, uint opts )
 	maildir_store_t *ctx = (maildir_store_t *)gctx;
 
 	if (opts & OPEN_SETFLAGS)
-		opts |= OPEN_OLD;
+		opts |= OPEN_PAIRED;
 	if (opts & OPEN_EXPUNGE)
-		opts |= OPEN_OLD|OPEN_NEW|OPEN_FLAGS;
+		opts |= OPEN_PAIRED | OPEN_OLD | OPEN_NEW | OPEN_FLAGS;
 	ctx->opts = opts;
 	return opts;
 }
