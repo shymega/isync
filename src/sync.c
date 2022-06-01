@@ -1036,6 +1036,7 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 				} else if (del[t]) {
 					// The target was newly expunged, so there is nothing to update.
 					// The deletion is propagated in the opposite iteration.
+					srec->status |= S_GONE(t);
 				} else if (!srec->uid[t]) {
 					// The target was never stored, or was previously expunged, so there
 					// is nothing to update.
@@ -1340,7 +1341,7 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 		for (t = 0; t < 2; t++) {
 			if (!srec->uid[t])
 				continue;
-			if (!srec->msg[t] && (svars->opts[t] & OPEN_OLD)) {
+			if (srec->status & S_GONE(t)) {
 				// The message was expunged. No need to call flags_set(), because:
 				// - for S_DELETE and S_PURGE, the entry will be pruned due to both sides being gone
 				// - for regular flag propagations, there is nothing to do
@@ -1571,10 +1572,7 @@ flags_set_p2( sync_vars_t *svars, sync_rec_t *srec, int t )
 	if (srec->status & S_PURGE) {
 		JLOG( "P %u %u", (srec->uid[F], srec->uid[N]), "deleted dummy" );
 		srec->status = (srec->status & ~S_PURGE) | S_PURGED;
-	} else if (srec->status & S_DELETE) {
-		JLOG( "%c %u %u 0", ("><"[t], srec->uid[F], srec->uid[N]), "%sed deletion", str_hl[t] );
-		srec->uid[t^1] = 0;
-	} else {
+	} else if (!(srec->status & S_DELETE)) {
 		uchar nflags = (srec->flags | srec->aflags[t]) & ~srec->dflags[t];
 		if (srec->flags != nflags) {
 			JLOG( "* %u %u %u", (srec->uid[F], srec->uid[N], nflags), "%sed flags %s; were %s",
@@ -1802,24 +1800,26 @@ box_closed_p2( sync_vars_t *svars, int t )
 			PC_JLOG( "N %d %u", (t, svars->maxuid[t]), "up maxuid of %s", str_fn[t] );
 	}
 
-	if (((svars->state[F] | svars->state[N]) & ST_DID_EXPUNGE) || svars->chan->max_messages) {
-		debug( "purging obsolete entries\n" );
-		for (srec = svars->srecs; srec; srec = srec->next) {
-			if (srec->status & S_DEAD)
-				continue;
-			if (!srec->uid[N] || ((srec->status & S_DEL(N)) && (svars->state[N] & ST_DID_EXPUNGE))) {
-				if (!srec->uid[F] || ((srec->status & S_DEL(F)) && (svars->state[F] & ST_DID_EXPUNGE)) ||
-				    ((srec->status & S_EXPIRED) && svars->maxuid[F] >= srec->uid[F] && svars->maxxfuid >= srec->uid[F])) {
-					PC_JLOG( "- %u %u", (srec->uid[F], srec->uid[N]), "killing" );
-					srec->status = S_DEAD;
-				} else if (srec->uid[N] && (srec->status & S_DEL(F))) {
-					PC_JLOG( "> %u %u 0", (srec->uid[F], srec->uid[N]), "orphaning" );
-					srec->uid[N] = 0;
-				}
-			} else if (srec->uid[F] && ((srec->status & S_DEL(F)) && (svars->state[F] & ST_DID_EXPUNGE)) && (srec->status & S_DEL(N))) {
-				PC_JLOG( "< %u %u 0", (srec->uid[F], srec->uid[N]), "orphaning" );
-				srec->uid[F] = 0;
+	debug( "purging obsolete entries\n" );
+	for (srec = svars->srecs; srec; srec = srec->next) {
+		if (srec->status & S_DEAD)
+			continue;
+		if ((srec->status & S_DEL(F)) && (svars->state[F] & ST_DID_EXPUNGE))
+			srec->status |= S_GONE(F);
+		if ((srec->status & S_DEL(N)) && (svars->state[N] & ST_DID_EXPUNGE))
+			srec->status |= S_GONE(N);
+		if (!srec->uid[N] || (srec->status & S_GONE(N))) {
+			if (!srec->uid[F] || (srec->status & S_GONE(F)) ||
+				((srec->status & S_EXPIRED) && svars->maxuid[F] >= srec->uid[F] && svars->maxxfuid >= srec->uid[F])) {
+				PC_JLOG( "- %u %u", (srec->uid[F], srec->uid[N]), "killing" );
+				srec->status = S_DEAD;
+			} else if (srec->uid[N] && (srec->status & S_DEL(F))) {
+				PC_JLOG( "> %u %u 0", (srec->uid[F], srec->uid[N]), "orphaning" );
+				srec->uid[N] = 0;
 			}
+		} else if (srec->uid[F] && (srec->status & S_GONE(F)) && (srec->status & S_DEL(N))) {
+			PC_JLOG( "< %u %u 0", (srec->uid[F], srec->uid[N]), "orphaning" );
+			srec->uid[F] = 0;
 		}
 	}
 
