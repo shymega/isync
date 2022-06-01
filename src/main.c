@@ -423,7 +423,10 @@ main( int argc, char **argv )
 			for (; *ochar; ) {
 				switch (*ochar++) {
 				case 'a':
-					DFlags |= FORCEASYNC;
+					DFlags |= FORCEASYNC(F);
+					break;
+				case 'A':
+					DFlags |= FORCEASYNC(F) | FORCEASYNC(N);
 					break;
 				case 'j':
 					DFlags |= KEEPJOURNAL;

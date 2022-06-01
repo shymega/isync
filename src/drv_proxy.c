@@ -23,6 +23,7 @@ typedef union proxy_store {
 		gen_cmd_t *pending_cmds, **pending_cmds_append;
 		gen_cmd_t *check_cmds, **check_cmds_append;
 		wakeup_t wakeup;
+		char force_async;
 
 		void (*bad_callback)( void *aux );
 		void *bad_callback_aux;
@@ -89,8 +90,8 @@ proxy_wakeup( void *aux )
 static void
 proxy_invoke( gen_cmd_t *cmd, int checked, const char *name )
 {
-	if (DFlags & FORCEASYNC) {
-		proxy_store_t *ctx = cmd->ctx;
+	proxy_store_t *ctx = cmd->ctx;
+	if (ctx->force_async) {
 		debug( "%s[% 2d] Queue %s%s\n", ctx->label, cmd->tag, name, checked ? " (checked)" : "" );
 		cmd->next = NULL;
 		if (checked) {
@@ -343,7 +344,7 @@ proxy_invoke_bad_callback( proxy_store_t *ctx )
 
 //# EXCLUDE alloc_store
 store_t *
-proxy_alloc_store( store_t *real_ctx, const char *label )
+proxy_alloc_store( store_t *real_ctx, const char *label, int force_async )
 {
 	proxy_store_t *ctx;
 
@@ -352,6 +353,7 @@ proxy_alloc_store( store_t *real_ctx, const char *label )
 	ctx->gen.conf = real_ctx->conf;
 	ctx->ref_count = 1;
 	ctx->label = label;
+	ctx->force_async = force_async;
 	ctx->pending_cmds_append = &ctx->pending_cmds;
 	ctx->check_cmds_append = &ctx->check_cmds;
 	ctx->real_driver = real_ctx->driver;

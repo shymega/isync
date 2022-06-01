@@ -109,9 +109,9 @@ do_list_stores( list_vars_t *lvars )
 
 		uint dcaps = lvars->drv->get_caps( NULL );
 		store_t *ctx = lvars->drv->alloc_store( lvars->store, "" );
-		if ((DFlags & DEBUG_DRV) || ((DFlags & FORCEASYNC) && !(dcaps & DRV_ASYNC))) {
+		if ((DFlags & DEBUG_DRV) || ((DFlags & FORCEASYNC(F)) && !(dcaps & DRV_ASYNC))) {
 			lvars->drv = &proxy_driver;
-			ctx = proxy_alloc_store( ctx, "" );
+			ctx = proxy_alloc_store( ctx, "", DFlags & FORCEASYNC(F) );
 		}
 		lvars->ctx = ctx;
 		lvars->drv->set_bad_callback( ctx, list_store_bad, lvars );

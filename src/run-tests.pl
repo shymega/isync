@@ -329,7 +329,11 @@ sub runsync($$$)
 	} else {
 		$flags .= " -D";
 	}
-	$flags .= " -Ta" if ($async);
+	if ($async == 2) {
+		$flags .= " -TA";
+	} elsif ($async == 1) {
+		$flags .= " -Ta";
+	}
 	$cmd .= "$mbsync -Tz $flags -c .mbsyncrc test";
 	open FILE, "$cmd 2>&1 |";
 	my @out = <FILE>;
@@ -890,6 +894,7 @@ sub test($$$$)
 
 	test_impl(0, $sx, $tx, $sfx);
 	test_impl(1, $sx, $tx, $sfx);
+	test_impl(2, $sx, $tx, $sfx);
 
 	killcfg();
 }

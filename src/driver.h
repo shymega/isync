@@ -294,7 +294,7 @@ void free_generic_messages( message_t * );
 
 void parse_generic_store( store_conf_t *store, conffile_t *cfg, const char *type );
 
-store_t *proxy_alloc_store( store_t *real_ctx, const char *label );
+store_t *proxy_alloc_store( store_t *real_ctx, const char *label, int force_async );
 
 #define N_DRIVERS 2
 extern driver_t *drivers[N_DRIVERS];
