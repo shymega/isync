@@ -24,12 +24,11 @@ count_generic_messages( message_t *msgs )
 void
 free_generic_messages( message_t *msgs )
 {
-	message_t *tmsg;
-
-	for (; msgs; msgs = tmsg) {
-		tmsg = msgs->next;
+	while (msgs) {
+		message_t *tmsg = msgs->next;
 		free( msgs->msgid );
 		free( msgs );
+		msgs = tmsg;
 	}
 }
 

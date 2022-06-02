@@ -251,11 +251,12 @@ maildir_connect_store( store_t *gctx,
 static void
 free_maildir_messages( maildir_message_t *msg )
 {
-	for (maildir_message_t *tmsg; (tmsg = msg); msg = tmsg) {
-		tmsg = msg->next;
+	while (msg) {
+		maildir_message_t *tmsg = msg->next;
 		free( msg->base );
 		free( msg->msgid );
 		free( msg );
+		msg = tmsg;
 	}
 }
 
