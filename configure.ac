@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2002-2022 Oswald Buddenhagen <ossi@users.sf.net>
 dnl SPDX-License-Identifier: GPL-2.0-or-later
 
-AC_INIT([isync], [1.4.4])
+AC_INIT([isync], [1.5.0])
 AC_CONFIG_HEADERS([autodefs.h])
 
 AC_CANONICAL_TARGET
