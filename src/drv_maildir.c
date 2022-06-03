@@ -365,7 +365,7 @@ maildir_list_maildirpp( maildir_store_t *ctx, int flags, const char *inbox )
 
 static int
 maildir_list_recurse( maildir_store_t *ctx, int isBox, int flags,
-                      const char *inbox, uint inboxLen, const char *basePath, uint basePathLen,
+                      const char *inbox, uint inboxLen,
                       char *path, int pathLen, char *name, int nameLen )
 {
 	DIR *dir;
@@ -402,8 +402,6 @@ maildir_list_recurse( maildir_store_t *ctx, int isBox, int flags,
 		pl += pathLen;
 		if (inbox && equals( path, pl, inbox, inboxLen )) {
 			// Inbox nested into Path.
-		} else if (basePath && equals( path, pl, basePath, basePathLen )) {
-			// Path nested into Inbox.
 		} else {
 			if (style == SUB_LEGACY) {
 				if (*ent == '.') {
@@ -431,7 +429,7 @@ maildir_list_recurse( maildir_store_t *ctx, int isBox, int flags,
 				add_string_list( &ctx->boxes, name );
 			path[pl] = 0;
 			name[nl++] = '/';
-			if (maildir_list_recurse( ctx, isBox + 1, flags, inbox, inboxLen, basePath, basePathLen, path, pl, name, nl ) < 0) {
+			if (maildir_list_recurse( ctx, isBox + 1, flags, inbox, inboxLen, path, pl, name, nl ) < 0) {
 				closedir( dir );
 				return -1;
 			}
@@ -451,9 +449,8 @@ maildir_list_inbox( maildir_store_t *ctx, int flags )
 	ctx->listed |= LIST_INBOX;
 
 	add_string_list( &ctx->boxes, "INBOX" );
-	const char *basePath = ctx->conf->path;
 	return maildir_list_recurse(
-	        ctx, 1, flags, NULL, 0, basePath, basePath ? strlen( basePath ) - 1 : 0,
+	        ctx, 1, flags, NULL, 0,
 	        path, nfsnprintf( path, _POSIX_PATH_MAX, "%s/", ctx->conf->inbox ),
 	        name, nfsnprintf( name, _POSIX_PATH_MAX, "INBOX/" ) );
 }
@@ -471,7 +468,7 @@ maildir_list_path( maildir_store_t *ctx, int flags )
 		return -1;
 	const char *inbox = ctx->conf->inbox;
 	return maildir_list_recurse(
-	        ctx, 0, flags, inbox, strlen( inbox ), NULL, 0,
+	        ctx, 0, flags, inbox, strlen( inbox ),
 	        path, nfsnprintf( path, _POSIX_PATH_MAX, "%s", ctx->conf->path ),
 	        name, 0 );
 }
@@ -1908,9 +1905,17 @@ maildir_parse_store( conffile_t *cfg, store_conf_t **storep )
 	}
 	if (!store->inbox)
 		store->inbox = expand_strdup( "~/Maildir", NULL );
-	if (store->sub_style == SUB_MAILDIRPP && store->path) {
-		error( "Maildir store '%s': Setting Path is incompatible with 'SubFolders Maildir++'\n", store->name );
-		cfg->err = 1;
+	if (store->path) {
+		if (store->sub_style == SUB_MAILDIRPP) {
+			error( "Maildir store '%s': Setting Path is incompatible with 'SubFolders Maildir++'\n", store->name );
+			cfg->err = 1;
+		} else {
+			uint inboxLen = strlen( store->inbox );
+			if (starts_with( store->path, -1, store->inbox, inboxLen ) && store->path[inboxLen] == '/') {
+				error( "Maildir store '%s': Path cannot be nested under Inbox\n", store->name );
+				cfg->err = 1;
+			}
+		}
 	}
 	nfasprintf( &store->info_prefix, "%c2,", store->info_delimiter );
 	nfasprintf( &store->info_stop, "%c,", store->info_delimiter );
