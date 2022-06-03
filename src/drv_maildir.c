@@ -451,10 +451,21 @@ maildir_list_inbox( maildir_store_t *ctx, int flags )
 	ctx->listed |= LIST_INBOX;
 
 	add_string_list( &ctx->boxes, "INBOX" );
+	uint pathLen = nfsnprintf( path, _POSIX_PATH_MAX, "%s/", ctx->conf->inbox );
 	const char *basePath = ctx->conf->path;
+	uint basePathLen = 0;
+	if (basePath) {
+		basePathLen = strlen( basePath ) - 1;
+		// In verbatim mode, Path "steals" the sub-folders from INBOX
+		// if it is identical to Inbox. In legacy mode, subdirs are
+		// dot-prefixed, so no mutual exclusion is necessary.
+		if (ctx->conf->sub_style == SUB_VERBATIM &&
+		    equals( path, pathLen, basePath, basePathLen )) {
+			return 0;
+		}
+	}
 	return maildir_list_recurse(
-	        ctx, 1, flags, NULL, 0, basePath, basePath ? strlen( basePath ) - 1 : 0,
-	        path, nfsnprintf( path, _POSIX_PATH_MAX, "%s/", ctx->conf->inbox ),
+	        ctx, 1, flags, NULL, 0, basePath, basePathLen, path, pathLen,
 	        name, nfsnprintf( name, _POSIX_PATH_MAX, "INBOX/" ) );
 }
 
