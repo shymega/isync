@@ -35,6 +35,7 @@ typedef union maildir_store_conf {
 	struct {
 		STORE_CONF
 		char *path;
+		char *path_sfx;
 		char *inbox;
 #ifdef USE_DB
 		int alt_map;
@@ -121,16 +122,20 @@ static char *
 maildir_join_path( maildir_store_conf_t *conf, int in_inbox, const char *box )
 {
 	char *out, *p;
-	const char *prefix;
-	uint pl, bl, n;
+	const char *prefix, *infix;
+	uint pl, il, bl, n;
 	char c;
 
 	if (in_inbox || conf->sub_style == SUB_MAILDIRPP) {
 		prefix = conf->inbox;
+		infix = NULL;
+		il = 0;
 	} else {
 		if (maildir_ensure_path( conf ) < 0)
 			return NULL;
 		prefix = conf->path;
+		infix = conf->path_sfx;
+		il = strlen( infix ) + 1;
 	}
 	pl = strlen( prefix );
 	for (bl = 0, n = 0; (c = box[bl]); bl++) {
@@ -157,12 +162,16 @@ maildir_join_path( maildir_store_conf_t *conf, int in_inbox, const char *box )
 	default: /* SUB_LEGACY and SUB_UNSET */
 		break;
 	}
-	out = nfmalloc( pl + bl + n + 1 );
+	out = nfmalloc( pl + il + bl + n + 1 );
 	memcpy( out, prefix, pl );
 	p = out + pl;
 	if (conf->sub_style == SUB_MAILDIRPP) {
 		*p++ = '/';
 		*p++ = '.';
+	} else if (il) {
+		*p++ = '/';
+		memcpy( p, infix, il - 1 );
+		p += il - 1;
 	}
 	while ((c = *box++)) {
 		if (c == '/') {
@@ -366,6 +375,7 @@ maildir_list_maildirpp( maildir_store_t *ctx, int flags, const char *inbox )
 static int
 maildir_list_recurse( maildir_store_t *ctx, int isBox, int flags,
                       const char *inbox, uint inboxLen,
+                      char *suffix, int suffixLen,
                       char *path, int pathLen, char *name, int nameLen )
 {
 	DIR *dir;
@@ -399,6 +409,16 @@ maildir_list_recurse( maildir_store_t *ctx, int isBox, int flags,
 		pl = nfsnprintf( path + pathLen, _POSIX_PATH_MAX - pathLen, "%s", ent );
 		if (pl == 3 && (!memcmp( ent, "cur", 3 ) || !memcmp( ent, "new", 3 ) || !memcmp( ent, "tmp", 3 )))
 			continue;
+		if (suffixLen) {
+			if (!starts_with( ent, pl, suffix, suffixLen ))
+				continue;
+			if (pl == suffixLen) {
+				error( "Maildir error: empty mailbox name under %s - did you forget the trailing slash?\n", path );
+				closedir( dir );
+				return -1;
+			}
+			ent += suffixLen;
+		}
 		pl += pathLen;
 		if (inbox && equals( path, pl, inbox, inboxLen )) {
 			// Inbox nested into Path.
@@ -429,7 +449,7 @@ maildir_list_recurse( maildir_store_t *ctx, int isBox, int flags,
 				add_string_list( &ctx->boxes, name );
 			path[pl] = 0;
 			name[nl++] = '/';
-			if (maildir_list_recurse( ctx, isBox + 1, flags, inbox, inboxLen, path, pl, name, nl ) < 0) {
+			if (maildir_list_recurse( ctx, isBox + 1, flags, inbox, inboxLen, NULL, 0, path, pl, name, nl ) < 0) {
 				closedir( dir );
 				return -1;
 			}
@@ -450,7 +470,7 @@ maildir_list_inbox( maildir_store_t *ctx, int flags )
 
 	add_string_list( &ctx->boxes, "INBOX" );
 	return maildir_list_recurse(
-	        ctx, 1, flags, NULL, 0,
+	        ctx, 1, flags, NULL, 0, NULL, 0,
 	        path, nfsnprintf( path, _POSIX_PATH_MAX, "%s/", ctx->conf->inbox ),
 	        name, nfsnprintf( name, _POSIX_PATH_MAX, "INBOX/" ) );
 }
@@ -469,7 +489,8 @@ maildir_list_path( maildir_store_t *ctx, int flags )
 	const char *inbox = ctx->conf->inbox;
 	return maildir_list_recurse(
 	        ctx, 0, flags, inbox, strlen( inbox ),
-	        path, nfsnprintf( path, _POSIX_PATH_MAX, "%s", ctx->conf->path ),
+	        ctx->conf->path_sfx, strlen( ctx->conf->path_sfx ),
+	        path, nfsnprintf( path, _POSIX_PATH_MAX, "%s/", ctx->conf->path ),
 	        name, 0 );
 }
 
@@ -1914,6 +1935,11 @@ maildir_parse_store( conffile_t *cfg, store_conf_t **storep )
 			if (starts_with( store->path, -1, store->inbox, inboxLen ) && store->path[inboxLen] == '/') {
 				error( "Maildir store '%s': Path cannot be nested under Inbox\n", store->name );
 				cfg->err = 1;
+			} else {
+				char *s = strrchr( store->path, '/' );
+				assert( s );  // due to expand_strdup()
+				store->path_sfx = s + 1;
+				*s = 0;
 			}
 		}
 	}

@@ -57,6 +57,32 @@ Group boxes
 Channels work personal remote
 
 
+# Due to the divergent Path suffixes, it's possible to have
+# multiple Stores homed in the same directory.
+# You could even put them all directly into $HOME.
+
+MaildirStore local-personal
+Path ~/Mail/personal-
+Inbox ~/Mail/personal-INBOX
+
+MaildirStore local-work
+Path ~/Mail/work-
+# Just because.
+Inbox ~/Mail/w0rk_InBoX
+
+Channel personal-joined
+Far :personal:
+Near :local-personal:
+Paterns *
+
+Channel work-joined
+Far :work:
+Near :local-work:
+Paterns *
+
+Group joined personal-joined work-joined
+
+
 IMAPStore st1
 Host st1.domain.com
 AuthMech CRAM-MD5

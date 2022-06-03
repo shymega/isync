@@ -21,6 +21,8 @@ MaxMessages and MaxSize can be used together now.
 
 Added support for IMAP mailbox names with non-ASCII characters.
 
+Added support for Maildir Paths with suffixes.
+
 The unfiltered list of mailboxes in each Store can be printed now.
 
 A proper summary is now printed prior to exiting.
