@@ -161,7 +161,8 @@ for (@ptypes) {
 			$template = "REGULAR_VOID";
 		} else {
 			$template = "REGULAR";
-			$replace{'fmt'} = type_to_format($cmd_type);
+			$replace{'print_fmt_ret'} = type_to_format($cmd_type);
+			$replace{'print_pass_ret'} = "rv";
 		}
 		$replace{'decl_args'} = $cmd_args;
 		$replace{'print_pass_args'} = $replace{'pass_args'} = make_args($cmd_args);

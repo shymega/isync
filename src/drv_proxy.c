@@ -8,6 +8,8 @@
 
 #include "driver.h"
 
+BIT_FORMATTER_FUNCTION(opts, OPEN)
+
 typedef struct gen_cmd gen_cmd_t;
 
 typedef union proxy_store {
@@ -162,7 +164,7 @@ static @type@proxy_@name@( store_t *gctx@decl_args@ )
 	debug( "%sEnter @name@@print_fmt_args@\n", ctx->label@print_pass_args@ );
 	@print_args@
 	@type@rv = ctx->real_driver->@name@( ctx->real_store@pass_args@ );
-	debug( "%sLeave @name@, ret=@fmt@\n", ctx->label, rv );
+	debug( "%sLeave @name@, ret=@print_fmt_ret@\n", ctx->label, @print_pass_ret@ );
 	return rv;
 }
 //# END
@@ -238,6 +240,11 @@ static @type@proxy_@name@( store_t *gctx@decl_args@, void (*cb)( @decl_cb_args@v
 			debug( "  %s\n", box->string );
 	}
 //# END
+
+//# DEFINE prepare_load_box_print_fmt_args , opts=%s
+//# DEFINE prepare_load_box_print_pass_args , fmt_opts( opts ).str
+//# DEFINE prepare_load_box_print_fmt_ret %s
+//# DEFINE prepare_load_box_print_pass_ret fmt_opts( rv ).str
 
 //# DEFINE load_box_pre_print_args
 	char ubuf[12];
