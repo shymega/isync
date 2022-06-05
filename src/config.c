@@ -522,17 +522,17 @@ load_config( const char *where )
 			if (!channel->stores[F]) {
 				error( "channel '%s' refers to no far side store\n", channel->name );
 				cfile.err = 1;
-			} else if (!channel->stores[N]) {
+			}
+			if (!channel->stores[N]) {
 				error( "channel '%s' refers to no near side store\n", channel->name );
 				cfile.err = 1;
-			} else if (merge_ops( cops, channel->ops, channel->name )) {
+			}
+			if (merge_ops( cops, channel->ops, channel->name ))
 				cfile.err = 1;
-			} else {
-				if (max_size != UINT_MAX) {
-					if (!max_size)
-						max_size = UINT_MAX;
-					channel->stores[F]->max_size = channel->stores[N]->max_size = max_size;
-				}
+			if (max_size != UINT_MAX && !cfile.err) {
+				if (!max_size)
+					max_size = UINT_MAX;
+				channel->stores[F]->max_size = channel->stores[N]->max_size = max_size;
 			}
 			*channelapp = channel;
 			channelapp = &channel->next;
