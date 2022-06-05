@@ -3679,6 +3679,7 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep )
 				for (srv = servers; srv; srv = srv->next)
 					if (srv->name && !strcmp( srv->name, cfg->val ))
 						goto gotsrv;
+				store->server = (void *)~0;
 				error( "%s:%d: unknown IMAP account '%s'\n", cfg->file, cfg->line, cfg->val );
 				cfg->err = 1;
 				continue;

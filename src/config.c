@@ -505,6 +505,7 @@ load_config( const char *where )
 							goto stpcom;
 						}
 					}
+					channel->stores[fn] = (void *)~0;
 					error( "%s:%d: unknown store '%s'\n",
 					       cfile.file, cfile.line, cfile.val + 1 );
 					cfile.err = 1;
