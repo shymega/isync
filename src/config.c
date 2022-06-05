@@ -533,9 +533,9 @@ load_config( const char *where )
 						max_size = UINT_MAX;
 					channel->stores[F]->max_size = channel->stores[N]->max_size = max_size;
 				}
-				*channelapp = channel;
-				channelapp = &channel->next;
 			}
+			*channelapp = channel;
+			channelapp = &channel->next;
 			glob_ok = 0;
 			goto reloop;
 		} else if (!strcasecmp( "Group", cfile.cmd )) {
