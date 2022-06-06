@@ -1280,7 +1280,7 @@ maildir_open_box( store_t *gctx,
 
 	nfsnprintf( uvpath, sizeof(uvpath), "%s/.uidvalidity", ctx->path );
 #ifndef USE_DB
-	if ((ctx->uvfd = open( uvpath, O_RDWR|O_CREAT, 0600 )) < 0) {
+	if ((ctx->uvfd = open( uvpath, O_RDWR | O_CREAT, 0600 )) < 0) {
 		sys_error( "Maildir error: cannot write %s", uvpath );
 		cb( DRV_BOX_BAD, UIDVAL_BAD, aux );
 		return;
@@ -1291,11 +1291,11 @@ maildir_open_box( store_t *gctx,
 		nfsnprintf( uvpath, sizeof(uvpath), "%s/.isyncuidmap.db", ctx->path );
 		if ((ctx->uvfd = open( uvpath, O_RDWR, 0600 )) < 0) {
 			if (ctx->conf->alt_map) {
-				if ((ctx->uvfd = open( uvpath, O_RDWR|O_CREAT, 0600 )) >= 0)
+				if ((ctx->uvfd = open( uvpath, O_RDWR | O_CREAT, 0600 )) >= 0)
 					goto dbok;
 			} else {
 				nfsnprintf( uvpath, sizeof(uvpath), "%s/.uidvalidity", ctx->path );
-				if ((ctx->uvfd = open( uvpath, O_RDWR|O_CREAT, 0600 )) >= 0)
+				if ((ctx->uvfd = open( uvpath, O_RDWR | O_CREAT, 0600 )) >= 0)
 					goto fnok;
 			}
 			sys_error( "Maildir error: cannot write %s", uvpath );
@@ -1484,7 +1484,7 @@ maildir_rescan( maildir_store_t *ctx )
 			msgapp = &msg->next;
 		} else {
 			debug( "  updating message %u\n", msg->uid );
-			msg->status &= ~(M_FLAGS|M_RECENT);
+			msg->status &= ~(M_FLAGS | M_RECENT);
 			free( msg->base );
 			free( msg->msgid );
 			maildir_init_msg( ctx, msg, msglist.array.data + i );
@@ -1605,7 +1605,7 @@ maildir_store_msg( store_t *gctx, msg_data_t *data, int to_trash,
 
 	maildir_make_flags( ctx->conf->info_delimiter, data->flags, fbuf );
 	nfsnprintf( buf, sizeof(buf), "%s/tmp/%s%s", box, base, fbuf );
-	if ((fd = open( buf, O_WRONLY|O_CREAT|O_EXCL, 0600 )) < 0) {
+	if ((fd = open( buf, O_WRONLY | O_CREAT | O_EXCL, 0600 )) < 0) {
 		if (errno != ENOENT || !to_trash) {
 			sys_error( "Maildir error: cannot create %s", buf );
 			free( data->data );
@@ -1617,7 +1617,7 @@ maildir_store_msg( store_t *gctx, msg_data_t *data, int to_trash,
 			cb( ret, 0, aux );
 			return;
 		}
-		if ((fd = open( buf, O_WRONLY|O_CREAT|O_EXCL, 0600 )) < 0) {
+		if ((fd = open( buf, O_WRONLY | O_CREAT | O_EXCL, 0600 )) < 0) {
 			sys_error( "Maildir error: cannot create %s", buf );
 			free( data->data );
 			cb( DRV_BOX_BAD, 0, aux );

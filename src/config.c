@@ -403,7 +403,7 @@ merge_ops( int cops, int ops[], const char *chan_name )
 			if (!(cops & OP_MASK_TYPE))
 				cops |= OP_DFLT_TYPE;
 			else if (!(cops & XOP_MASK_DIR))
-				cops |= XOP_PULL|XOP_PUSH;
+				cops |= XOP_PULL | XOP_PUSH;
 			if (cops & XOP_PULL)
 				ops[N] |= cops & OP_MASK_TYPE;
 			if (cops & XOP_PUSH)

@@ -230,7 +230,7 @@ main( int argc, char **argv )
 					cops |= XOP_PUSH, mvars->ops[F] |= XOP_HAVE_TYPE;
 				} else if (starts_with( opt, -1, "create", 6 )) {
 					opt += 6;
-					op = OP_CREATE|XOP_HAVE_CREATE;
+					op = OP_CREATE | XOP_HAVE_CREATE;
 				  lcop:
 					if (!*opt)
 						cops |= op;
@@ -247,7 +247,7 @@ main( int argc, char **argv )
 					mvars->ops[F] |= op & (XOP_HAVE_CREATE | XOP_HAVE_REMOVE | XOP_HAVE_EXPUNGE | XOP_HAVE_EXPUNGE_SOLO);
 				} else if (starts_with( opt, -1, "remove", 6 )) {
 					opt += 6;
-					op = OP_REMOVE|XOP_HAVE_REMOVE;
+					op = OP_REMOVE | XOP_HAVE_REMOVE;
 					goto lcop;
 				} else if (starts_with( opt, -1, "expunge-solo", 12 )) {
 					opt += 12;
@@ -255,7 +255,7 @@ main( int argc, char **argv )
 					goto lcop;
 				} else if (starts_with( opt, -1, "expunge", 7 )) {
 					opt += 7;
-					op = OP_EXPUNGE|XOP_HAVE_EXPUNGE;
+					op = OP_EXPUNGE | XOP_HAVE_EXPUNGE;
 					goto lcop;
 				} else if (!strcmp( opt, "no-expunge-solo" )) {
 					mvars->ops[F] |= XOP_EXPUNGE_SOLO_NOOP | XOP_HAVE_EXPUNGE_SOLO;
@@ -341,7 +341,7 @@ main( int argc, char **argv )
 			config = argv[oind++];
 			break;
 		case 'C':
-			op = OP_CREATE|XOP_HAVE_CREATE;
+			op = OP_CREATE | XOP_HAVE_CREATE;
 		  cop:
 			if (*ochar == 'f')
 				mvars->ops[F] |= op, ochar++;
@@ -358,16 +358,16 @@ main( int argc, char **argv )
 			mvars->ops[F] |= op & (XOP_HAVE_CREATE | XOP_HAVE_REMOVE | XOP_HAVE_EXPUNGE | XOP_HAVE_EXPUNGE_SOLO);
 			break;
 		case 'R':
-			op = OP_REMOVE|XOP_HAVE_REMOVE;
+			op = OP_REMOVE | XOP_HAVE_REMOVE;
 			goto cop;
 		case 'x':
 			op = OP_EXPUNGE_SOLO | XOP_HAVE_EXPUNGE_SOLO;
 			goto cop;
 		case 'X':
-			op = OP_EXPUNGE|XOP_HAVE_EXPUNGE;
+			op = OP_EXPUNGE | XOP_HAVE_EXPUNGE;
 			goto cop;
 		case 'F':
-			cops |= XOP_PULL|XOP_PUSH;
+			cops |= XOP_PULL | XOP_PUSH;
 			mvars->ops[F] |= XOP_HAVE_TYPE;
 			break;
 		case '0':

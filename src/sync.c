@@ -1792,7 +1792,7 @@ static void box_closed_p2( sync_vars_t *svars, int t );
 static void
 sync_close( sync_vars_t *svars, int t )
 {
-	if ((~svars->state[t] & (ST_FOUND_NEW|ST_SENT_TRASH)) || svars->trash_pending[t] ||
+	if ((~svars->state[t] & (ST_FOUND_NEW | ST_SENT_TRASH)) || svars->trash_pending[t] ||
 	    (~svars->state[t^1] & (ST_SENT_NEW | ST_SENT_FLAGS)) || svars->new_pending[t^1] || svars->flags_pending[t^1])
 		return;
 
