@@ -142,6 +142,7 @@ void socket_start_tls(conn_t *conn, void (*cb)( int ok, void *aux ) );
 void socket_start_deflate( conn_t *conn );
 void socket_close( conn_t *sock );
 void socket_expect_activity( conn_t *sock, int expect );
+void socket_expect_eof( conn_t *sock );
 int socket_read( conn_t *sock, char *buf, uint len ); /* never waits */
 char *socket_read_line( conn_t *sock ); /* don't free return value; never waits */
 typedef enum { KeepOwn = 0, GiveOwn } ownership_t;
