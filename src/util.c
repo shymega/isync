@@ -13,6 +13,7 @@
 #include <ctype.h>
 #include <pwd.h>
 
+int Verbosity = TERSE;
 int DFlags;
 int JLimit;
 int UseFSync = 1;
@@ -95,7 +96,7 @@ info( const char *msg, ... )
 {
 	va_list va;
 
-	if (DFlags & VERBOSE) {
+	if (Verbosity >= VERBOSE) {
 		va_start( va, msg );
 		nvprint( msg, va );
 		va_end( va );
@@ -107,7 +108,7 @@ infon( const char *msg, ... )
 {
 	va_list va;
 
-	if (DFlags & VERBOSE) {
+	if (Verbosity >= VERBOSE) {
 		va_start( va, msg );
 		nvprint( msg, va );
 		va_end( va );
@@ -120,7 +121,7 @@ notice( const char *msg, ... )
 {
 	va_list va;
 
-	if (!(DFlags & QUIET)) {
+	if (Verbosity >= TERSE) {
 		va_start( va, msg );
 		nvprint( msg, va );
 		va_end( va );
@@ -132,7 +133,7 @@ warn( const char *msg, ... )
 {
 	va_list va;
 
-	if (!(DFlags & VERYQUIET)) {
+	if (Verbosity >= QUIET) {
 		flushn();
 		va_start( va, msg );
 		vfprintf( stderr, msg, va );

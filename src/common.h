@@ -83,6 +83,13 @@ typedef unsigned long ulong;
 
 /* main.c */
 
+enum {
+	VERYQUIET,
+	QUIET,
+	TERSE,
+	VERBOSE,
+};
+
 #define DEBUG_CRASH     0x01
 #define DEBUG_MAILDIR   0x02
 #define DEBUG_NET       0x04
@@ -91,10 +98,7 @@ typedef unsigned long ulong;
 #define DEBUG_MAIN      0x20
 #define DEBUG_DRV       0x40
 #define DEBUG_DRV_ALL   0x80
-#define QUIET           0x100
-#define VERYQUIET       0x200
 #define PROGRESS        0x400
-#define VERBOSE         0x800
 #define KEEPJOURNAL     0x1000
 #define ZERODELAY       0x2000
 #define FORCEASYNC      0x4000
@@ -103,6 +107,7 @@ typedef unsigned long ulong;
 #define DEBUG_ALL (DEBUG_ANY | DEBUG_CRASH)
 
 // Global options
+extern int Verbosity;
 extern int DFlags;
 extern int JLimit;
 extern int UseFSync;

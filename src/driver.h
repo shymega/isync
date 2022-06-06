@@ -124,7 +124,7 @@ typedef struct {
 */
 #define DRV_CRLF        1
 /*
-   This flag says that the driver will act upon (DFlags & VERBOSE).
+   This flag says that the driver will act upon (Verbosity >= VERBOSE).
 */
 #define DRV_VERBOSE     2
 /*

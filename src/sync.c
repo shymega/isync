@@ -64,7 +64,7 @@ static int check_cancel( sync_vars_t *svars );
 static uchar
 sanitize_flags( uchar tflags, sync_vars_t *svars, int t )
 {
-	if (!(DFlags & QUIET)) {
+	if (Verbosity >= TERSE) {
 		// We complain only once per flag per store - even though _theoretically_
 		// each mailbox can support different flags according to the IMAP spec.
 		uchar bflags = tflags & ~(svars->good_flags[t] | svars->bad_flags[t]);

@@ -429,32 +429,30 @@ main( int argc, char **argv )
 				} else if (!strcmp( opt, "version" )) {
 					version();
 				} else if (!strcmp( opt, "quiet" )) {
-					if (DFlags & QUIET)
-						DFlags |= VERYQUIET;
-					else
-						DFlags |= QUIET;
+					if (Verbosity > VERYQUIET)
+						Verbosity--;
 				} else if (!strcmp( opt, "verbose" )) {
-					DFlags |= VERBOSE;
+					Verbosity = VERBOSE;
 				} else if (starts_with( opt, -1, "debug", 5 )) {
 					opt += 5;
 					if (!*opt)
-						op = VERBOSE | DEBUG_ALL;
+						op = DEBUG_ALL;
 					else if (!strcmp( opt, "-crash" ))
 						op = DEBUG_CRASH;
 					else if (!strcmp( opt, "-driver" ))
-						op = VERBOSE | DEBUG_DRV;
+						op = DEBUG_DRV;
 					else if (!strcmp( opt, "-driver-all" ))
-						op = VERBOSE | DEBUG_DRV | DEBUG_DRV_ALL;
+						op = DEBUG_DRV | DEBUG_DRV_ALL;
 					else if (!strcmp( opt, "-maildir" ))
-						op = VERBOSE | DEBUG_MAILDIR;
+						op = DEBUG_MAILDIR;
 					else if (!strcmp( opt, "-main" ))
-						op = VERBOSE | DEBUG_MAIN;
+						op = DEBUG_MAIN;
 					else if (!strcmp( opt, "-net" ))
-						op = VERBOSE | DEBUG_NET;
+						op = DEBUG_NET;
 					else if (!strcmp( opt, "-net-all" ))
-						op = VERBOSE | DEBUG_NET | DEBUG_NET_ALL;
+						op = DEBUG_NET | DEBUG_NET_ALL;
 					else if (!strcmp( opt, "-sync" ))
-						op = VERBOSE | DEBUG_SYNC;
+						op = DEBUG_SYNC;
 					else
 						goto badopt;
 					DFlags |= op;
@@ -623,13 +621,11 @@ main( int argc, char **argv )
 			op = XOP_PUSH;
 			goto cac;
 		case 'q':
-			if (DFlags & QUIET)
-				DFlags |= VERYQUIET;
-			else
-				DFlags |= QUIET;
+			if (Verbosity > VERYQUIET)
+				Verbosity--;
 			break;
 		case 'V':
-			DFlags |= VERBOSE;
+			Verbosity = VERBOSE;
 			break;
 		case 'D':
 			for (op = 0; *ochar; ochar++) {
@@ -638,25 +634,25 @@ main( int argc, char **argv )
 					op |= DEBUG_CRASH;
 					break;
 				case 'd':
-					op |= DEBUG_DRV | VERBOSE;
+					op |= DEBUG_DRV;
 					break;
 				case 'D':
-					op |= DEBUG_DRV | DEBUG_DRV_ALL | VERBOSE;
+					op |= DEBUG_DRV | DEBUG_DRV_ALL;
 					break;
 				case 'm':
-					op |= DEBUG_MAILDIR | VERBOSE;
+					op |= DEBUG_MAILDIR;
 					break;
 				case 'M':
-					op |= DEBUG_MAIN | VERBOSE;
+					op |= DEBUG_MAIN;
 					break;
 				case 'n':
-					op |= DEBUG_NET | VERBOSE;
+					op |= DEBUG_NET;
 					break;
 				case 'N':
-					op |= DEBUG_NET | DEBUG_NET_ALL | VERBOSE;
+					op |= DEBUG_NET | DEBUG_NET_ALL;
 					break;
 				case 's':
-					op |= DEBUG_SYNC | VERBOSE;
+					op |= DEBUG_SYNC;
 					break;
 				default:
 					error( "Unknown -D flag '%c'\n", *ochar );
@@ -664,7 +660,7 @@ main( int argc, char **argv )
 				}
 			}
 			if (!op)
-				op = DEBUG_ALL | VERBOSE;
+				op = DEBUG_ALL;
 			DFlags |= op;
 			break;
 		case 'T':
@@ -698,8 +694,11 @@ main( int argc, char **argv )
 	if (ms_warn)
 		warn( "Notice: -master/-slave/m/s suffixes are deprecated; use -far/-near/f/n instead.\n" );
 
-	if (!(DFlags & (QUIET | DEBUG_ANY)) && isatty( 1 ))
+	if (DFlags & DEBUG_ANY) {
+		Verbosity = VERBOSE;
+	} else if (Verbosity >= TERSE && isatty( 1 )) {
 		DFlags |= PROGRESS;
+	}
 
 #ifdef __linux__
 	if (DFlags & DEBUG_CRASH) {
