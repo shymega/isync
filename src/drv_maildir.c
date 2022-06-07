@@ -373,7 +373,7 @@ maildir_list_maildirpp( maildir_store_t *ctx, int flags, const char *inbox )
 }
 
 static int
-maildir_list_recurse( maildir_store_t *ctx, int isBox, int flags,
+maildir_list_recurse( maildir_store_t *ctx, int isBox,
                       const char *inbox, uint inboxLen,
                       char *suffix, int suffixLen,
                       char *path, int pathLen, char *name, int nameLen )
@@ -449,7 +449,7 @@ maildir_list_recurse( maildir_store_t *ctx, int isBox, int flags,
 				add_string_list( &ctx->boxes, name );
 			path[pl] = 0;
 			name[nl++] = '/';
-			if (maildir_list_recurse( ctx, isBox + 1, flags, inbox, inboxLen, NULL, 0, path, pl, name, nl ) < 0) {
+			if (maildir_list_recurse( ctx, isBox + 1, inbox, inboxLen, NULL, 0, path, pl, name, nl ) < 0) {
 				closedir( dir );
 				return -1;
 			}
@@ -460,7 +460,7 @@ maildir_list_recurse( maildir_store_t *ctx, int isBox, int flags,
 }
 
 static int
-maildir_list_inbox( maildir_store_t *ctx, int flags )
+maildir_list_inbox( maildir_store_t *ctx )
 {
 	char path[_POSIX_PATH_MAX], name[_POSIX_PATH_MAX];
 
@@ -470,13 +470,13 @@ maildir_list_inbox( maildir_store_t *ctx, int flags )
 
 	add_string_list( &ctx->boxes, "INBOX" );
 	return maildir_list_recurse(
-	        ctx, 1, flags, NULL, 0, NULL, 0,
+	        ctx, 1, NULL, 0, NULL, 0,
 	        path, nfsnprintf( path, _POSIX_PATH_MAX, "%s/", ctx->conf->inbox ),
 	        name, nfsnprintf( name, _POSIX_PATH_MAX, "INBOX/" ) );
 }
 
 static int
-maildir_list_path( maildir_store_t *ctx, int flags )
+maildir_list_path( maildir_store_t *ctx )
 {
 	char path[_POSIX_PATH_MAX], name[_POSIX_PATH_MAX];
 
@@ -488,7 +488,7 @@ maildir_list_path( maildir_store_t *ctx, int flags )
 		return -1;
 	const char *inbox = ctx->conf->inbox;
 	return maildir_list_recurse(
-	        ctx, 0, flags, inbox, strlen( inbox ),
+	        ctx, 0, inbox, strlen( inbox ),
 	        ctx->conf->path_sfx, strlen( ctx->conf->path_sfx ),
 	        path, nfsnprintf( path, _POSIX_PATH_MAX, "%s/", ctx->conf->path ),
 	        name, 0 );
@@ -504,9 +504,9 @@ maildir_list_store( store_t *gctx, int flags,
 	if (conf->sub_style == SUB_MAILDIRPP
 	        ? maildir_list_maildirpp( ctx, flags, conf->inbox ) < 0
 	        : ((((flags & LIST_PATH) || ((flags & LIST_PATH_MAYBE) && conf->path))
-	            && maildir_list_path( ctx, flags ) < 0) ||
+	            && maildir_list_path( ctx ) < 0) ||
 	           ((flags & LIST_INBOX)
-	            && maildir_list_inbox( ctx, flags ) < 0))) {
+	            && maildir_list_inbox( ctx ) < 0))) {
 		maildir_invoke_bad_callback( ctx );
 		cb( DRV_CANCELED, NULL, aux );
 	} else {
