@@ -816,27 +816,27 @@ socket_read( conn_t *conn, char *buf, uint len )
 }
 
 char *
-socket_read_line( conn_t *b )
+socket_read_line( conn_t *conn )
 {
-	char *p, *s;
-	uint n;
-
-	s = b->buf + b->offset;
-	p = memchr( s + b->scanoff, '\n', b->bytes - b->scanoff );
+	uint off = conn->offset;
+	uint cnt = conn->bytes;
+	char *s = conn->buf + off;
+	char *p = memchr( s + conn->scanoff, '\n', cnt - conn->scanoff );
 	if (!p) {
-		b->scanoff = b->bytes;
-		if (b->offset + b->bytes == sizeof(b->buf)) {
-			memmove( b->buf, b->buf + b->offset, b->bytes );
-			b->offset = 0;
-		}
-		if (b->state == SCK_EOF)
+		if (conn->state == SCK_EOF)
 			return (void *)~0;
+		conn->scanoff = cnt;
+		if (off + cnt == sizeof(conn->buf)) {
+			memmove( conn->buf, conn->buf + off, cnt );
+			conn->offset = 0;
+		}
 		return NULL;
 	}
-	n = (uint)(p + 1 - s);
-	b->offset += n;
-	b->bytes -= n;
-	b->scanoff = 0;
+	uint n = (uint)(p + 1 - s);
+	cnt -= n;
+	conn->offset = off + n;
+	conn->bytes = cnt;
+	conn->scanoff = 0;
 	if (p != s && p[-1] == '\r')
 		p--;
 	*p = 0;
