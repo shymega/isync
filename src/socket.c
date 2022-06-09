@@ -719,6 +719,33 @@ do_read( conn_t *sock, char *buf, uint len )
 	return n;
 }
 
+static void
+socket_filled( conn_t *conn, uint len )
+{
+	uint off = conn->offset;
+	uint cnt = conn->bytes + len;
+	conn->bytes = cnt;
+	if (conn->wanted) {
+		// Fulfill as much of the request as still fits into the buffer
+		if (cnt < conn->wanted && off + cnt < sizeof(conn->buf))
+			return;
+	} else {
+		// Need a full line
+		char *s = conn->buf + off;
+		char *p = memchr( s + conn->scanoff, '\n', cnt - conn->scanoff );
+		if (!p) {
+			conn->scanoff = cnt;
+			if (off + cnt == sizeof(conn->buf)) {
+				memmove( conn->buf, conn->buf + off, cnt );
+				conn->offset = 0;
+			}
+			return;
+		}
+		conn->scanoff = (uint)(p - s);
+	}
+	conn->read_callback( conn->callback_aux );
+}
+
 #ifdef HAVE_LIBZ
 static void
 socket_fill_z( conn_t *sock )
@@ -745,10 +772,8 @@ socket_fill_z( conn_t *sock )
 	if (!sock->in_z->avail_out)
 		conf_wakeup( &sock->z_fake, 0 );
 
-	if ((len = (uint)((char *)sock->in_z->next_out - buf))) {
-		sock->bytes += len;
-		sock->read_callback( sock->callback_aux );
-	}
+	if ((len = (uint)((char *)sock->in_z->next_out - buf)))
+		socket_filled( sock, len );
 }
 #endif
 
@@ -778,8 +803,7 @@ socket_fill( conn_t *sock )
 		if ((n = do_read( sock, buf, len )) <= 0)
 			return;
 
-		sock->bytes += (uint)n;
-		sock->read_callback( sock->callback_aux );
+		socket_filled( sock, (uint)n );
 	}
 }
 
@@ -799,6 +823,21 @@ socket_expect_eof( conn_t *sock )
 #endif
 }
 
+void
+socket_expect_bytes( conn_t *conn, uint len )
+{
+	conn->wanted = len;
+	uint off = conn->offset;
+	if (off) {
+		uint cnt = conn->bytes;
+		if (off + len > sizeof(conn->buf) ||
+		    off + cnt == sizeof(conn->buf)) {
+			memmove( conn->buf, conn->buf + off, cnt );
+			conn->offset = 0;
+		}
+	}
+}
+
 char *
 socket_read( conn_t *conn, uint min_len, uint max_len, uint *out_len )
 {
@@ -811,10 +850,6 @@ socket_read( conn_t *conn, uint min_len, uint max_len, uint *out_len )
 	if (cnt < min_len) {
 		if (conn->state == SCK_EOF)
 			return (void *)~0;
-		if (off + min_len > sizeof(conn->buf)) {
-			memmove( conn->buf, conn->buf + off, cnt );
-			conn->offset = 0;
-		}
 		return NULL;
 	}
 	uint n = (cnt < max_len) ? cnt : max_len;
@@ -836,10 +871,6 @@ socket_read_line( conn_t *conn )
 		if (conn->state == SCK_EOF)
 			return (void *)~0;
 		conn->scanoff = cnt;
-		if (off + cnt == sizeof(conn->buf)) {
-			memmove( conn->buf, conn->buf + off, cnt );
-			conn->offset = 0;
-		}
 		return NULL;
 	}
 	uint n = (uint)(p + 1 - s);

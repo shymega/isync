@@ -99,6 +99,7 @@ typedef struct {
 	uint offset; /* start of filled bytes in buffer */
 	uint bytes; /* number of filled bytes in buffer */
 	uint scanoff; /* offset to continue scanning for newline at, relative to 'offset' */
+	uint wanted;  // try to accumulate that many bytes before calling back; 0 => full line
 	char buf[100000];
 #ifdef HAVE_LIBZ
 	char z_buf[100000];
@@ -121,6 +122,7 @@ static INLINE void socket_init( conn_t *conn,
 	conn->fd = -1;
 	conn->name = NULL;
 	conn->write_buf_append = &conn->write_buf;
+	conn->wanted = 1;
 }
 void socket_connect( conn_t *conn, void (*cb)( int ok, void *aux ) );
 void socket_start_tls(conn_t *conn, void (*cb)( int ok, void *aux ) );
@@ -128,6 +130,7 @@ void socket_start_deflate( conn_t *conn );
 void socket_close( conn_t *sock );
 void socket_expect_activity( conn_t *sock, int expect );
 void socket_expect_eof( conn_t *sock );
+void socket_expect_bytes( conn_t *sock, uint len );
 // Don't free return values. These functions never wait.
 char *socket_read( conn_t *conn, uint min_len, uint max_len, uint *out_len );
 char *socket_read_line( conn_t *conn );

@@ -1605,14 +1605,18 @@ imap_socket_read( void *aux )
 		if (ctx->parse_list_sts.level) {
 			resp = parse_list_continue( ctx );
 		  listret:
-			if (resp == LIST_PARTIAL)
+			if (resp == LIST_PARTIAL) {
+				socket_expect_bytes( &ctx->conn, ctx->parse_list_sts.need_bytes );
 				return;
+			}
 			if (resp == LIST_BAD)
 				break;
 			continue;
 		}
-		if (!(cmd = socket_read_line( &ctx->conn )))
+		if (!(cmd = socket_read_line( &ctx->conn ))) {
+			socket_expect_bytes( &ctx->conn, 0 );
 			return;
+		}
 		if (cmd == (void *)~0) {
 			if (!ctx->expectEOF)
 				error( "IMAP error: unexpected EOF from %s\n", ctx->conn.name );
