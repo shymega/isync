@@ -198,8 +198,10 @@ sys_error( const char *msg, ... )
 #define QPRINTF_SEGS 16
 #define QPRINTF_BUFF 1000
 
-char *
-xvasprintf( const char *fmt, va_list ap )
+typedef void (*printf_cb)( const char **segs, uint *segls, int nsegs, uint totlen, void *aux );
+
+static void
+xvprintf_core( const char *fmt, va_list ap, printf_cb cb, void *cb_aux )
 {
 	int nsegs = 0;
 	uint totlen = 0;
@@ -320,13 +322,52 @@ xvasprintf( const char *fmt, va_list ap )
 			fmt++;
 		}
 	}
-	char *out = d = nfmalloc( totlen + 1 );
+	cb( segs, segls, nsegs, totlen, cb_aux );
+}
+
+static void
+xasprintf_cb( const char **segs, uint *segls, int nsegs, uint totlen, void *aux )
+{
+	char *d = nfmalloc( totlen + 1 );
+	*(char **)aux = d;
 	for (int i = 0; i < nsegs; i++) {
 		memcpy( d, segs[i], segls[i] );
 		d += segls[i];
 	}
 	*d = 0;
+}
+
+char *
+xvasprintf( const char *fmt, va_list ap )
+{
+	char *out;
+	xvprintf_core( fmt, ap, xasprintf_cb, &out );
 	return out;
+}
+
+#ifndef HAVE_FWRITE_UNLOCKED
+# define flockfile(f)
+# define funlockfile(f)
+# define fwrite_unlocked(b, l, n, f) fwrite(b, l, n, f)
+#endif
+
+static void
+xprintf_cb( const char **segs, uint *segls, int nsegs, uint totlen ATTR_UNUSED, void *aux ATTR_UNUSED )
+{
+	flockfile( stdout );
+	for (int i = 0; i < nsegs; i++)
+		fwrite_unlocked( segs[i], 1, segls[i], stdout );
+	funlockfile( stdout );
+}
+
+void
+xprintf( const char *fmt, ... )
+{
+	va_list va;
+
+	va_start( va, fmt );
+	xvprintf_core( fmt, va, xprintf_cb, NULL );
+	va_end( va );
 }
 
 void

@@ -83,7 +83,7 @@ if test "x$ob_cv_strftime_z" = x"no"; then
 fi
 
 AC_CHECK_HEADERS(poll.h sys/select.h)
-AC_CHECK_FUNCS(vasprintf strnlen memrchr timegm)
+AC_CHECK_FUNCS(vasprintf strnlen memrchr timegm fwrite_unlocked)
 
 AC_CHECK_LIB(socket, socket, [SOCK_LIBS="-lsocket"])
 AC_CHECK_LIB(nsl, inet_ntoa, [SOCK_LIBS="$SOCK_LIBS -lnsl"])
