@@ -834,7 +834,7 @@ socket_read_line( conn_t *conn )
 	}
 	uint n = (uint)(p + 1 - s);
 	cnt -= n;
-	conn->offset = off + n;
+	conn->offset = cnt ? off + n : 0;
 	conn->bytes = cnt;
 	conn->scanoff = 0;
 	if (p != s && p[-1] == '\r')
