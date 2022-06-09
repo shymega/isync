@@ -407,6 +407,7 @@ socket_start_deflate( conn_t *conn )
 	}
 
 	init_wakeup( &conn->z_fake, z_fake_cb, conn );
+	conn->readsz = 0;  // This optimization makes no sense past this point
 }
 #endif /* HAVE_LIBZ */
 
@@ -726,8 +727,9 @@ socket_filled( conn_t *conn, uint len )
 	uint cnt = conn->bytes + len;
 	conn->bytes = cnt;
 	if (conn->wanted) {
-		// Fulfill as much of the request as still fits into the buffer
-		if (cnt < conn->wanted && off + cnt < sizeof(conn->buf))
+		// Fulfill as much of the request as still fits into the buffer,
+		// but avoid chopping up the actual socket reads
+		if (cnt < conn->wanted && off + cnt < sizeof(conn->buf) - conn->readsz)
 			return;
 	} else {
 		// Need a full line
@@ -735,7 +737,7 @@ socket_filled( conn_t *conn, uint len )
 		char *p = memchr( s + conn->scanoff, '\n', cnt - conn->scanoff );
 		if (!p) {
 			conn->scanoff = cnt;
-			if (off + cnt == sizeof(conn->buf)) {
+			if (off && off + cnt >= sizeof(conn->buf) - conn->readsz) {
 				memmove( conn->buf, conn->buf + off, cnt );
 				conn->offset = 0;
 			}
@@ -803,6 +805,12 @@ socket_fill( conn_t *sock )
 		if ((n = do_read( sock, buf, len )) <= 0)
 			return;
 
+		// IIR filter for tracking average size of bulk reads.
+		// We use this to optimize the free space at the end of the
+		// buffer, hence the factor of 1.5.
+		if (n >= MIN_BULK_READ)
+			sock->readsz = (sock->readsz * 3 + n * 3 / 2) / 4;
+
 		socket_filled( sock, (uint)n );
 	}
 }
@@ -831,7 +839,7 @@ socket_expect_bytes( conn_t *conn, uint len )
 	if (off) {
 		uint cnt = conn->bytes;
 		if (off + len > sizeof(conn->buf) ||
-		    off + cnt == sizeof(conn->buf)) {
+		    off + cnt >= sizeof(conn->buf) - conn->readsz) {
 			memmove( conn->buf, conn->buf + off, cnt );
 			conn->offset = 0;
 		}

@@ -100,11 +100,15 @@ typedef struct {
 	uint bytes; /* number of filled bytes in buffer */
 	uint scanoff; /* offset to continue scanning for newline at, relative to 'offset' */
 	uint wanted;  // try to accumulate that many bytes before calling back; 0 => full line
+	uint readsz;  // average size of bulk reads from the underlying socket, times 1.5
 	char buf[100000];
 #ifdef HAVE_LIBZ
 	char z_buf[100000];
 #endif
 } conn_t;
+
+// Shorter reads are assumed to be limited by round-trips.
+#define MIN_BULK_READ 1000
 
 /* call this before doing anything with the socket */
 static INLINE void socket_init( conn_t *conn,
@@ -123,6 +127,7 @@ static INLINE void socket_init( conn_t *conn,
 	conn->name = NULL;
 	conn->write_buf_append = &conn->write_buf;
 	conn->wanted = 1;
+	conn->readsz = MIN_BULK_READ * 3 / 2;
 }
 void socket_connect( conn_t *conn, void (*cb)( int ok, void *aux ) );
 void socket_start_tls(conn_t *conn, void (*cb)( int ok, void *aux ) );
