@@ -58,25 +58,60 @@ typedef union imap_store_conf {
 	};
 } imap_store_conf_t;
 
-#define NIL	(void*)0x1
-#define LIST	(void*)0x2
-
-typedef struct _list {
-	struct _list *next, *child;
-	char *val;
-	uint len;
-} list_t;
-
-#define MAX_LIST_DEPTH 5
-
 typedef union imap_store imap_store_t;
 
+enum { AtomNil, AtomString, AtomLiteral, AtomChunkedLiteral };
+
 typedef struct {
-	list_t *head, **stack[MAX_LIST_DEPTH];
-	int (*callback)( imap_store_t *ctx, list_t *list );
-	int level, need_bytes;
+	int (*enter)( imap_store_t *ctx );
+	int (*leave)( imap_store_t *ctx );
+	int (*atom)( imap_store_t *ctx, char *val, uint len, int type );
+	int (*done)( imap_store_t *ctx, int resp );
+} parse_list_cb_t;
+
+typedef struct {
+	parse_list_cb_t *callback;
+	uint need_bytes;
+	int level, chunked, big_literal;
+	enum { NotLiteral, AtomicLiteral, ChunkedLiteral } in_literal;
 	const char *err;
 } parse_list_state_t;
+
+typedef enum {
+	NsInit,
+	Ns1st,
+	Ns1stNs,
+	Ns1stDelim,
+	NsDone
+} ParseNsState;
+
+typedef enum {
+	FetchInit,
+	FetchAttrib,
+	FetchUid,
+	FetchFlags,
+	FetchFlagVal,
+	FetchDate,
+	FetchSize,
+	FetchBody,
+	FetchBodyChunk,
+	FetchHeaders,
+	FetchHeaderFields,
+	FetchHeaderBracket,
+	FetchHeaderCont
+} ParseFetchState;
+
+typedef enum {
+	ListInit,
+	ListAttrib,
+	ListSkip
+} ParseListState;
+
+typedef enum {
+	PermflagsInit,
+	PermflagsFlags,
+	PermflagsHasFwd
+} ParsePermflagsState;
 
 typedef struct imap_cmd imap_cmd_t;
 
@@ -106,12 +141,25 @@ union imap_store {
 		int total_msgs, recent_msgs;
 		uint uidvalidity, uidnext;
 		imap_messages_t msgs;
-		uint fetch_seq;  // FETCH results
+		struct {  // pending FETCH result
+			char *body, *msgid;
+			time_t date;
+			uint seq, uid, size, body_len;
+			uchar flags, status;
+			char tuid[TUIDL];
+		} fetch;
 		uint caps;  // CAPABILITY results
 		string_list_t *auth_mechs;
 		parse_list_state_t parse_list_sts;
 		const char *parse_list_what;
 		char *parse_list_cmd;
+		union {
+			ParseNsState ns_state;
+			ParseFetchState fetch_state;
+			ParseListState list_state;
+			ParsePermflagsState permflags_state;
+			int any_state;  // We always init this one to zero
+		};
 		// Command queue
 		imap_cmd_t *pending, **pending_append;
 		imap_cmd_t *in_progress, **in_progress_append;
@@ -682,39 +730,6 @@ next_arg( char **ps, uint *len )
 	return ret;
 }
 
-static int
-is_opt_atom( list_t *list )
-{
-	return list && list->val && list->val != LIST;
-}
-
-static int
-is_atom( list_t *list )
-{
-	return list && list->val && list->val != NIL && list->val != LIST;
-}
-
-static int
-is_list( list_t *list )
-{
-	return list && list->val == LIST;
-}
-
-static void
-free_list( list_t *list )
-{
-	list_t *tmp;
-
-	for (; list; list = tmp) {
-		tmp = list->next;
-		if (is_list( list ))
-			free_list( list->child );
-		else if (is_atom( list ))
-			free( list->val );
-		free( list );
-	}
-}
-
 enum {
 	LIST_OK,
 	LIST_PARTIAL,
@@ -724,23 +739,20 @@ enum {
 static int
 parse_imap_list( imap_store_t *ctx, char **sp, parse_list_state_t *sts )
 {
-	list_t *cur, **curp;
 	char *s = *sp, *d, *p;
-	int bytes;
+	uint bytes;
 	uint n;
 	char c;
 
+	assert( ctx );
 	assert( sts );
-	assert( sts->level > 0 );
-	curp = sts->stack[--sts->level];
-	bytes = sts->need_bytes;
-	if (bytes >= 0) {
-		sts->need_bytes = -1;
+	if (sts->in_literal != NotLiteral) {
+		bytes = sts->need_bytes;
 		if (!bytes)
 			goto getline;
-		cur = (list_t *)((char *)curp - offsetof(list_t, next));
-		s = cur->val + cur->len - bytes;
-		goto getbytes;
+		if (sts->in_literal == ChunkedLiteral)
+			goto get_chunked;
+		goto get_atomic;
 	}
 
 	if (!s) {
@@ -752,40 +764,50 @@ parse_imap_list( imap_store_t *ctx, char **sp, parse_list_state_t *sts )
 			s++;
 		if (sts->level && *s == ')') {
 			s++;
-			curp = sts->stack[--sts->level];
+			if (sts->callback->leave && sts->callback->leave( ctx ) != LIST_OK)
+				goto bail;
+			sts->level--;
 			goto next;
 		}
-		*curp = cur = nfmalloc( sizeof(*cur) );
-		cur->val = NULL; /* for clean bail */
-		curp = &cur->next;
-		*curp = NULL; /* ditto */
 		if (*s == '(') {
 			/* sublist */
-			if (sts->level == MAX_LIST_DEPTH)
-				goto toodeep;
 			s++;
-			cur->val = LIST;
-			sts->stack[sts->level++] = curp;
-			curp = &cur->child;
-			*curp = NULL; /* for clean bail */
+			sts->level++;
+			if (sts->callback->enter && sts->callback->enter( ctx ) != LIST_OK)
+				goto bail;
 			goto next2;
-		} else if (ctx && *s == '{') {
+		} else if (*s == '{') {
 			/* literal */
-			bytes = (int)(cur->len = strtoul( s + 1, &s, 10 ));
+			bytes = strtoul( s + 1, &s, 10 );
 			if (*s != '}' || *++s) {
 				sts->err = "malformed literal";
 				goto bail;
 			}
-			if ((uint)bytes >= INT_MAX) {
+			if (bytes >= INT_MAX) {
 				sts->err = "excessively large literal - THIS MIGHT BE AN ATTEMPT TO HACK YOU!";
 				goto bail;
 			}
 
-			s = cur->val = nfmalloc( cur->len + 1 );
-			s[cur->len] = 0;
-
-		  getbytes:
-			if (!(p = socket_read( &ctx->conn, 1, (uint)bytes, &n )))
+			if (sts->chunked) {
+				sts->chunked = 0;
+				assert( sts->callback->atom );
+				if (sts->callback->atom( ctx, NULL, bytes, AtomChunkedLiteral ) != LIST_OK)
+					goto bail;
+				sts->in_literal = ChunkedLiteral;
+				sts->big_literal = 1;
+			  get_chunked:
+				n = 1;
+			} else {
+				if (bytes > sizeof(ctx->conn.buf)) {
+					sts->err = "unexpectedly large literal";
+					goto bail;
+				}
+				sts->in_literal = AtomicLiteral;
+				sts->big_literal = bytes > 64;
+			  get_atomic:
+				n = bytes;
+			}
+			if (!(p = socket_read( &ctx->conn, n, bytes, &n )))
 				goto postpone;
 			if (p == (void *)~0) {
 			  badeof:
@@ -793,7 +815,7 @@ parse_imap_list( imap_store_t *ctx, char **sp, parse_list_state_t *sts )
 				goto bail;
 			}
 			if (DFlags & DEBUG_NET) {
-				if (cur->len < 64) {
+				if (!sts->big_literal) {
 					xprintf( "%s%.*!s\n", ctx->label, (int)n, p );
 				} else if (DFlags & DEBUG_NET_ALL) {
 					printf( "%s=========\n", ctx->label );
@@ -806,10 +828,13 @@ parse_imap_list( imap_store_t *ctx, char **sp, parse_list_state_t *sts )
 				}
 				fflush( stdout );
 			}
-			memcpy( s, p, n );
+			if (sts->callback->atom && sts->callback->atom( ctx, p, n, AtomLiteral ) != LIST_OK)
+				goto bail;
 			bytes -= n;
 			if (bytes > 0)
 				goto postpone;
+			if (sts->in_literal == ChunkedLiteral && sts->callback->atom( ctx, NULL, 0, AtomLiteral ) != LIST_OK)
+				goto bail;
 		  getline:
 			if (!(s = socket_read_line( &ctx->conn )))
 				goto postpone;
@@ -819,6 +844,7 @@ parse_imap_list( imap_store_t *ctx, char **sp, parse_list_state_t *sts )
 				printf( "%s%s\n", ctx->label, s );
 				fflush( stdout );
 			}
+			sts->in_literal = NotLiteral;
 		} else if (*s == '"') {
 			/* quoted string */
 			s++;
@@ -832,19 +858,22 @@ parse_imap_list( imap_store_t *ctx, char **sp, parse_list_state_t *sts )
 				}
 				*d++ = c;
 			}
-			cur->len = (uint)(d - p);
-			cur->val = nfstrndup( p, cur->len );
+			if (sts->callback->atom && sts->callback->atom( ctx, p, (uint)(d - p), AtomString ) != LIST_OK)
+				goto bail;
 		} else {
 			/* atom */
 			p = s;
 			for (; *s && !isspace( (uchar)*s ); s++)
 				if (sts->level && *s == ')')
 					break;
-			cur->len = (uint)(s - p);
-			if (equals_upper( p, (int)cur->len, "NIL", 3 ))
-				cur->val = NIL;
-			else
-				cur->val = nfstrndup( p, cur->len );
+			if (sts->callback->atom) {
+				int t = AtomString;
+				n = (uint)(s - p);
+				if (equals_upper( p, (int)n, "NIL", 3 ))
+					p = NULL, n = 0, t = AtomNil;
+				if (sts->callback->atom( ctx, p, n, t ) != LIST_OK)
+					goto bail;
+			}
 		}
 
 	  next:
@@ -860,120 +889,134 @@ parse_imap_list( imap_store_t *ctx, char **sp, parse_list_state_t *sts )
 	return LIST_OK;
 
   postpone:
-	if (sts->level < MAX_LIST_DEPTH) {
-		sts->stack[sts->level++] = curp;
-		sts->need_bytes = bytes;
-		return LIST_PARTIAL;
-	}
-  toodeep:
-	sts->err = "too deeply nested lists";
+	sts->need_bytes = bytes;
+	return LIST_PARTIAL;
   bail:
-	free_list( sts->head );
 	sts->level = 0;
 	return LIST_BAD;
 }
 
 static void
-parse_list_init( parse_list_state_t *sts )
+parse_list_init( imap_store_t *ctx, parse_list_cb_t *cb )
 {
-	sts->need_bytes = -1;
-	sts->level = 1;
+	parse_list_state_t *sts = &ctx->parse_list_sts;
+	sts->in_literal = NotLiteral;
+	sts->level = 0;
+	sts->chunked = 0;
+	sts->callback = cb;
 	sts->err = NULL;
-	sts->head = NULL;
-	sts->stack[0] = &sts->head;
+	ctx->any_state = 0;
 }
 
 static int
 parse_list_continue( imap_store_t *ctx )
 {
-	list_t *list;
 	int resp;
 	if ((resp = parse_imap_list( ctx, &ctx->parse_list_cmd, &ctx->parse_list_sts )) != LIST_PARTIAL) {
-		list = (resp == LIST_BAD) ? NULL : ctx->parse_list_sts.head;
-		ctx->parse_list_sts.head = NULL;
-		resp = ctx->parse_list_sts.callback( ctx, list );
-		free_list( list );
+		if (ctx->parse_list_sts.callback->done)
+			resp = ctx->parse_list_sts.callback->done( ctx, resp );
+		if (resp == LIST_BAD) {
+			if (!ctx->parse_list_sts.err)
+				ctx->parse_list_sts.err = "unexpected value";
+			error( "IMAP error: malformed %s response from %s: %s\n",
+			       ctx->parse_list_what, ctx->conn.name, ctx->parse_list_sts.err );
+		}
 	}
 	return resp;
 }
 
 static int
-parse_next_list( imap_store_t *ctx, int (*cb)( imap_store_t *ctx, list_t *list ) )
+parse_next_list( imap_store_t *ctx, parse_list_cb_t *cb )
 {
-	parse_list_init( &ctx->parse_list_sts );
-	ctx->parse_list_sts.callback = cb;
+	parse_list_init( ctx, cb );
 	return parse_list_continue( ctx );
 }
 
 static int
-parse_list( imap_store_t *ctx, char *s, int (*cb)( imap_store_t *ctx, list_t *list ), const char *what )
+parse_list( imap_store_t *ctx, char *s, parse_list_cb_t *cb, const char *what )
 {
 	ctx->parse_list_cmd = s;
 	ctx->parse_list_what = what;
 	return parse_next_list( ctx, cb );
 }
 
+static parse_list_cb_t ignore_one_list_cb = {
+    .done = NULL
+};
+
 static int
-parse_list_perror( imap_store_t *ctx )
+ignore_two_done( imap_store_t *ctx, int sts )
 {
-	if (!ctx->parse_list_sts.err)
-		ctx->parse_list_sts.err = "unexpected value";
-	error( "IMAP error: malformed %s response from %s: %s\n",
-	       ctx->parse_list_what, ctx->conn.name, ctx->parse_list_sts.err );
-	return LIST_BAD;
+	if (sts != LIST_OK)
+		return sts;
+	return parse_next_list( ctx, &ignore_one_list_cb );
 }
 
-static int parse_namespace_rsp_p2( imap_store_t *, list_t * );
-static int parse_namespace_rsp_p3( imap_store_t *, list_t * );
+static parse_list_cb_t ignore_two_lists_cb = {
+    .done = ignore_two_done,
+};
 
 static int
-parse_namespace_rsp( imap_store_t *ctx, list_t *list )
+namespace_rsp_enter( imap_store_t *ctx )
 {
 	// We use only the 1st personal namespace. Making this configurable
 	// would not add value over just specifying Path.
-
-	if (!list) {
-	  bad:
-		return parse_list_perror( ctx );
+	switch (ctx->ns_state) {
+	case NsInit:
+		ctx->ns_state = Ns1st;
+		return LIST_OK;
+	case Ns1st:
+		ctx->ns_state = Ns1stNs;
+		return LIST_OK;
+	case NsDone:
+		return LIST_OK;
+	default:
+		return LIST_BAD;
 	}
-	if (list->val != NIL) {
-		if (list->val != LIST)
-			goto bad;
-		list_t *nsp_1st = list->child;
-		if (nsp_1st->val != LIST)
-			goto bad;
-		list_t *nsp_1st_ns = nsp_1st->child;
-		if (!is_atom( nsp_1st_ns ))
-			goto bad;
-		ctx->ns_prefix = nsp_1st_ns->val;
-		nsp_1st_ns->val = NULL;
-		list_t *nsp_1st_dl = nsp_1st_ns->next;
-		if (!is_opt_atom( nsp_1st_dl ))
-			goto bad;
-		if (is_atom( nsp_1st_dl ))
-			ctx->ns_delimiter = nsp_1st_dl->val[0];
-		// Namespace response extensions may follow here; we don't care.
-	}
-
-	return parse_next_list( ctx, parse_namespace_rsp_p2 );
-}
-
-// Note that parse_list_rsp() below refers to these as well.
-static int
-parse_namespace_rsp_p2( imap_store_t *ctx, list_t *list )
-{
-	if (!list)
-		return parse_list_perror( ctx );
-	return parse_next_list( ctx, parse_namespace_rsp_p3 );
 }
 
 static int
-parse_namespace_rsp_p3( imap_store_t *ctx, list_t *list )
+namespace_rsp_leave( imap_store_t *ctx )
 {
-	if (!list)
-		return parse_list_perror( ctx );
+	if (ctx->ns_state != NsDone)
+		return LIST_BAD;
 	return LIST_OK;
 }
+
+static int
+namespace_rsp_atom( imap_store_t *ctx, char *val, uint len, int type ATTR_UNUSED )
+{
+	if (ctx->ns_state == Ns1stNs) {
+		if (!val)
+			return LIST_BAD;
+		ctx->ns_prefix = nfstrndup( val, len );
+		ctx->ns_state = Ns1stDelim;
+	} else if (ctx->ns_state == Ns1stDelim) {
+		if (val) {
+			if (!len)
+				return LIST_BAD;
+			ctx->ns_delimiter = val[0];
+		}
+		// Namespace response extensions may follow here; we don't care.
+		ctx->ns_state = NsDone;
+	}
+	return LIST_OK;
+}
+
+static int
+namespace_rsp_done( imap_store_t *ctx, int sts )
+{
+	if (sts != LIST_OK)
+		return sts;
+	return parse_next_list( ctx, &ignore_two_lists_cb );
+}
+
+static parse_list_cb_t namespace_rsp_cb = {
+    .enter = namespace_rsp_enter,
+    .leave = namespace_rsp_leave,
+    .atom = namespace_rsp_atom,
+    .done = namespace_rsp_done,
+};
 
 static time_t
 parse_date( const char *str )
@@ -993,54 +1036,47 @@ parse_date( const char *str )
 	return date - (hours * 60 + mins) * 60;
 }
 
-static int
-parse_fetched_flags( list_t *list, uchar *flags, uchar *status )
+static void
+parse_fetched_flag( char *val, uint len, uchar *flags, uchar *status )
 {
-	for (; list; list = list->next) {
-		if (!is_atom( list )) {
-			error( "IMAP error: unable to parse FLAGS list\n" );
-			return 0;
-		}
-		if (list->val[0] != '\\' && list->val[0] != '$')
-			continue;
-		to_upper( list->val, list->len );
-		if (equals( list->val, list->len, "\\RECENT", 7 )) {
-			*status |= M_RECENT;
-			goto flagok;
-		}
-		for (uint i = 0; i < as(Flags); i++) {
-			if (equals( list->val, list->len, Flags[i].ustr, Flags[i].len )) {
-				*flags |= 1 << i;
-				goto flagok;
-			}
-		}
-		if (list->val[0] == '$')
-			goto flagok; // Ignore unknown user-defined flags (keywords)
-		if (list->val[1] == 'X' && list->val[2] == '-')
-			goto flagok; // Ignore system flag extensions
-		warn( "IMAP warning: unknown system flag %s\n", list->val );
-	  flagok: ;
+	if (val[0] != '\\' && val[0] != '$')
+		return;
+	to_upper( val, len );
+	if (equals( val, len, "\\RECENT", 7 )) {
+		*status |= M_RECENT;
+		return;
 	}
-	return 1;
+	for (uint i = 0; i < as(Flags); i++) {
+		if (equals( val, len, Flags[i].ustr, Flags[i].len )) {
+			*flags |= 1 << i;
+			return;
+		}
+	}
+	if (val[0] == '$')
+		return; // Ignore unknown user-defined flags (keywords)
+	if (len > 2 && val[1] == 'X' && val[2] == '-')
+		return; // Ignore system flag extensions
+	warn( "IMAP warning: unknown system flag %.*s\n", (int)len, val );
 }
 
 static void
-parse_fetched_header( char *val, uint uid, char **tuid, char **msgid, uint *msgid_len )
+parse_fetched_header( char *val, uint vlen, uint uid, char *tuid, char **msgid )
 {
 	char *end;
 	int off, in_msgid = 0;
-	for (; (end = strchr( val, '\n' )); val = end + 1) {
+	for (; (end = memchr( val, '\n', vlen )); val = end + 1) {
 		int len = (int)(end - val);
+		vlen -= len + 1;
 		if (len && end[-1] == '\r')
 			len--;
 		if (!len)
 			break;
 		if (starts_with_upper( val, len, "X-TUID: ", 8 )) {
-			if (len < 8 + TUIDL) {
+			if (len != 8 + TUIDL) {
 				warn( "IMAP warning: malformed X-TUID header (UID %u)\n", uid );
 				continue;
 			}
-			*tuid = val + 8;
+			memcpy( tuid, val + 8, TUIDL );
 			in_msgid = 0;
 			continue;
 		}
@@ -1061,122 +1097,224 @@ parse_fetched_header( char *val, uint uid, char **tuid, char **msgid, uint *msgi
 			in_msgid = 1;
 			continue;
 		}
-		*msgid = val + off;
-		*msgid_len = (uint)(len - off);
+		*msgid = nfstrndup( val + off, (uint)(len - off) );
 		in_msgid = 0;
 	}
 }
 
 static int
-parse_fetch_rsp( imap_store_t *ctx, list_t *list )
+str_to_num( const char *val, uint len, uint *outp )
 {
-	list_t *body = NULL, *tmp;
-	char *tuid = NULL, *msgid = NULL, *ep;
+	uint i = 0;
+	uint out = 0;
+
+	if (!len)
+		return 0;
+	for (;;) {
+		uchar c = val[i] - '0';
+		if (c > 9)  // Covers underflow as well
+			return 0;
+		out += c;
+		if (++i == len)
+			break;
+		if (out >= UINT_MAX / 10)
+			return 0;
+		out *= 10;
+	}
+	*outp = out;
+	return 1;
+}
+
+static int
+fetch_rsp_enter( imap_store_t *ctx )
+{
+	switch (ctx->fetch_state) {
+	case FetchInit:
+		ctx->fetch_state = FetchAttrib;
+		return LIST_OK;
+	case FetchFlags:
+		ctx->fetch_state = FetchFlagVal;
+		return LIST_OK;
+	case FetchHeaders:
+		ctx->fetch_state = FetchHeaderFields;
+		return LIST_OK;
+	default:
+		return LIST_BAD;
+	}
+}
+
+static int
+fetch_rsp_leave( imap_store_t *ctx )
+{
+	switch (ctx->fetch_state) {
+	case FetchAttrib:
+		return LIST_OK;
+	case FetchFlagVal:
+		ctx->fetch_state = FetchAttrib;
+		return LIST_OK;
+	case FetchHeaderFields:
+		ctx->fetch_state = FetchHeaderBracket;
+		return LIST_OK;
+	default:
+		return LIST_BAD;
+	}
+}
+
+static int
+fetch_rsp_atom( imap_store_t *ctx, char *val, uint len, int type )
+{
+	switch (ctx->fetch_state) {
+	case FetchInit:
+	case FetchFlags:
+	case FetchHeaders:
+		return LIST_BAD;
+	case FetchAttrib:
+		if (!len) {
+			ctx->parse_list_sts.err = "bogus attribute name";
+			return LIST_BAD;
+		}
+		uchar field;
+		to_upper( val, len );
+		if (equals( val, len, "UID", 3 )) {
+			ctx->fetch_state = FetchUid;
+			return LIST_OK;
+		} else if (equals( val, len, "FLAGS", 5 )) {
+			ctx->fetch_state = FetchFlags;
+			field = M_FLAGS;
+		} else if (equals( val, len, "INTERNALDATE", 12 )) {
+			ctx->fetch_state = FetchDate;
+			field = M_DATE;
+		} else if (equals( val, len, "RFC822.SIZE", 11 )) {
+			ctx->fetch_state = FetchSize;
+			field = M_SIZE;
+		} else if (equals( val, len, "BODY[]", 6 ) || equals( val, len, "BODY[HEADER]", 12 )) {
+			ctx->parse_list_sts.chunked = 1;
+			ctx->fetch_state = FetchBody;
+			field = M_BODY;
+		} else if (equals( val, len, "BODY[HEADER.FIELDS", 18 )) {
+			ctx->fetch_state = FetchHeaders;
+			field = M_HEADER;
+		} else {
+			ctx->parse_list_sts.err = "unexpected attribute";
+			return LIST_BAD;
+		}
+		if (ctx->fetch.status & field) {
+			ctx->parse_list_sts.err = "duplicated attribute";
+			return LIST_BAD;
+		}
+		ctx->fetch.status |= field;
+		return LIST_OK;
+	case FetchUid:
+		if (!str_to_num( val, len, &ctx->fetch.uid )) {
+			ctx->parse_list_sts.err = "unable to parse UID";
+			return LIST_BAD;
+		}
+		break;
+	case FetchFlagVal:
+		if (!len) {
+			ctx->parse_list_sts.err = "unable to parse FLAGS";
+			return LIST_BAD;
+		}
+		parse_fetched_flag( val, len, &ctx->fetch.flags, &ctx->fetch.status );
+		return LIST_OK;
+	case FetchDate:
+		if (type != AtomString) {
+		  dfail:
+			ctx->parse_list_sts.err = "unable to parse INTERNALDATE";
+			return LIST_BAD;
+		}
+		val[len] = 0;
+		if ((ctx->fetch.date = parse_date( val )) == -1)
+			goto dfail;
+		break;
+	case FetchSize:
+		if (!str_to_num( val, len, &ctx->fetch.size )) {
+			ctx->parse_list_sts.err = "unable to parse RFC822.SIZE";
+			return LIST_BAD;
+		}
+		break;
+	case FetchBody:
+		if (type != AtomChunkedLiteral) {
+			ctx->parse_list_sts.err = "BODY is no literal";
+			return LIST_BAD;
+		}
+		ctx->fetch.body = nfmalloc( len );
+		ctx->fetch.body_len = 0;
+		ctx->fetch_state = FetchBodyChunk;
+		return LIST_OK;
+	case FetchBodyChunk:
+		if (!len)
+			break;
+		memcpy( ctx->fetch.body + ctx->fetch.body_len, val, len );
+		ctx->fetch.body_len += len;
+		return LIST_OK;
+	case FetchHeaderFields:
+		// This looks like BODY[HEADER.FIELDS (X-TUID Message-Id)] {content}.
+		// To avoid parsing the bracketed list, we just treat these as separate tokens.
+		return LIST_OK;
+	case FetchHeaderBracket:
+		if (!equals( val, len, "]", 1 )) {
+		  bfail:
+			ctx->parse_list_sts.err = "unable to parse BODY[HEADER.FIELDS ...]";
+			return LIST_BAD;
+		}
+		ctx->fetch_state = FetchHeaderCont;
+		return LIST_OK;
+	case FetchHeaderCont:
+		if (!val)
+			goto bfail;
+		parse_fetched_header( val, len, ctx->fetch.uid, ctx->fetch.tuid, &ctx->fetch.msgid );
+		break;
+	}
+	ctx->fetch_state = FetchAttrib;
+	return LIST_OK;
+}
+
+static int
+fetch_rsp_done( imap_store_t *ctx, int sts )
+{
 	imap_message_t *cur;
 	msg_data_t *msgdata;
 	imap_cmd_t *cmdp;
-	uchar mask = 0, status = 0;
-	uint uid = 0, size = 0, msgid_len = 0;
-	time_t date = 0;
 
-	if (!is_list( list ))
-		return parse_list_perror( ctx );
+	if (sts != LIST_OK)
+		goto bail;
 
-	for (tmp = list->child; tmp; tmp = tmp->next) {
-		if (!is_atom( tmp )) {
-			error( "IMAP error: bogus item name in FETCH response\n" );
-			return LIST_BAD;
-		}
-		char *name = tmp->val;
-		uint namel = tmp->len;
-		tmp = tmp->next;
-		to_upper( name, namel );
-		if (equals( name, namel, "UID", 3 )) {
-			if (!is_atom( tmp ) || (uid = strtoul( tmp->val, &ep, 10 ), *ep)) {
-				error( "IMAP error: unable to parse UID\n" );
-				return LIST_BAD;
-			}
-		} else if (equals( name, namel, "FLAGS", 5 )) {
-			if (!is_list( tmp )) {
-				error( "IMAP error: unable to parse FLAGS\n" );
-				return LIST_BAD;
-			}
-			if (!parse_fetched_flags( tmp->child, &mask, &status ))
-				return LIST_BAD;
-			status |= M_FLAGS;
-		} else if (equals( name, namel, "INTERNALDATE", 12 )) {
-			if (!is_atom( tmp )) {
-				error( "IMAP error: unable to parse INTERNALDATE\n" );
-				return LIST_BAD;
-			}
-			if ((date = parse_date( tmp->val )) == -1) {
-				error( "IMAP error: unable to parse INTERNALDATE format\n" );
-				return LIST_BAD;
-			}
-			status |= M_DATE;
-		} else if (equals( name, namel, "RFC822.SIZE", 11 )) {
-			if (!is_atom( tmp ) || (size = strtoul( tmp->val, &ep, 10 ), *ep)) {
-				error( "IMAP error: unable to parse RFC822.SIZE\n" );
-				return LIST_BAD;
-			}
-			status |= M_SIZE;
-		} else if (equals( name, namel, "BODY[]", 6 ) || equals( name, namel, "BODY[HEADER]", 12 )) {
-			if (!is_atom( tmp )) {
-				error( "IMAP error: unable to parse BODY[]\n" );
-				return LIST_BAD;
-			}
-			body = tmp;
-			status |= M_BODY;
-		} else if (equals( name, namel, "BODY[HEADER.FIELDS", 18 )) {
-			if (!is_list( tmp )) {
-			  bfail:
-				error( "IMAP error: unable to parse BODY[HEADER.FIELDS ...]\n" );
-				return LIST_BAD;
-			}
-			tmp = tmp->next;
-			if (!is_atom( tmp ) || !equals( tmp->val, tmp->len, "]", 1 ))
-				goto bfail;
-			tmp = tmp->next;
-			if (!is_atom( tmp ))
-				goto bfail;
-			parse_fetched_header( tmp->val, uid, &tuid, &msgid, &msgid_len );
-			status |= M_HEADER;
-		}
-	}
-
-	if (!uid) {
+	uchar status = ctx->fetch.status;
+	if (!ctx->fetch.uid) {
 		// Ignore async flag updates for now.
 		status &= ~(M_FLAGS | M_RECENT);
 	} else if (status & M_BODY) {
 		for (cmdp = ctx->in_progress; cmdp; cmdp = cmdp->next)
-			if (cmdp->param.uid == uid)
+			if (cmdp->param.uid == ctx->fetch.uid)
 				goto gotuid;
-		error( "IMAP error: unexpected FETCH response with BODY (UID %u)\n", uid );
-		return LIST_BAD;
+		ctx->parse_list_sts.err = "unexpected BODY";
+		sts = LIST_BAD;
+		goto bail;
 	  gotuid:
 		msgdata = ((imap_cmd_fetch_msg_t *)cmdp)->msg_data;
-		msgdata->data = body->val;
-		body->val = NULL;       // Don't free together with list.
-		msgdata->len = body->len;
-		msgdata->date = date;
+		msgdata->data = ctx->fetch.body;
+		ctx->fetch.body = NULL;
+		msgdata->len = ctx->fetch.body_len;
+		msgdata->date = ctx->fetch.date;
 		if (status & M_FLAGS)
-			msgdata->flags = mask;
+			msgdata->flags = ctx->fetch.flags;
 		status &= ~(M_FLAGS | M_RECENT | M_BODY | M_DATE);
 	} else if (ctx->fetch_sts == FetchUidNext) {
 		// Workaround for server not sending UIDNEXT and/or APPENDUID.
-		ctx->uidnext = uid + 1;
+		ctx->uidnext = ctx->fetch.uid + 1;
 	} else if (ctx->fetch_sts == FetchMsgs) {
 		imap_ensure_absolute( &ctx->msgs );  // In case of interleaved EXPUNGE
 		cur = imap_new_msg( & ctx->msgs );
-		cur->seq = ctx->fetch_seq;
-		cur->uid = uid;
-		cur->flags = mask;
+		cur->seq = ctx->fetch.seq;
+		cur->uid = ctx->fetch.uid;
+		cur->flags = ctx->fetch.flags;
 		cur->status = status;
-		cur->size = size;
-		if (msgid)
-			cur->msgid = nfstrndup( msgid, msgid_len );
-		if (tuid)
-			memcpy( cur->tuid, tuid, TUIDL );
+		cur->size = ctx->fetch.size;
+		cur->msgid = ctx->fetch.msgid;
+		ctx->fetch.msgid = NULL;
+		if (ctx->fetch.tuid[0])
+			memcpy( cur->tuid, ctx->fetch.tuid, TUIDL );
 		status &= ~(M_FLAGS | M_RECENT | M_SIZE | M_HEADER);
 	} else {
 		// These may come in as a result of STORE FLAGS despite .SILENT.
@@ -1184,12 +1322,24 @@ parse_fetch_rsp( imap_store_t *ctx, list_t *list )
 	}
 
 	if (status) {
-		error( "IMAP error: received extraneous data in FETCH response\n" );
-		return LIST_BAD;
+		ctx->parse_list_sts.err = "extraneous data";
+		sts = LIST_BAD;
 	}
 
-	return LIST_OK;
+  bail:
+	free( ctx->fetch.body );
+	ctx->fetch.body = NULL;
+	free( ctx->fetch.msgid );
+	ctx->fetch.msgid = NULL;
+	return sts;
 }
+
+static parse_list_cb_t fetch_rsp_cb = {
+    .enter = fetch_rsp_enter,
+    .leave = fetch_rsp_leave,
+    .atom = fetch_rsp_atom,
+    .done = fetch_rsp_done,
+};
 
 static void
 parse_capability( imap_store_t *ctx, char *cmd )
@@ -1214,6 +1364,32 @@ parse_capability( imap_store_t *ctx, char *cmd )
 	if (!CAP(NOLOGIN))
 		add_string_list_n( &ctx->auth_mechs, "LOGIN", 5 );
 }
+
+static int
+permflags_enter( imap_store_t *ctx )
+{
+	if (ctx->permflags_state != PermflagsInit)
+		return LIST_BAD;
+	ctx->permflags_state = PermflagsFlags;
+	return LIST_OK;
+}
+
+static int
+permflags_atom( imap_store_t *ctx, char *val, uint len, int type ATTR_UNUSED )
+{
+	if (ctx->permflags_state == PermflagsHasFwd)
+		return LIST_OK;
+	if (ctx->permflags_state != PermflagsFlags || !val)
+		return LIST_BAD;
+	if (equals( val, len, "\\*", 2 ) || equals_upper( val, len, "$FORWARDED", 10 ))
+		ctx->permflags_state = PermflagsHasFwd;
+	return LIST_OK;
+}
+
+static parse_list_cb_t permflags_cb = {
+    .enter = permflags_enter,
+    .atom = permflags_atom,
+};
 
 static int
 parse_response_code( imap_store_t *ctx, imap_cmd_t *cmd, char *s )
@@ -1283,55 +1459,84 @@ parse_response_code( imap_store_t *ctx, imap_cmd_t *cmd, char *s )
 			return RESP_CANCEL;
 		}
 	} else if (equals( arg, argl, "PERMANENTFLAGS", 14 )) {
-		parse_list_init( &ctx->parse_list_sts );
-		if (parse_imap_list( NULL, &s, &ctx->parse_list_sts ) != LIST_OK || *s != ']') {
+		parse_list_init( ctx, &permflags_cb );
+		// Note: we croak on LIST_PARTIAL, as literals are not expected anyway.
+		if (parse_imap_list( ctx, &s, &ctx->parse_list_sts ) != LIST_OK || *s != ']') {
 			error( "IMAP error: malformed PERMANENTFLAGS status\n" );
 			return RESP_CANCEL;
 		}
-		int ret = RESP_OK;
-		for (list_t *tmp = ctx->parse_list_sts.head->child; tmp; tmp = tmp->next) {
-			if (!is_atom( tmp )) {
-				error( "IMAP error: malformed PERMANENTFLAGS status item\n" );
-				ret = RESP_CANCEL;
-				break;
-			}
-			if (equals( tmp->val, tmp->len, "\\*", 2 ) || equals_upper( tmp->val, tmp->len, "$FORWARDED", 10 )) {
-				ctx->has_forwarded = 1;
-				break;
-			}
-		}
-		free_list( ctx->parse_list_sts.head );
-		ctx->parse_list_sts.head = NULL;
-		return ret;
+		ctx->has_forwarded = (ctx->permflags_state == PermflagsHasFwd);
 	}
 	return RESP_OK;
 }
 
-static int parse_list_rsp_p1( imap_store_t *, list_t * );
-static int parse_list_rsp_p2( imap_store_t *, list_t * );
-
 static int
-parse_list_rsp( imap_store_t *ctx, list_t *list )
+list_rsp_enter( imap_store_t *ctx )
 {
-	list_t *lp;
-
-	if (!is_list( list ))
-		return parse_list_perror( ctx );
-	for (lp = list->child; lp; lp = lp->next)
-		if (is_atom( lp ) && equals_upper( lp->val, lp->len, "\\NOSELECT", 9 ))
-			return parse_next_list( ctx, parse_namespace_rsp_p2 );  // (sic!)
-	return parse_next_list( ctx, parse_list_rsp_p1 );
+	if (ctx->list_state != ListInit)
+		return LIST_BAD;
+	ctx->list_state = ListAttrib;
+	return LIST_OK;
 }
 
 static int
-parse_list_rsp_p1( imap_store_t *ctx, list_t *list )
+list_rsp_atom( imap_store_t *ctx, char *val, uint len, int type ATTR_UNUSED )
 {
-	if (!is_opt_atom( list ))
-		return parse_list_perror( ctx );
-	if (!ctx->delimiter[0] && is_atom( list ))
-		ctx->delimiter[0] = list->val[0];
-	return parse_next_list( ctx, parse_list_rsp_p2 );
+	if (ctx->list_state == ListSkip)
+		return LIST_OK;
+	if (ctx->list_state != ListAttrib || !val)
+		return LIST_BAD;
+	if (equals_upper( val, len, "\\NOSELECT", 9 ))
+		ctx->list_state = ListSkip;
+	return LIST_OK;
 }
+
+static parse_list_cb_t list2_rsp_cb;
+static parse_list_cb_t list3_rsp_cb;
+
+static int
+list_rsp_done( imap_store_t *ctx, int sts )
+{
+	if (sts != LIST_OK)
+		return sts;
+	if (ctx->list_state == ListSkip)
+		return parse_next_list( ctx, &ignore_two_lists_cb );
+	return parse_next_list( ctx, &list2_rsp_cb );
+}
+
+static parse_list_cb_t list_rsp_cb = {
+    .enter = list_rsp_enter,
+    .atom = list_rsp_atom,
+    .done = list_rsp_done,
+};
+
+static int
+list2_rsp_enter( imap_store_t *ctx ATTR_UNUSED )
+{
+	return LIST_BAD;
+}
+
+static int
+list2_rsp_atom( imap_store_t *ctx, char *val, uint len, int type ATTR_UNUSED )
+{
+	if (!ctx->delimiter[0] && val)
+		ctx->delimiter[0] = len > 0 ? val[0] : 0;
+	return LIST_OK;
+}
+
+static int
+list2_rsp_done( imap_store_t *ctx, int sts )
+{
+	if (sts != LIST_OK)
+		return sts;
+	return parse_next_list( ctx, &list3_rsp_cb );
+}
+
+static parse_list_cb_t list2_rsp_cb = {
+    .enter = list2_rsp_enter,
+    .atom = list2_rsp_atom,
+    .done = list2_rsp_done,
+};
 
 // Use this to check whether a full path refers to the actual IMAP INBOX.
 static int
@@ -1350,7 +1555,7 @@ is_INBOX( imap_store_t *ctx, const char *arg, int argl )
 {
 	if (!starts_with( arg, argl, "INBOX", 5 ))
 		return 0;
-	if (arg[5] && arg[5] != ctx->delimiter[0])
+	if (argl > 5 && arg[5] != ctx->delimiter[0])
 		return 0;
 	return 1;
 }
@@ -1363,17 +1568,14 @@ normalize_INBOX( imap_store_t *ctx, char *arg, int argl )
 }
 
 static int
-parse_list_rsp_p2( imap_store_t *ctx, list_t *list )
+list3_rsp_atom( imap_store_t *ctx, char *arg, uint len, int type ATTR_UNUSED )
 {
 	string_list_t *narg;
-	char *arg, c;
-	int argl;
+	int argl = (int)len;
 	uint l;
 
-	if (!is_atom( list ))
-		return parse_list_perror( ctx );
-	arg = list->val;
-	argl = (int)list->len;
+	if (!arg)
+		return LIST_BAD;
 	if (argl > 1000) {
 		warn( "IMAP warning: ignoring unreasonably long mailbox name '%.100s[...]'\n", arg );
 		return LIST_OK;
@@ -1394,7 +1596,7 @@ parse_list_rsp_p2( imap_store_t *ctx, list_t *list )
 			// only to the fully uppercased spelling, as our canonical box
 			// names are case-sensitive (unlike IMAP's INBOX).
 			if (is_INBOX( ctx, arg, argl )) {
-				if (!arg[5])  // No need to complain about subfolders as well.
+				if (argl > 5)  // No need to complain about subfolders as well.
 					warn( "IMAP warning: ignoring INBOX in %s\n", ctx->prefix );
 				return LIST_OK;
 			}
@@ -1410,6 +1612,7 @@ parse_list_rsp_p2( imap_store_t *ctx, list_t *list )
 	// '//' and '/./', and '/../' being forbidden is a limitation of the Maildir
 	// driver, but there isn't really a legitimate reason for these being present.
 	for (const char *p = narg->string, *sp = p;;) {
+		char c;
 		if (!(c = *p) || c == '/') {
 			uint pcl = (uint)(p - sp);
 			if (!pcl) {
@@ -1438,6 +1641,11 @@ parse_list_rsp_p2( imap_store_t *ctx, list_t *list )
 	ctx->boxes = narg;
 	return LIST_OK;
 }
+
+static parse_list_cb_t list3_rsp_cb = {
+    .enter = list2_rsp_enter,  // (sic!)
+    .atom = list3_rsp_atom,
+};
 
 static int
 prepare_name( char **buf, const imap_store_t *ctx, const char *prefix, const char *name )
@@ -1581,10 +1789,10 @@ imap_socket_read( void *aux )
 			} else if (equals( arg, argl, "CAPABILITY", 10 )) {
 				parse_capability( ctx, cmd );
 			} else if (equals( arg, argl, "LIST", 4 ) || equals( arg, argl, "LSUB", 4 )) {
-				resp = parse_list( ctx, cmd, parse_list_rsp, "LIST" );
+				resp = parse_list( ctx, cmd, &list_rsp_cb, "LIST" );
 				goto listret;
 			} else if (equals( arg, argl, "NAMESPACE", 9 )) {
-				resp = parse_list( ctx, cmd, parse_namespace_rsp, "NAMESPACE" );
+				resp = parse_list( ctx, cmd, &namespace_rsp_cb, "NAMESPACE" );
 				goto listret;
 			} else if ((arg1 = next_arg( &cmd, &argl1 ))) {
 				to_upper( arg1, argl1 );
@@ -1601,10 +1809,11 @@ imap_socket_read( void *aux )
 				} else if (equals( arg1, argl1, "RECENT", 6 )) {
 					ctx->recent_msgs = atoi( arg );
 				} else if (equals( arg1, argl1, "FETCH", 5 )) {
+					memset( &ctx->fetch, 0, sizeof(ctx->fetch) );
 					if (!(seq = strtoul( arg, &arg1, 10 )) || *arg1)
 						goto badseq;
-					ctx->fetch_seq = seq;
-					resp = parse_list( ctx, cmd, parse_fetch_rsp, "FETCH" );
+					ctx->fetch.seq = seq;
+					resp = parse_list( ctx, cmd, &fetch_rsp_cb, "FETCH" );
 					goto listret;
 				}
 			} else {
