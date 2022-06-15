@@ -21,7 +21,7 @@ cleanup_drivers( void )
 // Keep the MESSAGE_FLAGS in sync (grep that)!
 const char MsgFlags[] = { 'D', 'F', 'P', 'R', 'S', 'T' };
 
-void
+static void
 make_flags( uchar flags, char *buf )
 {
 	uint i, d;
@@ -30,6 +30,15 @@ make_flags( uchar flags, char *buf )
 		if (flags & (1 << i))
 			buf[d++] = MsgFlags[i];
 	buf[d] = 0;
+}
+
+flag_str_t
+fmt_flags( uchar flags )
+{
+	flag_str_t buf;
+
+	make_flags( flags, buf.str );
+	return buf;
 }
 
 uint

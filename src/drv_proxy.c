@@ -198,7 +198,6 @@ proxy_do_@name@_cb( gen_cmd_t *gcmd )
 {
 	@name@_cmd_t *cmd = (@name@_cmd_t *)gcmd;
 
-	@pre_print_cb_args@
 	debug( "%s[% 2d] Callback enter @name@@print_fmt_cb_args@\n", cmd->ctx->label, cmd->tag@print_pass_cb_args@ );
 	@print_cb_args@
 	cmd->callback( @pass_cb_args@cmd->callback_aux );
@@ -257,10 +256,9 @@ static @type@proxy_@name@( store_t *gctx@decl_args@, void (*cb)( @decl_cb_args@v
 //# DEFINE load_box_print_pass_cb_args , cmd->sts, cmd->total_msgs, cmd->recent_msgs
 //# DEFINE load_box_print_cb_args
 	if (cmd->sts == DRV_OK) {
-		char fbuf[as(MsgFlags) + 1];
 		for (message_t *msg = cmd->msgs; msg; msg = msg->next)
 			debug( "  uid=%-5u flags=%-4s size=%-6u tuid=%." stringify(TUIDL) "s\n",
-			       msg->uid, (msg->status & M_FLAGS) ? (make_flags( msg->flags, fbuf ), fbuf) : "?", msg->size, *msg->tuid ? msg->tuid : "?" );
+			       msg->uid, (msg->status & M_FLAGS) ? fmt_flags( msg->flags ).str : "?", msg->size, *msg->tuid ? msg->tuid : "?" );
 	}
 //# END
 
@@ -281,12 +279,8 @@ static @type@proxy_@name@( store_t *gctx@decl_args@, void (*cb)( @decl_cb_args@v
 //# END
 //# DEFINE fetch_msg_print_fmt_args , uid=%u, want_flags=%s, want_date=%s
 //# DEFINE fetch_msg_print_pass_args , msg->uid, !(msg->status & M_FLAGS) ? "yes" : "no", data->date ? "yes" : "no"
-//# DEFINE fetch_msg_pre_print_cb_args
-	char fbuf[as(MsgFlags) + 1];
-	make_flags( cmd->data->flags, fbuf );
-//# END
 //# DEFINE fetch_msg_print_fmt_cb_args , flags=%s, date=%lld, size=%u
-//# DEFINE fetch_msg_print_pass_cb_args , fbuf, (long long)cmd->data->date, cmd->data->len
+//# DEFINE fetch_msg_print_pass_cb_args , fmt_flags( cmd->data->flags ).str, (long long)cmd->data->date, cmd->data->len
 //# DEFINE fetch_msg_print_cb_args
 	if (cmd->sts == DRV_OK && (DFlags & DEBUG_DRV_ALL)) {
 		printf( "%s=========\n", cmd->ctx->label );
@@ -296,12 +290,8 @@ static @type@proxy_@name@( store_t *gctx@decl_args@, void (*cb)( @decl_cb_args@v
 	}
 //# END
 
-//# DEFINE store_msg_pre_print_args
-	char fbuf[as(MsgFlags) + 1];
-	make_flags( data->flags, fbuf );
-//# END
 //# DEFINE store_msg_print_fmt_args , flags=%s, date=%lld, size=%u, to_trash=%s
-//# DEFINE store_msg_print_pass_args , fbuf, (long long)data->date, data->len, to_trash ? "yes" : "no"
+//# DEFINE store_msg_print_pass_args , fmt_flags( data->flags ).str, (long long)data->date, data->len, to_trash ? "yes" : "no"
 //# DEFINE store_msg_print_args
 	if (DFlags & DEBUG_DRV_ALL) {
 		printf( "%s>>>>>>>>>\n", ctx->label );
@@ -311,13 +301,8 @@ static @type@proxy_@name@( store_t *gctx@decl_args@, void (*cb)( @decl_cb_args@v
 	}
 //# END
 
-//# DEFINE set_msg_flags_pre_print_args
-	char fbuf1[as(MsgFlags) + 1], fbuf2[as(MsgFlags) + 1];
-	make_flags( add, fbuf1 );
-	make_flags( del, fbuf2 );
-//# END
 //# DEFINE set_msg_flags_print_fmt_args , uid=%u, add=%s, del=%s
-//# DEFINE set_msg_flags_print_pass_args , uid, fbuf1, fbuf2
+//# DEFINE set_msg_flags_print_pass_args , uid, fmt_flags( add ).str, fmt_flags( del ).str
 //# DEFINE set_msg_flags_checked sts == DRV_OK
 
 //# DEFINE trash_msg_print_fmt_args , uid=%u

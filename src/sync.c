@@ -71,9 +71,8 @@ sanitize_flags( uchar tflags, sync_vars_t *svars, int t )
 		// each mailbox can support different flags according to the IMAP spec.
 		uchar bflags = tflags & ~(svars->good_flags[t] | svars->bad_flags[t]);
 		if (bflags) {
-			char bfbuf[16];
-			make_flags( bflags, bfbuf );
-			notice( "Notice: %s store does not support flag(s) '%s'; not propagating.\n", str_fn[t], bfbuf );
+			notice( "Notice: %s store does not support flag(s) '%s'; not propagating.\n",
+			        str_fn[t], fmt_flags( bflags ).str );
 			svars->bad_flags[t] |= bflags;
 		}
 	}
@@ -1014,11 +1013,9 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 						}
 						srec->aflags[t] = sflags & ~srec->flags;
 						srec->dflags[t] = ~sflags & srec->flags;
-						if ((DFlags & DEBUG_SYNC) && (srec->aflags[t] || srec->dflags[t])) {
-							char afbuf[16], dfbuf[16]; /* enlarge when support for keywords is added */
-							make_flags( srec->aflags[t], afbuf );
-							make_flags( srec->dflags[t], dfbuf );
-							debug( "  %sing flags: +%s -%s\n", str_hl[t], afbuf, dfbuf );
+						if (srec->aflags[t] || srec->dflags[t]) {
+							debug( "  %sing flags: +%s -%s\n", str_hl[t],
+							       fmt_flags( srec->aflags[t] ).str, fmt_flags( srec->dflags[t] ).str );
 						}
 					}
 				}

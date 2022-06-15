@@ -467,11 +467,10 @@ save_state( sync_vars_t *svars )
 	for (sync_rec_t *srec = svars->srecs; srec; srec = srec->next) {
 		if (srec->status & S_DEAD)
 			continue;
-		char fbuf[16];  // enlarge when support for keywords is added
-		make_flags( srec->flags, fbuf );
 		Fprintf( svars->nfp, "%u %u %s%s%s\n", srec->uid[F], srec->uid[N],
 		         (srec->status & S_DUMMY(F)) ? "<" : (srec->status & S_DUMMY(N)) ? ">" : "",
-		         (srec->status & S_SKIPPED) ? "^" : (srec->status & S_EXPIRED) ? "~" : "", fbuf );
+		         (srec->status & S_SKIPPED) ? "^" : (srec->status & S_EXPIRED) ? "~" : "",
+		         fmt_flags( srec->flags ).str );
 	}
 
 	Fclose( svars->nfp, 1 );

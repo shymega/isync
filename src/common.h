@@ -53,10 +53,12 @@ typedef unsigned long ulong;
 # define ATTR_UNUSED __attribute__((unused))
 # define ATTR_NORETURN __attribute__((noreturn))
 # define ATTR_PRINTFLIKE(fmt,var) __attribute__((format(printf,fmt,var)))
+# define ATTR_OPTIMIZE __attribute__((optimize("2")))
 #else
 # define ATTR_UNUSED
 # define ATTR_NORETURN
 # define ATTR_PRINTFLIKE(fmt,var)
+# define ATTR_OPTIMIZE
 #endif
 
 #if defined(__clang__)
