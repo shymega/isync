@@ -356,16 +356,15 @@ load_state( sync_vars_t *svars )
 						debug( "flags now %u\n", t3 );
 						srec->flags = (uchar)t3;
 						srec->aflags[F] = srec->aflags[N] = 0;  // Clear F_DELETED from purge
-						srec->wstate &= ~W_PURGE;
+						srec->status &= ~S_PURGE;
 						break;
 					case '~':
-						debug( "status now %#x\n", t3 );
-						srec->status = (uchar)t3;
+						srec->status = (srec->status & ~S_LOGGED) | t3;
+						debug( "status now %#x\n", srec->status );
 						break;
 					case '_':
 						debug( "has placeholder now\n" );
-						srec->status = S_PENDING;  // Pre-1.4 legacy only
-						srec->status |= !srec->uid[F] ? S_DUMMY(F) : S_DUMMY(N);
+						srec->status = S_PENDING | (!srec->uid[F] ? S_DUMMY(F) : S_DUMMY(N));
 						break;
 					case '^':
 						debug( "is being upgraded, flags %u, srec flags %u\n", t3, t4 );
@@ -482,8 +481,7 @@ assign_uid( sync_vars_t *svars, sync_rec_t *srec, int t, uint uid )
 	srec->uid[t] = uid;
 	if (uid == svars->maxuid[t] + 1)
 		svars->maxuid[t] = uid;
-	srec->status &= ~S_PENDING;
-	srec->wstate &= ~W_UPGRADE;
+	srec->status &= ~(S_PENDING | S_UPGRADE);
 	srec->tuid[0] = 0;
 }
 
@@ -560,10 +558,9 @@ upgrade_srec( sync_vars_t *svars, sync_rec_t *srec )
 		srec->msg[t] = NULL;
 	}
 	// Mark the original entry for upgrade.
-	srec->status = (srec->status & ~(S_DUMMY(F)|S_DUMMY(N))) | S_PENDING;
-	srec->wstate |= W_UPGRADE;
+	srec->status = (srec->status & ~(S_DUMMY(F) | S_DUMMY(N))) | S_PENDING | S_UPGRADE;
 	// Mark the placeholder for nuking.
-	nsrec->wstate = W_PURGE;
+	nsrec->status = S_PURGE;
 	nsrec->aflags[t] = F_DELETED;
 	return nsrec;
 }

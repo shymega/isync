@@ -9,33 +9,30 @@
 #include "sync.h"
 #include "sync_p_enum.h"
 
-// This is the (mostly) persistent status of the sync record.
-// Most of these bits are actually mutually exclusive. It is a
-// bitfield to allow for easy testing for multiple states.
 BIT_ENUM(
 	S_DEAD,         // ephemeral: the entry was killed and should be ignored
 	S_EXPIRE,       // the entry is being expired (near side message removal scheduled)
 	S_EXPIRED,      // the entry is expired (near side message removal confirmed)
+	S_NEXPIRE,      // temporary: new expiration state
 	S_PENDING,      // the entry is new and awaits propagation (possibly a retry)
 	S_DUMMY(2),     // f/n message is only a placeholder
 	S_SKIPPED,      // pre-1.4 legacy: the entry was not propagated (message is too big)
+	S_DEL(2),       // ephemeral: f/n message would be subject to expunge
+	S_DELETE,       // ephemeral: flags propagation is a deletion
+	S_UPGRADE,      // ephemeral: upgrading placeholder, do not apply MaxSize
+	S_PURGE,        // ephemeral: placeholder is being nuked
 )
 
-// Ephemeral working set.
-BIT_ENUM(
-	W_NEXPIRE,      // temporary: new expiration state
-	W_DELETE,       // ephemeral: flags propagation is a deletion
-	W_DEL(2),       // ephemeral: f/n message would be subject to expunge
-	W_UPGRADE,      // ephemeral: upgrading placeholder, do not apply MaxSize
-	W_PURGE,        // ephemeral: placeholder is being nuked
-)
+// This is the persistent status of the sync record, with regard to the journal.
+#define S_LOGGED (S_EXPIRE | S_EXPIRED | S_PENDING | S_DUMMY(F) | S_DUMMY(N) | S_SKIPPED)
 
 typedef struct sync_rec {
 	struct sync_rec *next;
 	/* string_list_t *keywords; */
 	uint uid[2];
 	message_t *msg[2];
-	uchar status, wstate, flags, pflags, aflags[2], dflags[2];
+	ushort status;
+	uchar flags, pflags, aflags[2], dflags[2];
 	char tuid[TUIDL];
 } sync_rec_t;
 
