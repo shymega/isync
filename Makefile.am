@@ -1,6 +1,10 @@
+# SPDX-FileCopyrightText: 2000-2002 Michael R. Elkins <me@mutt.org>
+# SPDX-FileCopyrightText: 2002-2022 Oswald Buddenhagen <ossi@users.sf.net>
+# SPDX-License-Identifier: GPL-2.0-or-later
+
 SUBDIRS = src
 bin_SCRIPTS = mbsync-get-cert
-EXTRA_DIST = debian isync.spec $(bin_SCRIPTS)
+EXTRA_DIST = LICENSES debian isync.spec $(bin_SCRIPTS)
 
 LOG_PL = \
     use POSIX qw(strftime); \

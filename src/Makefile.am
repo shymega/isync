@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2000-2002 Michael R. Elkins <me@mutt.org>
+# SPDX-FileCopyrightText: 2002-2022 Oswald Buddenhagen <ossi@users.sf.net>
+# SPDX-License-Identifier: GPL-2.0-or-later
+
 mbsync_SOURCES = main.c sync.c config.c util.c socket.c driver.c drv_imap.c drv_maildir.c drv_proxy.c
 mbsync_LDADD = $(DB_LIBS) $(SSL_LIBS) $(SOCK_LIBS) $(SASL_LIBS) $(Z_LIBS) $(KEYCHAIN_LIBS)
 noinst_HEADERS = common.h config.h driver.h sync.h socket.h
