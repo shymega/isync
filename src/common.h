@@ -45,6 +45,10 @@ typedef unsigned long ulong;
 
 #define BIT_ENUM(...)
 
+#define static_assert_bits(pfx, type, field) \
+	static_assert( pfx##__NUM_BITS <= sizeof(((type){ 0 }).field) * 8, \
+	               stringify(type) "::" stringify(field) " is too small" )
+
 #if __GNUC__ > 2 || (__GNUC__ == 2 && __GNUC_MINOR__ > 4)
 # define ATTR_UNUSED __attribute__((unused))
 # define ATTR_NORETURN __attribute__((noreturn))

@@ -74,6 +74,9 @@ typedef struct message {
 	MESSAGE(struct message)
 } message_t;
 
+static_assert_bits(F, message_t, flags);
+static_assert_bits(M, message_t, status);
+
 // For driver_t->prepare_load_box(), which may amend the passed flags.
 // The drivers don't use the first two, but may set them if loading the
 // particular range is required to handle some other flag; note that these
@@ -107,6 +110,8 @@ typedef struct {
 	time_t date;
 	uchar flags;
 } msg_data_t;
+
+static_assert_bits(F, msg_data_t, flags);
 
 #define DRV_OK          0
 /* Message went missing, or mailbox is full, etc. */

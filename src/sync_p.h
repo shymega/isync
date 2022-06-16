@@ -36,6 +36,9 @@ typedef struct sync_rec {
 	char tuid[TUIDL];
 } sync_rec_t;
 
+static_assert_bits(F, sync_rec_t, flags);
+static_assert_bits(S, sync_rec_t, status);
+
 typedef struct {
 	int t[2];
 	void (*cb)( int sts, void *aux ), *aux;
