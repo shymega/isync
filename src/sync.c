@@ -203,12 +203,15 @@ copy_msg_convert( int in_cr, int out_cr, copy_vars_t *vars, int t )
 	}
 
 	uint dummy_msg_len = 0;
-	char dummy_msg_buf[180];
+	char dummy_msg_buf[256];
 	static const char dummy_pfx[] = "[placeholder] ";
 	static const char dummy_subj[] = "Subject: [placeholder] (No Subject)";
 	static const char dummy_msg[] =
 		"Having a size of %s, this message is over the MaxSize limit.%s"
 		"Flag it and sync again (Sync mode ReNew) to fetch its real contents.%s";
+	static const char dummy_flag[] =
+		"%s"
+		"The original message is flagged as important.%s";
 
 	if (vars->minimal) {
 		char sz[32];
@@ -219,6 +222,10 @@ copy_msg_convert( int in_cr, int out_cr, copy_vars_t *vars, int t )
 			sprintf( sz, "%.1fMiB", vars->msg->size / 1048576. );
 		const char *nl = app_cr ? "\r\n" : "\n";
 		dummy_msg_len = (uint)sprintf( dummy_msg_buf, dummy_msg, sz, nl, nl );
+		if (vars->data.flags & F_FLAGGED) {
+			vars->data.flags &= ~F_FLAGGED;
+			dummy_msg_len += (uint)sprintf( dummy_msg_buf + dummy_msg_len, dummy_flag, nl, nl );
+		}
 		extra += dummy_msg_len;
 		extra += add_subj ? strlen(dummy_subj) + app_cr + 1 : strlen(dummy_pfx);
 	}
@@ -299,6 +306,8 @@ msg_fetched( int sts, void *aux )
 		} else {
 			vars->data.flags = sanitize_flags( vars->data.flags, svars, t );
 			if (srec) {
+				if (srec->status & S_DUMMY(t))
+					vars->data.flags &= ~F_FLAGGED;
 				if (vars->data.flags) {
 					srec->pflags = vars->data.flags;
 					JLOG( "%% %u %u %u", (srec->uid[F], srec->uid[N], srec->pflags),
@@ -759,14 +768,12 @@ box_opened2( sync_vars_t *svars, int t )
 				debug( "resuming %s of %d new message(s)\n", str_hl[t], any_new[t] );
 				opts[t^1] |= OPEN_NEW;
 				if (chan->stores[t]->max_size != UINT_MAX)
-					opts[t^1] |= OPEN_FLAGS | OPEN_NEW_SIZE;
+					opts[t^1] |= OPEN_NEW_SIZE;
 			}
 			if ((chan->ops[t] & OP_RENEW) || any_upgrades[t]) {
 				debug( "resuming %s of %d upgrade(s)\n", str_hl[t], any_upgrades[t] );
-				if (chan->ops[t] & OP_RENEW) {
+				if (chan->ops[t] & OP_RENEW)
 					opts[t] |= OPEN_OLD | OPEN_FLAGS | OPEN_SETFLAGS;
-					opts[t^1] |= OPEN_FLAGS;
-				}
 				opts[t^1] |= OPEN_OLD;
 			}
 			if ((chan->ops[t] | chan->ops[t^1]) & OP_EXPUNGE)  // Don't propagate doomed msgs
@@ -1036,9 +1043,29 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 			del[F] = no[F] && srec->uid[F];
 			del[N] = no[N] && srec->uid[N];
 
+			sync_rec_t *nsrec = srec;
 			for (t = 0; t < 2; t++) {
+				// Do this before possibly upgrading that side.
 				if (srec->msg[t] && (srec->msg[t]->flags & F_DELETED))
 					srec->status |= S_DEL(t);
+				// Flagging the message on the target side causes an upgrade of the dummy.
+				// We do this first in a separate loop, so flag propagation sees the upgraded
+				// state for both sides. After a journal replay, that would be the case anyway.
+				if ((svars->chan->ops[t] & OP_RENEW) && (srec->status & S_DUMMY(t)) && srec->uid[t^1] && srec->msg[t]) {
+					sflags = srec->msg[t]->flags;
+					if (sflags & F_FLAGGED) {
+						sflags &= ~(F_SEEN | F_FLAGGED);  // As below.
+						// We save away the dummy's flags, because after an
+						// interruption it may be already gone.
+						srec->pflags = sflags;
+						JLOG( "^ %u %u %u", (srec->uid[F], srec->uid[N], srec->pflags),
+						      "upgrading %s placeholder, dummy's flags %s",
+						      (str_fn[t], fmt_lone_flags( srec->pflags ).str) );
+						nsrec = upgrade_srec( svars, srec, t );
+					}
+				}
+			}
+			for (t = 0; t < 2; t++) {
 				if (srec->status & S_UPGRADE) {
 					// Such records hold orphans by definition, so the del[] cases are irrelevant.
 					if (srec->uid[t]) {
@@ -1108,10 +1135,19 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 							sflags &= ~F_DELETED;
 						}
 						if (srec->status & S_DUMMY(t^1)) {
-							// For placeholders, don't propagate:
+							// From placeholders, don't propagate:
 							// - Seen, because the real contents were obviously not seen yet
 							// - Flagged, because it's just a request to upgrade
 							sflags &= ~(F_SEEN|F_FLAGGED);
+						} else if (srec->status & S_DUMMY(t)) {
+							// Don't propagate Flagged to placeholders, as that would be
+							// misunderstood as a request to upgrade next time around. We
+							// could replace the placeholder with one with(out) the flag
+							// notice line (we can't modify the existing one due to IMAP
+							// semantics), but that seems like major overkill, esp. as the
+							// user likely wouldn't even notice the change. So the flag
+							// won't be seen until the placeholder is upgraded - tough luck.
+							sflags &= ~F_FLAGGED;
 						}
 						srec->aflags[t] = sflags & ~srec->flags;
 						srec->dflags[t] = ~sflags & srec->flags;
@@ -1120,25 +1156,6 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 							       fmt_flags( srec->aflags[t] ).str, fmt_flags( srec->dflags[t] ).str );
 						}
 					}
-				}
-			}
-
-			sync_rec_t *nsrec = srec;
-			if (((srec->status & S_DUMMY(F)) && (svars->chan->ops[F] & OP_RENEW)) ||
-			     ((srec->status & S_DUMMY(N)) && (svars->chan->ops[N] & OP_RENEW))) {
-				// Flagging the message on either side causes an upgrade of the dummy.
-				// We ignore flag resets, because that corner case is not worth it.
-				ushort muflags = srec->msg[F] ? srec->msg[F]->flags : 0;
-				ushort suflags = srec->msg[N] ? srec->msg[N]->flags : 0;
-				if ((muflags | suflags) & F_FLAGGED) {
-					t = (srec->status & S_DUMMY(F)) ? F : N;
-					// We save away the dummy's flags, because after an
-					// interruption it may be already gone. Filtering as above.
-					srec->pflags = srec->msg[t]->flags & ~(F_SEEN | F_FLAGGED);
-					JLOG( "^ %u %u %u", (srec->uid[F], srec->uid[N], srec->pflags),
-					      "upgrading %s placeholder, dummy's flags %s",
-					      (str_fn[t], fmt_lone_flags( srec->pflags ).str) );
-					nsrec = upgrade_srec( svars, srec, t );
 				}
 			}
 			srec = nsrec;  // Minor optimization: skip freshly created placeholder entry.
@@ -1165,15 +1182,9 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 					// Pre-1.4 legacy only: The message was skipped due to being too big.
 					if (!(svars->chan->ops[t] & OP_RENEW))
 						continue;
-					srec->status = S_PENDING;
 					// The message size was not queried, so this won't be dummified below.
-					if (!(tmsg->flags & F_FLAGGED)) {
-						srec->status |= S_DUMMY(t);
-						JLOG( "_ %u %u", (srec->uid[F], srec->uid[N]), "placeholder only - was previously skipped" );
-					} else {
-						JLOG( "~ %u %u %d", (srec->uid[F], srec->uid[N], srec->status & S_LOGGED),
-						      "was previously skipped" );
-					}
+					srec->status = S_PENDING | S_DUMMY(t);
+					JLOG( "_ %u %u", (srec->uid[F], srec->uid[N]), "placeholder only - was previously skipped" );
 				} else {
 					if (!(svars->chan->ops[t] & OP_NEW) && !(srec->status & S_UPGRADE))
 						continue;
@@ -1241,8 +1252,7 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 				srec->status = S_DEAD;
 				continue;
 			}
-			if (!(tmsg->flags & F_FLAGGED) && tmsg->size > svars->chan->stores[t]->max_size &&
-			    !(srec->status & (S_DUMMY(F) | S_DUMMY(N)))) {
+			if (tmsg->size > svars->chan->stores[t]->max_size && !(srec->status & (S_DUMMY(F) | S_DUMMY(N)))) {
 				srec->status |= S_DUMMY(t);
 				JLOG( "_ %u %u", (srec->uid[F], srec->uid[N]), "placeholder only - too big" );
 			}

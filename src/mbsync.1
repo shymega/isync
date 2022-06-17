@@ -160,14 +160,17 @@ directory.
 .TP
 \fBMaxSize\fR \fIsize\fR[\fBk\fR|\fBm\fR][\fBb\fR]
 Messages larger than \fIsize\fR will have only a small placeholder message
-propagated into this Store. To propagate the full message, it must be
-flagged in either Store; that can be done retroactively, in which case
-the \fBReNew\fR operation needs to be executed instead of \fBNew\fR.
+propagated into this Store.
 This is useful for avoiding downloading messages with large attachments
 unless they are actually needed.
-Caveat: Setting a size limit on a Store you never read directly (which is
+To upgrade the placeholder to the full message, it must be flagged, and
+the \fBReNew\fR operation executed.
+Caveats: Setting a size limit on a Store you never read directly (which is
 typically the case for servers) is not recommended, as you may never
 notice that affected messages were not propagated to it.
+Also, as flagging is (ab-)used to request an upgrade, changes to the
+message's flagging state will not be propagated in either direction until
+after the placeholder is upgraded.
 .br
 \fBK\fR and \fBM\fR can be appended to the size to specify KiBytes resp.
 MeBytes instead of bytes. \fBB\fR is accepted but superfluous.

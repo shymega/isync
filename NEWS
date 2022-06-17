@@ -6,6 +6,9 @@ The old locations remain supported.
 The reference point for relative local paths in the configuration file
 is now the file's containing directory.
 
+Placeholders will be now created for messages exceeding MaxSize even if
+they are flagged on the source side.
+
 The unfiltered list of mailboxes in each Store can be printed now.
 
 A proper summary is now printed prior to exiting.
