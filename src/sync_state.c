@@ -308,9 +308,10 @@ load_state( sync_vars_t *svars )
 				case '*':
 				case '%':
 				case '~':
+				case '^':
 					bad = sscanf( buf + 2, "%u %u %u", &t1, &t2, &t3 ) != 3;
 					break;
-				case '^':
+				case '$':
 					bad = sscanf( buf + 2, "%u %u %u %u", &t1, &t2, &t3, &t4 ) != 4;
 					break;
 				default:
@@ -411,10 +412,16 @@ load_state( sync_vars_t *svars )
 					case '^':
 						tn = (srec->status & S_DUMMY(F)) ? F : N;
 						srec->pflags = (uchar)t3;
-						srec->flags = (uchar)t4;
-						debug( "upgrading %s placeholder, dummy's flags %s, srec flags %s\n",
-						       str_fn[tn], fmt_lone_flags( t3 ).str, fmt_lone_flags( t4 ).str );
+						debug( "upgrading %s placeholder, dummy's flags %s\n",
+						       str_fn[tn], fmt_lone_flags( t3 ).str );
 						srec = upgrade_srec( svars, srec, tn );
+						break;
+					case '$':
+						tn = !srec->uid[F] ? F : N;
+						srec->aflags[tn] = (uchar)t3;
+						srec->dflags[tn] = (uchar)t4;
+						debug( "flag update for %s now +%s -%s\n",
+						       str_fn[tn], fmt_flags( t3 ).str, fmt_flags( t4 ).str );
 						break;
 					default:
 						assert( !"Unhandled journal entry" );
@@ -522,8 +529,12 @@ assign_uid( sync_vars_t *svars, sync_rec_t *srec, int t, uint uid )
 	if (uid == svars->newmaxuid[t] + 1)
 		svars->newmaxuid[t] = uid;
 	if (uid) {
-		if (!(srec->status & S_UPGRADE))
+		if (srec->status & S_UPGRADE) {
+			srec->flags = (srec->flags | srec->aflags[t]) & ~srec->dflags[t];
+			srec->aflags[t] = srec->dflags[t] = 0;  // Cleanup after journal replay
+		} else {
 			srec->flags = srec->pflags;
+		}
 	}
 	srec->status &= ~(S_PENDING | S_UPGRADE);
 	srec->tuid[0] = 0;
