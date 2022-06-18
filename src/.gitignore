@@ -3,6 +3,7 @@
 /mbsync
 /mdconvert
 /tst_imap_msgs
+/tst_msg_cvt
 /tst_timers
 /tmp
 

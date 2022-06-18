@@ -196,7 +196,9 @@ sys_error( const char *msg, ... )
 
 // TODO: Trade off segments vs. buffer capacity dynamically.
 #define QPRINTF_SEGS 16
-#define QPRINTF_BUFF 1000
+#ifndef QPRINTF_BUFF
+# define QPRINTF_BUFF 1000
+#endif
 
 typedef void (*printf_cb)( const char **segs, uint *segls, int nsegs, uint totlen, void *aux );
 

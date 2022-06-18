@@ -54,7 +54,10 @@ man_MANS = mbsync.1 $(mdconvert_man)
 
 tst_imap_msgs_SOURCES = tst_imap_msgs.c imap_msgs.c util.c
 
-check_PROGRAMS = tst_imap_msgs
+tst_msg_cvt_SOURCES = tst_msg_cvt.c sync_msg_cvt.c util.c
+tst_msg_cvt_CFLAGS = -DQPRINTF_BUFF=10000
+
+check_PROGRAMS = tst_imap_msgs tst_msg_cvt
 TESTS = $(check_PROGRAMS)
 
 tst_timers_SOURCES = tst_timers.c util.c
