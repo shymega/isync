@@ -182,7 +182,7 @@ add_channel( chan_ent_t ***chanapp, channel_conf_t *chan, int ops[] )
 	chan_ent_t *ce = nfzalloc( sizeof(*ce) );
 	ce->conf = chan;
 
-	merge_actions( chan, ops, XOP_HAVE_TYPE, OP_MASK_TYPE, OP_MASK_TYPE );
+	merge_actions( chan, ops, XOP_HAVE_TYPE, OP_MASK_TYPE, OP_DFLT_TYPE );
 	merge_actions( chan, ops, XOP_HAVE_CREATE, OP_CREATE, 0 );
 	merge_actions( chan, ops, XOP_HAVE_REMOVE, OP_REMOVE, 0 );
 	merge_actions( chan, ops, XOP_HAVE_EXPUNGE, OP_EXPUNGE, 0 );

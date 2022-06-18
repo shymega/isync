@@ -18,6 +18,8 @@ The unfiltered list of mailboxes in each Store can be printed now.
 
 A proper summary is now printed prior to exiting.
 
+Added new sync operation 'Old'.
+
 [1.4.0]
 
 The 'isync' compatibility wrapper was removed.

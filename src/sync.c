@@ -709,6 +709,7 @@ box_opened2( sync_vars_t *svars, int t )
 	int any_dummies[2] = { 0, 0 };
 	int any_purges[2] = { 0, 0 };
 	int any_upgrades[2] = { 0, 0 };
+	int any_old[2] = { 0, 0 };
 	int any_new[2] = { 0, 0 };
 	int any_tuids[2] = { 0, 0 };
 	if (svars->replayed || ((chan->ops[F] | chan->ops[N]) & OP_UPGRADE)) {
@@ -731,6 +732,8 @@ box_opened2( sync_vars_t *svars, int t )
 				t = !srec->uid[F] ? F : N;
 				if (srec->status & S_UPGRADE)
 					any_upgrades[t]++;
+				else if (srec->uid[t^1] <= svars->maxuid[t^1])
+					any_old[t]++;
 				else
 					any_new[t]++;
 				if (srec->tuid[0])
@@ -762,8 +765,14 @@ box_opened2( sync_vars_t *svars, int t )
 			chan->ops[t] &= ~OP_UPGRADE;
 			debug( "no %s dummies; masking Upgrade\n", str_fn[t] );
 		}
-		if ((chan->ops[t] & (OP_NEW | OP_UPGRADE)) || any_new[t] || any_upgrades[t]) {
+		if ((chan->ops[t] & (OP_OLD | OP_NEW | OP_UPGRADE)) || any_old[t] || any_new[t] || any_upgrades[t]) {
 			opts[t] |= OPEN_APPEND;
+			if ((chan->ops[t] & OP_OLD) || any_old[t]) {
+				debug( "resuming %s of %d old message(s)\n", str_hl[t], any_old[t] );
+				opts[t^1] |= OPEN_OLD;
+				if (chan->stores[t]->max_size != UINT_MAX)
+					opts[t^1] |= OPEN_OLD_SIZE;
+			}
 			if ((chan->ops[t] & OP_NEW) || any_new[t]) {
 				debug( "resuming %s of %d new message(s)\n", str_hl[t], any_new[t] );
 				opts[t^1] |= OPEN_NEW;
@@ -795,13 +804,13 @@ box_opened2( sync_vars_t *svars, int t )
 	// The latter would also apply when the expired box is the source,
 	// but it's more natural to treat it as read-only in that case.
 	// OP_UPGRADE makes sense only for legacy S_SKIPPED entries.
-	if ((chan->ops[N] & (OP_NEW | OP_UPGRADE | OP_FLAGS)) && chan->max_messages)
+	if ((chan->ops[N] & (OP_OLD | OP_NEW | OP_UPGRADE | OP_FLAGS)) && chan->max_messages)
 		svars->any_expiring = 1;
 	if (svars->any_expiring) {
 		opts[N] |= OPEN_PAIRED | OPEN_FLAGS;
 		if (any_dummies[N])
 			opts[F] |= OPEN_PAIRED | OPEN_FLAGS;
-		else if (chan->ops[N] & (OP_NEW | OP_UPGRADE))
+		else if (chan->ops[N] & (OP_OLD | OP_NEW | OP_UPGRADE))
 			opts[F] |= OPEN_FLAGS;
 	}
 	svars->opts[F] = svars->drv[F]->prepare_load_box( ctx[F], opts[F] );
@@ -1197,37 +1206,60 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 
 				if (srec->status & S_SKIPPED) {
 					// Pre-1.4 legacy only: The message was skipped due to being too big.
-					if (!(svars->chan->ops[t] & OP_UPGRADE))
+					if (!(svars->chan->ops[t] & OP_UPGRADE))  // OP_OLD would be somewhat logical, too.
 						continue;
 					// The message size was not queried, so this won't be dummified below.
 					srec->status = S_PENDING | S_DUMMY(t);
 					JLOG( "_ %u %u", (srec->uid[F], srec->uid[N]), "placeholder only - was previously skipped" );
 				} else {
-					if (!(svars->chan->ops[t] & OP_NEW) && !(srec->status & S_UPGRADE))
-						continue;
-					if (!(srec->status & S_PENDING))
-						continue;  // Nothing to do - the message is paired or expired
-					// Propagation was scheduled, but we got interrupted
-					debug( "unpropagated old message %u\n", tmsg->uid );
-
-					if (srec->status & S_UPGRADE) {
-						if (((svars->chan->ops[t] & OP_EXPUNGE) &&
-						     ((srec->pflags | srec->aflags[t]) & ~srec->dflags[t] & F_DELETED)) ||
-						    ((svars->chan->ops[t^1] & OP_EXPUNGE) &&
-						     ((srec->msg[t^1]->flags | srec->aflags[t^1]) & ~srec->dflags[t^1] & F_DELETED))) {
-							// We can't just kill the entry, as we may be propagating flags
-							// (in particular, F_DELETED) towards the real message.
-							// No dummy is actually present, but pretend there is, so the
-							// real message is considered new when trashing.
-							srec->status = (srec->status & ~(S_PENDING | S_UPGRADE)) | S_DUMMY(t);
-							JLOG( "~ %u %u %d", (srec->uid[F], srec->uid[N], srec->status & S_LOGGED),
-							      "canceling placeholder upgrade - would be expunged anyway" );
+					if (!(srec->status & S_PENDING)) {
+						if (srec->uid[t])
+							continue;  // Nothing to do - the message is paired
+						if (!(svars->chan->ops[t] & OP_OLD)) {
+							// This was reported as 'no <opposite>' already.
+							// debug( "not re-propagating orphaned message %u\n", tmsg->uid );
 							continue;
 						}
-						// Prevent the driver from "completing" the flags, as we'll ignore them anyway.
-						tmsg->status |= M_FLAGS;
-						any_new[t] = 1;
-						continue;
+						if (t == F || !(srec->status & S_EXPIRED)) {
+							// Orphans are essentially deletion propagation transactions which
+							// were interrupted midway through by not expunging the target. We
+							// don't re-propagate these, as it would be illogical, and also
+							// make a mess of placeholder upgrades.
+							debug( "ignoring orphaned message %u\n", tmsg->uid );
+							continue;
+						}
+						if ((!(tmsg->flags & F_FLAGGED) &&
+						     ((tmsg->flags & F_SEEN) || svars->chan->expire_unread > 0))) {
+							debug( "not re-propagating tracked expired message %u\n", tmsg->uid );
+							continue;
+						}
+						assert( !(srec->status & S_LOGGED) );
+						srec->status |= S_PENDING;
+						JLOG( "~ %u %u " stringify(S_PENDING), (srec->uid[F], srec->uid[N]),
+						      "re-propagate tracked expired message" );
+					} else {
+						// Propagation was scheduled, but we got interrupted
+						debug( "unpropagated old message %u\n", tmsg->uid );
+
+						if (srec->status & S_UPGRADE) {
+							if (((svars->chan->ops[t] & OP_EXPUNGE) &&
+							     ((srec->pflags | srec->aflags[t]) & ~srec->dflags[t] & F_DELETED)) ||
+							    ((svars->chan->ops[t^1] & OP_EXPUNGE) &&
+							     ((srec->msg[t^1]->flags | srec->aflags[t^1]) & ~srec->dflags[t^1] & F_DELETED))) {
+								// We can't just kill the entry, as we may be propagating flags
+								// (in particular, F_DELETED) towards the real message.
+								// No dummy is actually present, but pretend there is, so the
+								// real message is considered new when trashing.
+								srec->status = (srec->status & ~(S_PENDING | S_UPGRADE)) | S_DUMMY(t);
+								JLOG( "~ %u %u %d", (srec->uid[F], srec->uid[N], srec->status & S_LOGGED),
+								      "canceling placeholder upgrade - would be expunged anyway" );
+								continue;
+							}
+							// Prevent the driver from "completing" the flags, as we'll ignore them anyway.
+							tmsg->status |= M_FLAGS;
+							any_new[t] = 1;
+							continue;
+						}
 					}
 				}
 			} else {
@@ -1237,16 +1269,35 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 				if (t == F || tmsg->uid > svars->maxxfuid)
 					topping = 0;
 
-				if (!(svars->chan->ops[t] & OP_NEW))
-					continue;
+				const char *what;
 				if (tmsg->uid <= svars->maxuid[t^1]) {
 					// The message should be already paired. It's not, so it was:
-					// - previously paired, but the entry was expired and pruned => ignore
-					// - attempted, but failed => ignore (the wisdom of this is debatable)
-					// - ignored, as it would have been expunged anyway => ignore (even if undeleted)
-					continue;
+					// - attempted, but failed
+					// - ignored, as it would have been expunged anyway
+					// - paired, but subsequently expired and pruned
+					if (!(svars->chan->ops[t] & OP_OLD)) {
+						debug( "not propagating old message %u\n", tmsg->uid );
+						continue;
+					}
+					if (topping) {
+						// The message is below the boundary of the bulk range.
+						// We'll sync it only if it has become important meanwhile.
+						if (!(tmsg->flags & F_FLAGGED) &&
+						    ((tmsg->flags & F_SEEN) || svars->chan->expire_unread > 0)) {
+							debug( "not re-propagating untracked expired message %u\n", tmsg->uid );
+							continue;
+						}
+						what = "untracked expired message";
+					} else {
+						what = "old message";
+					}
+				} else {
+					if (!(svars->chan->ops[t] & OP_NEW)) {
+						debug( "not propagating new message %u\n", tmsg->uid );
+						continue;
+					}
+					what = "new message";
 				}
-				debug( "new message %u\n", tmsg->uid );
 
 				srec = nfzalloc( sizeof(*srec) );
 				*svars->srecadd = srec;
@@ -1258,7 +1309,7 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 				tmsg->srec = srec;
 				if (svars->newmaxuid[t^1] < tmsg->uid)
 					svars->newmaxuid[t^1] = tmsg->uid;
-				JLOG( "+ %u %u", (srec->uid[F], srec->uid[N]), "fresh" );
+				JLOG( "+ %u %u", (srec->uid[F], srec->uid[N]), "%s", what );
 			}
 			if (((svars->chan->ops[t] | svars->chan->ops[t^1]) & OP_EXPUNGE) && (tmsg->flags & F_DELETED)) {
 				// Yes, we may nuke fresh entries, created only for newmaxuid tracking.

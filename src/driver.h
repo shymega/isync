@@ -91,6 +91,7 @@ BIT_ENUM(
 	OPEN_NEW,         // Messages (possibly) not yet propagated *from* this store.
 	OPEN_FIND,
 	OPEN_FLAGS,       // Note that fetch_msg() gets the flags regardless.
+	OPEN_OLD_SIZE,
 	OPEN_NEW_SIZE,
 	OPEN_PAIRED_IDS,
 	OPEN_APPEND,

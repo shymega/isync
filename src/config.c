@@ -198,6 +198,8 @@ getopt_helper( conffile_t *cfile, int *cops, channel_conf_t *conf )
 				*cops |= OP_UPGRADE;
 			} else if (!strcasecmp( "New", arg )) {
 				*cops |= OP_NEW;
+			} else if (!strcasecmp( "Old", arg )) {
+				*cops |= OP_OLD;
 			} else if (!strcasecmp( "Gone", arg )) {
 				*cops |= OP_GONE;
 			} else if (!strcasecmp( "Delete", arg )) {
@@ -214,6 +216,8 @@ getopt_helper( conffile_t *cfile, int *cops, channel_conf_t *conf )
 				conf->ops[N] |= OP_UPGRADE;
 			} else if (!strcasecmp( "PullNew", arg )) {
 				conf->ops[N] |= OP_NEW;
+			} else if (!strcasecmp( "PullOld", arg )) {
+				conf->ops[N] |= OP_OLD;
 			} else if (!strcasecmp( "PullGone", arg )) {
 				conf->ops[N] |= OP_GONE;
 			} else if (!strcasecmp( "PullDelete", arg )) {
@@ -230,6 +234,8 @@ getopt_helper( conffile_t *cfile, int *cops, channel_conf_t *conf )
 				conf->ops[F] |= OP_UPGRADE;
 			} else if (!strcasecmp( "PushNew", arg )) {
 				conf->ops[F] |= OP_NEW;
+			} else if (!strcasecmp( "PushOld", arg )) {
+				conf->ops[F] |= OP_OLD;
 			} else if (!strcasecmp( "PushGone", arg )) {
 				conf->ops[F] |= OP_GONE;
 			} else if (!strcasecmp( "PushDelete", arg )) {
@@ -366,15 +372,15 @@ merge_ops( int cops, int ops[], const char *chan_name )
 					       channel_str( chan_name ) );
 					return 1;
 				}
-				if (ops[N] & OP_MASK_TYPE)
+				if (ops[N] & OP_DFLT_TYPE)
 					goto ovl;
-				ops[N] |= OP_MASK_TYPE;
+				ops[N] |= OP_DFLT_TYPE;
 			} else if (cops & XOP_PUSH) {
 				if (cops & OP_MASK_TYPE)
 					goto ivl;
-				if (ops[F] & OP_MASK_TYPE)
+				if (ops[F] & OP_DFLT_TYPE)
 					goto ovl;
-				ops[F] |= OP_MASK_TYPE;
+				ops[F] |= OP_DFLT_TYPE;
 			} else {
 				ops[F] |= cops & OP_MASK_TYPE;
 				ops[N] |= cops & OP_MASK_TYPE;
@@ -383,7 +389,7 @@ merge_ops( int cops, int ops[], const char *chan_name )
 			if (ops[F] & XOP_TYPE_NOOP)
 				goto cfl;
 			if (!(cops & OP_MASK_TYPE))
-				cops |= OP_MASK_TYPE;
+				cops |= OP_DFLT_TYPE;
 			else if (!(cops & XOP_MASK_DIR))
 				cops |= XOP_PULL|XOP_PUSH;
 			if (cops & XOP_PULL)

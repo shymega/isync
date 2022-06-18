@@ -2895,8 +2895,14 @@ imap_load_box( store_t *gctx, uint minuid, uint maxuid, uint finduid, uint pairu
 			ranges[0].last = maxuid;
 			ranges[0].flags = 0;
 			uint nranges = 1;
-			if (ctx->opts & OPEN_NEW_SIZE)
+			if (ctx->opts & OPEN_OLD_SIZE) {
+				if (ctx->opts & OPEN_NEW_SIZE)
+					ranges[0].flags = WantSize;
+				else
+					imap_set_range( ranges, &nranges, WantSize, 0, newuid );
+			} else if (ctx->opts & OPEN_NEW_SIZE) {
 				imap_set_range( ranges, &nranges, 0, WantSize, newuid );
+			}
 			if (ctx->opts & OPEN_FIND)
 				imap_set_range( ranges, &nranges, 0, WantTuids, finduid - 1 );
 			if (ctx->opts & OPEN_PAIRED_IDS)

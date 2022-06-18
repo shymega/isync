@@ -1111,7 +1111,8 @@ maildir_scan( maildir_store_t *ctx, msg_t_array_alloc_t *msglist )
 				free( entry->base );
 				entry->base = nfstrndup( buf + bl + 4, (size_t)fnl );
 			}
-			int want_size = ((ctx->opts & OPEN_NEW_SIZE) && uid > ctx->newuid);
+			int want_size = ((ctx->opts & OPEN_OLD_SIZE) && uid <= ctx->newuid) ||
+			                ((ctx->opts & OPEN_NEW_SIZE) && uid > ctx->newuid);
 			int want_tuid = ((ctx->opts & OPEN_FIND) && uid >= ctx->finduid);
 			int want_msgid = ((ctx->opts & OPEN_PAIRED_IDS) && uid <= ctx->pairuid);
 			if (!want_size && !want_tuid && !want_msgid)

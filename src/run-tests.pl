@@ -1117,7 +1117,7 @@ my @x20 = (
   C, "", "", "*FS*",
 );
 
-my @O21 = ("MaxSize 1k\n", "MaxSize 1k\n", "Expunge Near");
+my @O21 = ("MaxSize 1k\n", "MaxSize 1k\n", "Sync Full Old\nExpunge Near\n");
 my @X21 = (
   C, 0, B,
   C, "*S?", "*<S", "",
@@ -1461,6 +1461,244 @@ my @X61 = (
   E, C, E,
 );
 test("maxuid topping", \@x60, \@X61, \@O61);
+
+# Tests for refreshing previously skipped/failed/expired messages.
+# We don't know the flags at the time of the (hypothetical) previous
+# sync, so we can't know why a particular message is missing.
+# We test with MaxMessages to cover different behaviors wrt maxxfuid.
+
+my @x70 = (
+  L, E, P,
+  A, "*", "", "",
+  B, "*F", "", "",
+  C, "", "", "*",
+  D, "*F", "*F", "*F",
+  E, "*", "", "_",      # MaxExpiredFarUid
+  F, "*", "*", "*",
+  G, "_", "*T", "*T",
+  H, "*T", "*T", "_",
+  I, "", "", "*T",
+  J, "", "", "*",
+  K, "*T", "", "",
+  L, "*", "", "",       # MaxPulledUid
+  M, "_", "*T", "*T",
+  N, "*T", "*T", "_",
+  O, "", "", "*T",
+  P, "", "", "*",       # MaxPushedUid
+  Q, "*T", "", "",
+  R, "*", "", "",
+  S, "", "", "*",
+);
+
+my @O71 = ("", "", "Sync New\nMaxMessages 20\nExpireUnread yes\n");
+my @X71 = (
+  S, E, R,
+  N, "", ">", "",
+  S, "*", "*", "",
+  Q, "", "*T", "*T",
+  R, "", "*", "*",
+);
+test("not old", \@x70, \@X71, \@O71);
+
+my @O71a = ("", "", "Sync New\nMaxMessages 3\nExpireUnread yes\n");
+test("not old + expire", \@x70, \@X71, \@O71a);
+
+my @O72 = ("", "", "Sync New Old\nMaxMessages 20\nExpireUnread yes\nExpunge Near\n");
+my @X72 = (
+  S, E, R,
+  G, "", "/", "/",
+  H, "", ">", "",
+  I, "", "", "/",
+  M, "", "/", "/",
+  N, "", ">", "",
+  O, "", "", "/",
+  C, "*", "*", "",
+  J, "*", "*", "",
+  P, "*", "*", "",
+  S, "*", "*", "",
+  B, "", "*F", "*F",
+  L, "", "*", "*",
+  R, "", "*", "*",
+);
+test("old + expunge near", \@x70, \@X72, \@O72);
+
+# This omits the entries that cause idempotence problems
+# due to not counting/expiring newly pushed messages.
+my @x70a = (
+  L, E, O,
+  A, "*", "", "",
+  B, "*F", "", "",
+  D, "*F", "*F", "*F",
+  E, "*", "", "_",      # MaxExpiredFarUid
+  G, "_", "*T", "*T",
+  H, "*T", "*T", "_",
+  I, "", "", "*T",
+  K, "*T", "", "",
+  L, "*", "", "",       # MaxPulledUid
+  M, "_", "*T", "*T",
+  N, "*T", "*T", "_",
+  O, "", "", "*T",      # MaxPushedUid
+  Q, "*T", "", "",
+  R, "*", "", "",
+  S, "", "", "*",
+);
+
+my @O72a = ("", "", "Sync New Old\nMaxMessages 3\nExpireUnread yes\nExpunge Near\n");
+my @X72a = (
+  S, E, R,
+  G, "", "/", "/",
+  H, "", ">", "",
+  I, "", "", "/",
+  M, "", "/", "/",
+  N, "", ">", "",
+  O, "", "", "/",
+  S, "*", "*", "",
+  B, "", "*F", "*F",
+  L, "", "*", "*",
+  R, "", "*", "*",
+);
+test("old + expire + expunge near", \@x70a, \@X72a, \@O72a);
+
+my @O73 = ("", "", "Sync Pull New Old\nMaxMessages 20\nExpireUnread yes\n");
+my @X73 = (
+  R, E, P,
+  B, "", "*F", "*F",
+  G, "", "<", "",
+  H, "", ">", "",
+  K, "", "*T", "*T",
+  L, "", "*", "*",
+  M, "", "<", "",
+  N, "", ">", "",
+  Q, "", "*T", "*T",
+  R, "", "*", "*",
+);
+test("pull old", \@x70, \@X73, \@O73);
+
+# This is "weird", because expiration overtook pulling.
+my @x80 = (
+  D, L, Q,
+  A, "", "", "*",
+  B, "*", "", "",
+  C, "*T", "", "",
+  D, "*F", "", "",      # MaxPulledUid
+  E, "_", "*T", "*T",
+  F, "*T", "*T", "_",
+  G, "", "", "*T",
+  H, "", "", "*",
+  I, "*T", "", "",
+  J, "*", "", "",
+  K, "*F", "*F", "*F",
+  L, "*", "*~", "_",    # MaxExpiredFarUid
+  M, "*", "*", "*",
+  N, "_", "*T", "*T",
+  O, "*T", "*T", "_",
+  P, "", "", "*T",
+  Q, "", "", "*",       # MaxPushedUid
+  R, "*T", "", "",
+  S, "*", "", "",
+  T, "", "", "*T",
+  U, "", "", "*",
+);
+
+my @X81 = (
+  U, L, S,
+  F, "", ">", "",
+  L, "", "/", "",
+  O, "", ">", "",
+  T, "*T", "*T", "",
+  U, "*", "*", "",
+  I, "", "*T", "*T",
+  J, "", "*", "*",
+  R, "", "*T", "*T",
+  S, "", "*", "*",
+);
+test("weird not old", \@x80, \@X81, \@O71);
+
+my @X81a = (
+  U, L, S,
+  F, "", ">", "",
+  L, "", "/", "",
+  O, "", ">", "",
+  T, "*T", "*T", "",
+  U, "*", "*", "",
+  I, "", "*T", "*T",
+  R, "", "*T", "*T",
+  S, "", "*", "*",
+);
+test("weird not old + expire", \@x80, \@X81a, \@O71a);
+
+my @X82 = (
+  U, L, S,
+  E, "", "/", "/",
+  F, "", ">", "",
+  G, "", "", "/",
+  L, "", "/", "",
+  N, "", "/", "/",
+  O, "", ">", "",
+  P, "", "", "/",
+  T, "", "", "/",
+  A, "*", "*", "",
+  H, "*", "*", "",
+  Q, "*", "*", "",
+  U, "*", "*", "",
+  D, "", "*F", "*F",
+  J, "", "*", "*",
+  S, "", "*", "*",
+);
+test("weird old + expunge near", \@x80, \@X82, \@O72);
+
+my @x80a = (
+  D, L, Q,
+  B, "*", "", "",
+  C, "*T", "", "",
+  D, "*F", "", "",      # MaxPulledUid
+  E, "_", "*T", "*T",
+  F, "*T", "*T", "_",
+  G, "", "", "*T",
+  H, "", "", "*",
+  I, "*T", "", "",
+  K, "*F", "*F", "*F",
+  L, "*", "*~", "_",    # MaxExpiredFarUid
+  N, "_", "*T", "*T",
+  O, "*T", "*T", "_",
+  P, "", "", "*T",
+  Q, "", "", "*",       # MaxPushedUid
+  R, "*T", "", "",
+  T, "", "", "*T",
+  U, "", "", "*",
+);
+
+my @X82a = (
+  U, L, D,
+  E, "", "/", "/",
+  F, "", ">", "",
+  G, "", "", "/",
+  L, "", "/", "",
+  N, "", "/", "/",
+  O, "", ">", "",
+  P, "", "", "/",
+  T, "", "", "/",
+  H, "*", "*", "",
+  Q, "*", "*", "",
+  U, "*", "*", "",
+  D, "", "*F", "*F",
+);
+test("weird old + expire + expunge near", \@x80a, \@X82a, \@O72a);
+
+my @X83 = (
+  S, L, Q,
+  E, "", "<", "",
+  F, "", ">", "",
+  L, "", "/", "",
+  N, "", "<", "",
+  O, "", ">", "",
+  D, "", "*F", "*F",
+  I, "", "*T", "*T",
+  J, "", "*", "*",
+  R, "", "*T", "*T",
+  S, "", "*", "*",
+);
+test("weird pull old", \@x80, \@X83, \@O73);
 
 # Messages that would be instantly expunged on the target side.
 

@@ -61,11 +61,11 @@ Override any \fBRemove\fR options from the config file. See below.
 \fB-X\fR[\fBf\fR][\fBn\fR], \fB--expunge\fR[\fB-far\fR|\fB-near\fR]
 Override any \fBExpunge\fR options from the config file. See below.
 .TP
-{\fB-n\fR|\fB-u\fR|\fB-g\fR|\fB-f\fR|\fB-0\fR|\fB-F\fR},\
- {\fB--new\fR|\fB--upgrade\fR|\fB--gone\fR|\fB--flags\fR|\fB--noop\fR|\fB--full\fR}
+{\fB-n\fR|\fB-o\fR|\fB-u\fR|\fB-g\fR|\fB-f\fR|\fB-0\fR|\fB-F\fR},\
+ {\fB--new\fR|\fB--old\fR|\fB--upgrade\fR|\fB--gone\fR|\fB--flags\fR|\fB--noop\fR|\fB--full\fR}
 .TP
-\r{\fB-L\fR|\fB-H\fR}[\fBn\fR][\fBu\fR][\fBg\fR][\fBf\fR],\
- {\fB--pull\fR|\fB--push\fR}[\fB-new\fR|\fB-upgrade\fR|\fB-gone\fR|\fB-flags\fR]
+\r{\fB-L\fR|\fB-H\fR}[\fBn\fR][\fBo\fR][\fBu\fR][\fBg\fR][\fBf\fR],\
+ {\fB--pull\fR|\fB--push\fR}[\fB-new\fR|\fB-old\fR|\fB-upgrade\fR|\fB-gone\fR|\fB-flags\fR]
 Override any \fBSync\fR options from the config file. See below.
 .TP
 \fB-h\fR, \fB--help\fR
@@ -574,7 +574,7 @@ case you need to enable this option.
 (Global default: \fBno\fR).
 .
 .TP
-\fBSync\fR {\fBNone\fR|[\fBPull\fR] [\fBPush\fR] [\fBNew\fR] [\fBUpgrade\fR] [\fBGone\fR] [\fBFlags\fR] [\fBFull\fR]}
+\fBSync\fR {\fBNone\fR|[\fBPull\fR] [\fBPush\fR] [\fBNew\fR] [\fBOld\fR] [\fBUpgrade\fR] [\fBGone\fR] [\fBFlags\fR] [\fBFull\fR]}
 Select the synchronization operation(s) to perform:
 .br
 \fBPull\fR - propagate changes from far to near side.
@@ -582,6 +582,10 @@ Select the synchronization operation(s) to perform:
 \fBPush\fR - propagate changes from near to far side.
 .br
 \fBNew\fR - propagate newly appeared messages.
+.br
+\fBOld\fR - propagate previously skipped, failed, and expired messages.
+This has a (relatively) high cost and may repeatedly produce error messages,
+so it always must be specified explicitly.
 .br
 \fBUpgrade\fR - upgrade placeholders to full messages. Useful only with
 a configured \fBMaxSize\fR.
@@ -601,10 +605,10 @@ This is the global default.
 \fBNone\fR (\fB--noop\fR on the command line) - don't propagate anything.
 Useful if you want to expunge only.
 .IP
-\fBPull\fR and \fBPush\fR are direction flags, while \fBNew\fR, \fBUpgrade\fR,
-\fBGone\fR and \fBFlags\fR are type flags. The two flag classes make up a
-two-dimensional matrix (a table). Its cells are the individual actions to
-perform. There are two styles of asserting the cells:
+\fBPull\fR and \fBPush\fR are direction flags, while \fBNew\fR, \fBOld\fR,
+\fBUpgrade\fR, \fBGone\fR, and \fBFlags\fR are type flags.
+The two flag classes make up a two-dimensional matrix (a table). Its cells are
+the individual actions to perform. There are two styles of asserting the cells:
 .br
 In the first style, the flags select entire rows/colums in the matrix. Only
 the cells which are selected both horizontally and vertically are asserted.
@@ -620,10 +624,10 @@ In the second style, direction flags are concatenated with type flags; every
 compound flag immediately asserts a cell in the matrix. In addition to at least
 one compound flag, the individual flags can be used as well, but as opposed to
 the first style, they immediately assert all cells in their respective
-row/column. For example,
+row/column (with the exception of \fBOld\fR). For example,
 "\fBSync\fR\ \fBPullNew\fR\ \fBPullGone\fR\ \fBPush\fR" will propagate
 message arrivals and deletions from the far side to the near side and any
-changes from the near side to the far side.
+changes (except old messages) from the near side to the far side.
 .br
 Note that it is not allowed to assert a cell in two ways, e.g.
 "\fBSync\fR\ \fBPullNew\fR\ \fBPull\fR" and

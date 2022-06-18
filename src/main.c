@@ -272,6 +272,8 @@ main( int argc, char **argv )
 				  rlcac:
 					if (!strcmp( opt, "new" )) {
 						op |= OP_NEW;
+					} else if (!strcmp( opt, "old" )) {
+						op |= OP_OLD;
 					} else if (!strcmp( opt, "upgrade" )) {
 						op |= OP_UPGRADE;
 					} else if (!strcmp( opt, "renew" )) {
@@ -354,6 +356,7 @@ main( int argc, char **argv )
 			mvars->ops[F] |= XOP_TYPE_NOOP | XOP_HAVE_TYPE;
 			break;
 		case 'n':
+		case 'o':
 		case 'd':
 		case 'g':
 		case 'f':
@@ -365,6 +368,8 @@ main( int argc, char **argv )
 			for (;; ochar++) {
 				if (*ochar == 'n')
 					op |= OP_NEW;
+				else if (*ochar == 'o')
+					op |= OP_OLD;
 				else if (*ochar == 'g')
 					op |= OP_GONE;
 				else if (*ochar == 'd')
