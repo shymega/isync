@@ -288,11 +288,13 @@ done_imap_cmd( imap_store_t *ctx, imap_cmd_t *cmd, int response )
 {
 	if (cmd->param.wait_check)
 		ctx->num_wait_check--;
-	cmd->param.done( ctx, cmd, response );
 	if (cmd->param.data) {
 		free( cmd->param.data );
+		cmd->param.data = NULL;
+		// This needs to happen before calling back.
 		ctx->buffer_mem -= cmd->param.data_len;
 	}
+	cmd->param.done( ctx, cmd, response );
 	free( cmd->cmd );
 	free( cmd );
 }
