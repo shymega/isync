@@ -302,24 +302,23 @@ done_imap_cmd( imap_store_t *ctx, imap_cmd_t *cmd, int response )
 static void
 send_imap_cmd( imap_store_t *ctx, imap_cmd_t *cmd )
 {
-	int litplus, iovcnt = 3;
-	uint tbufl, lbufl;
+	int litplus = 0, iovcnt = 3;
 	conn_iovec_t iov[5];
 	char tagbuf[16];
-	char lenbuf[16];
 
 	cmd->tag = ++ctx->nexttag;
-	tbufl = nfsnprintf( tagbuf, sizeof(tagbuf), "%d ", cmd->tag );
-	if (!cmd->param.data) {
-		memcpy( lenbuf, "\r\n", 3 );
-		lbufl = 2;
-		litplus = 0;
-	} else if ((cmd->param.to_trash && ctx->trashnc == TrashUnknown) || !CAP(LITERALPLUS) || cmd->param.data_len >= 100*1024) {
-		lbufl = nfsnprintf( lenbuf, sizeof(lenbuf), "{%u}\r\n", cmd->param.data_len );
-		litplus = 0;
-	} else {
-		lbufl = nfsnprintf( lenbuf, sizeof(lenbuf), "{%u+}\r\n", cmd->param.data_len );
-		litplus = 1;
+	uint tbufl = nfsnprintf( tagbuf, sizeof(tagbuf), "%d ", cmd->tag );
+	uint cmdl = strlen( cmd->cmd );
+	if (cmd->param.data) {
+		assert( cmdl > 2 && !memcmp( cmd->cmd + cmdl - 2, "+}", 2 ) );
+		if ((!cmd->param.to_trash || ctx->trashnc != TrashUnknown) &&
+		    CAP(LITERALPLUS) && cmd->param.data_len <= 100*1024) {
+			litplus = 1;
+		} else {
+			cmd->cmd[cmdl - 2] = '}';
+			cmd->cmd[cmdl - 1] = 0;
+			cmdl--;
+		}
 	}
 	if (DFlags & DEBUG_NET) {
 		if (ctx->num_in_progress)
@@ -329,17 +328,17 @@ send_imap_cmd( imap_store_t *ctx, imap_cmd_t *cmd )
 		else if (starts_with( cmd->cmd, -1, "AUTHENTICATE PLAIN", 18 ))
 			printf( "%s>>> %sAUTHENTICATE PLAIN <authdata>\r\n", ctx->label, tagbuf );
 		else
-			printf( "%s>>> %s%s%s", ctx->label, tagbuf, cmd->cmd, lenbuf );
+			printf( "%s>>> %s%s\r\n", ctx->label, tagbuf, cmd->cmd );
 		fflush( stdout );
 	}
 	iov[0].buf = tagbuf;
 	iov[0].len = tbufl;
 	iov[0].takeOwn = KeepOwn;
 	iov[1].buf = cmd->cmd;
-	iov[1].len = strlen( cmd->cmd );
+	iov[1].len = cmdl;
 	iov[1].takeOwn = KeepOwn;
-	iov[2].buf = lenbuf;
-	iov[2].len = lbufl;
+	iov[2].buf = "\r\n";
+	iov[2].len = 2;
 	iov[2].takeOwn = KeepOwn;
 	if (litplus) {
 		if (DFlags & DEBUG_NET_ALL) {
@@ -3264,7 +3263,7 @@ DIAG_POP
 		}
 	}
 	imap_exec( ctx, &cmd->gen, imap_store_msg_p2,
-	           "APPEND \"%\\s\" %s%s", buf, flagstr, datestr );
+	           "APPEND \"%\\s\" %s%s{%u+}", buf, flagstr, datestr, data->len );
 	free( buf );
 }
 
