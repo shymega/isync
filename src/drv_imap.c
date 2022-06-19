@@ -3233,6 +3233,14 @@ imap_store_msg( store_t *gctx, msg_data_t *data, int to_trash,
 		flagstr[d++] = ' ';
 	}
 	flagstr[d] = 0;
+	if (data->date) {
+DIAG_PUSH
+DIAG_DISABLE("-Wformat")  // configure ensures that %z actually works.
+		strftime( datestr, sizeof(datestr), "\"%d-%b-%Y %H:%M:%S %z\" ", localtime( &data->date ) );
+DIAG_POP
+	} else {
+		datestr[0] = 0;
+	}
 
 	INIT_IMAP_CMD(imap_cmd_out_uid_t, cmd, cb, aux)
 	ctx->buffer_mem += data->len;
@@ -3255,18 +3263,8 @@ imap_store_msg( store_t *gctx, msg_data_t *data, int to_trash,
 			return;
 		}
 	}
-	if (data->date) {
-		/* configure ensures that %z actually works. */
-DIAG_PUSH
-DIAG_DISABLE("-Wformat")
-		strftime( datestr, sizeof(datestr), "%d-%b-%Y %H:%M:%S %z", localtime( &data->date ) );
-DIAG_POP
-		imap_exec( ctx, &cmd->gen, imap_store_msg_p2,
-		           "APPEND \"%\\s\" %s\"%\\s\" ", buf, flagstr, datestr );
-	} else {
-		imap_exec( ctx, &cmd->gen, imap_store_msg_p2,
-		           "APPEND \"%\\s\" %s", buf, flagstr );
-	}
+	imap_exec( ctx, &cmd->gen, imap_store_msg_p2,
+	           "APPEND \"%\\s\" %s%s", buf, flagstr, datestr );
 	free( buf );
 }
 
