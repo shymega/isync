@@ -423,6 +423,7 @@ store_bad( void *aux )
 {
 	MVARS(aux)
 
+	info("bad store %d\n", t);
 	mvars->drv[t]->cancel_store( mvars->ctx[t] );
 	mvars->state[t] = ST_CLOSED;
 	mvars->cvars->ret = 1;
@@ -432,6 +433,7 @@ store_bad( void *aux )
 static void
 advance_chan( main_vars_t *mvars )
 {
+	info("advance chan\n");
 	if (!mvars->cvars->list) {
 		chans_done++;
 		stats();
@@ -444,7 +446,9 @@ advance_chan( main_vars_t *mvars )
 static void
 do_sync_chans( main_vars_t *mvars )
 {
+	info("sync chans entry\n");
 	while (mvars->chanptr) {
+		info("sync chans round\n");
 		stats_steps = 0;  // Determine main loop use afresh
 		mvars->chan = mvars->chanptr->conf;
 		info( "Channel %s\n", mvars->chan->name );
@@ -500,6 +504,7 @@ do_sync_chans( main_vars_t *mvars )
 static void
 sync_next_chan( main_vars_t *mvars )
 {
+	info("next chan\n");
 	if (mvars->chan_cben) {
 		advance_chan( mvars );
 		do_sync_chans( mvars );
@@ -511,6 +516,7 @@ store_connected( int sts, void *aux )
 {
 	MVARS(aux)
 
+	info("connected %d\n", t);
 	switch (sts) {
 	case DRV_CANCELED:
 		return;
@@ -571,6 +577,7 @@ store_listed( int sts, string_list_t *boxes, void *aux )
 {
 	MVARS(aux)
 	int fail = 0;
+	info("listed %d\n", t);
 
 	switch (sts) {
 	case DRV_CANCELED:
@@ -612,6 +619,7 @@ store_listed( int sts, string_list_t *boxes, void *aux )
 static void
 sync_opened( main_vars_t *mvars, int t )
 {
+	info("opened %d\n", t);
 	mvars->state[t] = ST_OPEN;
 	if (mvars->state[t^1] != ST_OPEN)
 		return;
@@ -667,8 +675,10 @@ sync_opened( main_vars_t *mvars, int t )
 static void
 do_sync_boxes( main_vars_t *mvars )
 {
+	info("sync boxes entry\n");
 	mvars->box_cben = 0;
 	for (;;) {
+		info("sync boxes round\n");
 		if (mvars->chanptr->boxlist) {
 			box_ent_t *mbox = mvars->boxptr;
 			if (!mbox)
@@ -726,6 +736,7 @@ done_sync( int sts, void *aux )
 {
 	main_vars_t *mvars = (main_vars_t *)aux;
 
+	info("done sync\n");
 	boxes_done++;
 	stats();
 	if (sts) {
@@ -747,6 +758,7 @@ static void sync_finalized( void *aux );
 static void
 finalize_sync( main_vars_t *mvars )
 {
+	info("finalize\n");
 	if (mvars->chanptr->boxlist) {
 		box_ent_t *mbox, *nmbox;
 		for (nmbox = mvars->chanptr->boxes; (mbox = nmbox); ) {
@@ -783,6 +795,7 @@ sync_finalized( void *aux )
 {
 	MVARS(aux)
 
+	info("finalized %d\n", t);
 	mvars->drv[t]->free_store( mvars->ctx[t] );
 	mvars->state[t] = ST_CLOSED;
 	if (mvars->state[t^1] != ST_CLOSED)
