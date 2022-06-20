@@ -379,6 +379,12 @@ sync_chans( core_vars_t *cvars, char **argv )
 	}
 	mvars->chanptr = chans;
 
+	if (NotifierCmd && !(notifier_pipe = popen( NotifierCmd, "w" ))) {
+		sys_error( "Failed to launch notifier command '%s'", NotifierCmd );
+		cvars->ret = 1;
+		return;
+	}
+
 	if (!cvars->list && (DFlags & PROGRESS)) {
 		init_wakeup( &stats_wakeup, stats_timeout, NULL );
 		stats_timeout( NULL );

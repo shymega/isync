@@ -25,8 +25,6 @@ add alternative treatments of expired messages. ExpiredMessageMode: Prune
 (delete messages like now), Keep (just don't sync) and Archive (move to
 separate folder - ArchiveSuffix, default .archive).
 
-add support for event notification callbacks.
-
 make it possible to have different mailbox names for far and near side in
 Patterns.
 - use far:near for the pattern

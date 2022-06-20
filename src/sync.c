@@ -13,6 +13,9 @@ channel_conf_t *channels;
 group_conf_t *groups;
 
 uint BufferLimit = 10 * 1024 * 1024;
+const char *NotifierCmd;
+
+FILE *notifier_pipe;
 
 int new_total[2], new_done[2];
 int flags_total[2], flags_done[2];
@@ -1544,6 +1547,13 @@ flags_set( int sts, void *aux )
 static void
 flags_set_p2( sync_vars_t *svars, sync_rec_t *srec, int t )
 {
+	if (notifier_pipe) {
+		fprintf( notifier_pipe,
+		         "Event flags\n"
+		         "Store %s\n"
+		         "Box %s\n"
+		         "UID %u\n");
+	}
 	if (srec->status & S_PURGE) {
 		JLOG( "P %u %u", (srec->uid[F], srec->uid[N]), "deleted dummy" );
 		srec->status = (srec->status & ~S_PURGE) | S_PURGED;

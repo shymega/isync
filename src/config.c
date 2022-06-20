@@ -642,6 +642,8 @@ load_config( const char *where )
 				error( "%s:%d: BufferLimit cannot be zero\n", cfile.file, cfile.line );
 				cfile.err = 1;
 			}
+		} else if (!strcasecmp( "NotifierCmd", cfile.cmd )) {
+			NotifierCmd = nfstrdup( cfile.val );
 		} else if (!getopt_helper( &cfile, &gcops, &global_conf )) {
 			error( "%s:%d: '%s' is not a recognized section-starting or global keyword\n",
 			       cfile.file, cfile.line, cfile.cmd );

@@ -73,6 +73,9 @@ extern channel_conf_t *channels;
 extern group_conf_t *groups;
 
 extern uint BufferLimit;
+extern const char *NotifierCmd;
+
+extern FILE *notifier_pipe;
 
 extern int new_total[2], new_done[2];
 extern int flags_total[2], flags_done[2];
