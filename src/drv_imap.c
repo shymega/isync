@@ -1134,15 +1134,19 @@ fetch_rsp_enter( imap_store_t *ctx )
 {
 	switch (ctx->fetch_state) {
 	case FetchInit:
+		printf("enter in init\n");
 		ctx->fetch_state = FetchAttrib;
 		return LIST_OK;
 	case FetchFlags:
+		printf("enter in flags\n");
 		ctx->fetch_state = FetchFlagVal;
 		return LIST_OK;
 	case FetchHeaders:
+		printf("enter in headers\n");
 		ctx->fetch_state = FetchHeaderFields;
 		return LIST_OK;
 	default:
+		printf("enter in %u\n", ctx->fetch_state);
 		return LIST_BAD;
 	}
 }
@@ -1152,14 +1156,18 @@ fetch_rsp_leave( imap_store_t *ctx )
 {
 	switch (ctx->fetch_state) {
 	case FetchAttrib:
+		printf("leave in attrib\n");
 		return LIST_OK;
 	case FetchFlagVal:
+		printf("leave in flag val\n");
 		ctx->fetch_state = FetchAttrib;
 		return LIST_OK;
 	case FetchHeaderFields:
+		printf("leave in header fields\n");
 		ctx->fetch_state = FetchHeaderBracket;
 		return LIST_OK;
 	default:
+		printf("leave in %u\n", ctx->fetch_state);
 		return LIST_BAD;
 	}
 }
@@ -1171,6 +1179,7 @@ fetch_rsp_atom( imap_store_t *ctx, char *val, uint len, int type )
 	case FetchInit:
 	case FetchFlags:
 	case FetchHeaders:
+		printf("atom in %u\n", ctx->fetch_state);
 		return LIST_BAD;
 	case FetchAttrib:
 		if (!len) {
@@ -1178,6 +1187,7 @@ fetch_rsp_atom( imap_store_t *ctx, char *val, uint len, int type )
 			return LIST_BAD;
 		}
 		uchar field;
+		printf("atom '%.*s' in attrib\n", (int)len, val);
 		to_upper( val, len );
 		if (equals( val, len, "UID", 3 )) {
 			ctx->fetch_state = FetchUid;
@@ -1209,12 +1219,14 @@ fetch_rsp_atom( imap_store_t *ctx, char *val, uint len, int type )
 		ctx->fetch.status |= field;
 		return LIST_OK;
 	case FetchUid:
+		printf("atom in uid\n");
 		if (!str_to_num( val, len, &ctx->fetch.uid )) {
 			ctx->parse_list_sts.err = "unable to parse UID";
 			return LIST_BAD;
 		}
 		break;
 	case FetchFlagVal:
+		printf("atom in flags\n");
 		if (!len) {
 			ctx->parse_list_sts.err = "unable to parse FLAGS";
 			return LIST_BAD;
@@ -1222,6 +1234,7 @@ fetch_rsp_atom( imap_store_t *ctx, char *val, uint len, int type )
 		parse_fetched_flag( val, len, &ctx->fetch.flags, &ctx->fetch.status );
 		return LIST_OK;
 	case FetchDate:
+		printf("atom in date\n");
 		if (type != AtomString) {
 		  dfail:
 			ctx->parse_list_sts.err = "unable to parse INTERNALDATE";
@@ -1232,12 +1245,14 @@ fetch_rsp_atom( imap_store_t *ctx, char *val, uint len, int type )
 			goto dfail;
 		break;
 	case FetchSize:
+		printf("atom in size\n");
 		if (!str_to_num( val, len, &ctx->fetch.size )) {
 			ctx->parse_list_sts.err = "unable to parse RFC822.SIZE";
 			return LIST_BAD;
 		}
 		break;
 	case FetchBody:
+		printf("atom in body\n");
 		if (type != AtomChunkedLiteral) {
 			ctx->parse_list_sts.err = "BODY is no literal";
 			return LIST_BAD;
@@ -1248,15 +1263,20 @@ fetch_rsp_atom( imap_store_t *ctx, char *val, uint len, int type )
 		return LIST_OK;
 	case FetchBodyChunk:
 		if (!len)
+		{printf("eof atom in body chunk\n");
 			break;
+		}
+		printf("atom in body chunk\n");
 		memcpy( ctx->fetch.body + ctx->fetch.body_len, val, len );
 		ctx->fetch.body_len += len;
 		return LIST_OK;
 	case FetchHeaderFields:
+		printf("atom in header fields\n");
 		// This looks like BODY[HEADER.FIELDS (X-TUID Message-Id)] {content}.
 		// To avoid parsing the bracketed list, we just treat these as separate tokens.
 		return LIST_OK;
 	case FetchHeaderBracket:
+		printf("atom in header bracket\n");
 		if (!equals( val, len, "]", 1 )) {
 		  bfail:
 			ctx->parse_list_sts.err = "unable to parse BODY[HEADER.FIELDS ...]";
@@ -1265,6 +1285,7 @@ fetch_rsp_atom( imap_store_t *ctx, char *val, uint len, int type )
 		ctx->fetch_state = FetchHeaderCont;
 		return LIST_OK;
 	case FetchHeaderCont:
+		printf("atom in header contents\n");
 		if (!val)
 			goto bfail;
 		parse_fetched_header( val, len, ctx->fetch.uid, ctx->fetch.tuid, &ctx->fetch.msgid );
@@ -1478,7 +1499,10 @@ static int
 list_rsp_enter( imap_store_t *ctx )
 {
 	if (ctx->list_state != ListInit)
+	{printf("list enter in %u\n", ctx->list_state);
 		return LIST_BAD;
+	}
+	printf("list enter in init\n");
 	ctx->list_state = ListAttrib;
 	return LIST_OK;
 }
@@ -1487,9 +1511,14 @@ static int
 list_rsp_atom( imap_store_t *ctx, char *val, uint len, int type ATTR_UNUSED )
 {
 	if (ctx->list_state == ListSkip)
+	{printf("list atom in skip\n");
 		return LIST_OK;
+	}
 	if (ctx->list_state != ListAttrib || !val)
+	{printf("list atom in %u\n", ctx->list_state);
 		return LIST_BAD;
+	}
+	printf("list atom in attrib\n");
 	if (equals_upper( val, len, "\\NOSELECT", 9 ))
 		ctx->list_state = ListSkip;
 	return LIST_OK;
@@ -1517,12 +1546,14 @@ static parse_list_cb_t list_rsp_cb = {
 static int
 list2_rsp_enter( imap_store_t *ctx ATTR_UNUSED )
 {
+	printf("list2 enter in init\n");
 	return LIST_BAD;
 }
 
 static int
 list2_rsp_atom( imap_store_t *ctx, char *val, uint len, int type ATTR_UNUSED )
 {
+	printf("list2 atom\n");
 	if (!ctx->delimiter[0] && val)
 		ctx->delimiter[0] = len > 0 ? val[0] : 0;
 	return LIST_OK;
