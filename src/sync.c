@@ -1448,17 +1448,22 @@ msgs_copied( sync_vars_t *svars, int t )
 	copy_vars_t *cv;
 
 	if (svars->state[t] & ST_SENDING_NEW)
+	{ debug("sending new to %d\n", t);
 		return;
+	}
 
 	sync_ref( svars );
 
 	if (!(svars->state[t] & ST_SENT_NEW)) {
 		for (tmsg = svars->new_msgs[t]; tmsg; tmsg = tmsg->next) {
 			if (tmsg->status & M_DEAD)
+			{ debug("message %u for %d is dead\n", tmsg->uid, t);
 				continue;
+			}
 			if ((srec = tmsg->srec) && (srec->status & S_PENDING)) {
 				if (svars->drv[t]->get_memory_usage( svars->ctx[t] ) >= BufferLimit) {
 					svars->new_msgs[t] = tmsg;
+					debug("postponing message %u for %d\n", tmsg->uid, t);
 					goto out;
 				}
 				new_total[t]++;
@@ -1476,13 +1481,18 @@ msgs_copied( sync_vars_t *svars, int t )
 				if (check_cancel( svars ))
 					goto out;
 			}
+			else
+			 debug("message %u for %d is not pending (%s srec)\n", tmsg->uid, t, srec ? "with" : "NO");
 		}
 		svars->state[t] |= ST_SENT_NEW;
 	}
 
 	if (svars->new_pending[t])
+	{ debug("%u new pending for %d\n", svars->new_pending[t], t);
 		goto out;
+	}
 
+	debug("sent new to %d\n", t);
 	sync_close( svars, t^1 );
 	if (check_cancel( svars ))
 		goto out;
@@ -1514,6 +1524,7 @@ msgs_found_new( int sts, message_t *msgs, void *aux )
 static void
 msgs_new_done( sync_vars_t *svars, int t )
 {
+	debug( "found new messages on %s\n", str_fn[t] );
 	svars->state[t] |= ST_FOUND_NEW;
 	sync_close( svars, t );
 }
@@ -1596,6 +1607,7 @@ msgs_flags_set( sync_vars_t *svars, int t )
 
 	sync_ref( svars );
 
+	debug( "set flags on %s\n", str_fn[t] );
 	sync_close( svars, t^1 );
 	if (check_cancel( svars ))
 		goto out;
@@ -1718,6 +1730,7 @@ msgs_flags_set( sync_vars_t *svars, int t )
 			goto out;
 	}
   skip:
+	debug( "sent trash from %s\n", str_fn[t] );
 	svars->state[t] |= ST_SENT_TRASH;
 	sync_close( svars, t );
 
@@ -1747,6 +1760,7 @@ msg_trashed( int sts, void *aux )
 	free( vars );
 	trash_done[t]++;
 	stats();
+	debug( "sent one trash from %s\n", str_fn[t] );
 	svars->trash_pending[t]--;
 	if (check_cancel( svars ))
 		return;
@@ -1780,6 +1794,7 @@ msg_rtrashed( int sts, uint uid ATTR_UNUSED, copy_vars_t *vars )
 	free( vars );
 	trash_done[t]++;
 	stats();
+	debug( "sent one trash from %s\n", str_fn[t] );
 	svars->trash_pending[t]--;
 	if (check_cancel( svars ))
 		return;
@@ -1794,11 +1809,20 @@ sync_close( sync_vars_t *svars, int t )
 {
 	if ((~svars->state[t] & (ST_FOUND_NEW | ST_SENT_TRASH)) || svars->trash_pending[t] ||
 	    (~svars->state[t^1] & (ST_SENT_NEW | ST_SENT_FLAGS)) || svars->new_pending[t^1] || svars->flags_pending[t^1])
+	{ debug("can't close %d, %s new, %s trash (%u pending); opposite: %s new (%u pending), %s flags (%u pending)\n",
+		    t, svars->state[t] & ST_FOUND_NEW ? "found" : "finding",
+		    svars->state[t] & ST_SENT_TRASH ? "sent" : "sending", svars->trash_pending[t],
+		    svars->state[t^1] & ST_SENT_NEW ? "sent" : "sending", svars->new_pending[t^1],
+		    svars->state[t^1] & ST_SENT_FLAGS ? "sent" : "sending", svars->flags_pending[t^1]);
 		return;
+	}
 
 	if (svars->state[t] & ST_CLOSING)
+	{	debug("already closing %d\n", t);
 		return;
+	}
 	svars->state[t] |= ST_CLOSING;
+	debug("closing %d\n", t);
 
 	if ((svars->chan->ops[t] & (OP_EXPUNGE | OP_EXPUNGE_SOLO)) && !(DFlags & FAKEEXPUNGE)
 	    && !(svars->state[t] & ST_TRASH_BAD)) {
