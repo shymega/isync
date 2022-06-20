@@ -631,6 +631,7 @@ sub cmptrash($$$)
 		if (!defined($ph)) {
 			print STDERR "Missing message $bn:".mn($num)."\n";
 			$ret = 1;
+			next;
 		}
 		if ($ph) {
 			print STDERR "Message $bn:".mn($num)." is placeholder\n";
