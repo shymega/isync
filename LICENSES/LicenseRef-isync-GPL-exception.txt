@@ -8,5 +8,5 @@ Usage-Guide:
     SPDX-License-Identifier: <SPDX-License> WITH LicenseRef-isync-GPL-exception
 License-Text:
 
-As a special exception, mbsync may be linked with the OpenSSL library,
-despite that library's more restrictive license.
+As a special exception, mbsync may be linked with libraries with a more
+restrictive license if the only incompatibility are advertising clauses.
