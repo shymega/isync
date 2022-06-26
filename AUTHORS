@@ -1,17 +1,102 @@
-Oswald Buddenhagen <ossi@users.sf.net>
-	* Contributor, current maintainer
-
-Theodore Ts'o <tytso@mit.edu>
-	* Contributor, Debian package co-maintainer
-
-Nicolas Boullis <nboullis@debian.org>
-	* Debian package maintainer and minor upstream contributions
-
-Michael Elkins <me@mutt.org>
-	* Original author
+Contact
+=======
 
 Send questions and bug reports to the isync-devel@lists.sourceforge.net
 mailing list.
 
-_DON'T_ report bugs to Michael, not even in a CC: - he is not actively
+Do _NOT_ report bugs to Michael, not even in a CC: - he is not actively
 involved in isync development any more.
+
+Lead Developers
+===============
+
+Oswald Buddenhagen <ossi@users.sf.net>
+- Current maintainer
+
+Michael Elkins <me@mutt.org>
+- Original author
+
+Contributors
+============
+
+(Some of these people also contributed bugfixes and optimizations.)
+(In chronological order.)
+
+Jeremy Katz <katzj@linuxpower.org>
+- UseNamespace & UseSSL* options
+
+Daniel Resare <noa@metamatrix.se>
+- Numerous SSL handling improvements
+
+Eivind Eklund <eivind@FreeBSD.org>
+- MaxMessages option
+
+Theodore Ts'o <tytso@mit.edu>
+- get-cert script
+- Maildir UID mapping improvements
+- Initial version of partial async IMAP support
+
+Marc Hoersken <info@marc-hoersken.de>
+- CopyArrivalDate option
+
+Jack Stone <jwjstone@fastmail.fm>
+Jan Synacek <jsynacek@redhat.com>
+- SASL support
+
+Jesse Weaver <pianohacker@gmail.com>
+- IMAP stream compression support
+
+Anton Khirnov <anton@khirnov.net>
+- ClientKey & ClientCertificate options
+
+Michael J Gruber <github@grubix.eu>
+- Support for the $Forwarded/Passed flag
+
+Patrick Steinhardt <ps@pks.im>
+- UserCmd option
+
+Oliver Runge <oliver.runge@gmail.com>
+- UseKeychain option
+
+Georgy Kibardin <georgy@kibardin.name>
+- Support for UTF-7 IMAP mailbox names
+
+Honorary Contributors
+=====================
+
+(These people contributed patches that were too small or obvious
+ to claim copyright, or were rewritten from scratch.)
+(In alphabetical order.)
+
+Alessandro Ghedini <ghedo@debian.org>
+Andreas Grapentin <andreas@grapentin.org>
+Anton Khirnov <anton@khirnov.net>
+Aurélien Francillon <aurelien.francillon@eurecom.fr>
+Ben Kibbey <bjk@luxsci.net>
+Caspar Schutijser <caspar@schutijser.com>
+Cedric Ware <cedric.ware__bml@normalesup.org>
+Dmitrij D. Czarkoff <czarkoff@gmail.com>
+Dmitry Torokhov <dtor@chromium.org>
+Felipe Contreras <felipe.contreras@gmail.com>
+Felix Janda <felix.janda@posteo.de>
+Gergely Risko <gergely@risko.hu>
+Sung Pae "guns" <self@sungpae.com>
+Helmut Grohne <helmut@subdivi.de>
+Hugo Haas <hugo@larve.net>
+Jaroslav Suchanek <jaroslav.suchanek@gmail.com>
+Jeremie Courreges-Anglas <jca@openbsd.org>
+Klemens Nanni <kn@openbsd.org>
+Lorenzo Martignoni <lorenzo.martignoni@technologist.com>
+Magnus Jonsson <bigfoot@acc.umu.se>
+Marcin Niestroj <macius1990w@gmail.com>
+Martin Stenberg <martin@gnutiken.se>
+Mike Delaney <mdelan@lusars.net>
+Nicolas Boullis <nboullis@debian.org>
+Nihal Jere <nihal@nihaljere.xyz>
+Reimar Döffinger <Reimar.Doeffinger@gmx.de>
+Remko Tronçon <remko@el-tramo.be>
+sbfnk@users.sf.net
+Thomas Roessler <roessler@does-not-exist.org>
+Todd T. Fries <todd@fries.net>
+Vincent Bernat <vincent@bernat.ch>
+Yuri D'Elia <wavexx@thregr.org>
