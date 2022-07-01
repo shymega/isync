@@ -668,7 +668,7 @@ static void
 do_sync_boxes( main_vars_t *mvars )
 {
 	mvars->box_cben = 0;
-	for (;;) {
+	while (mvars->state[F] == ST_OPEN && mvars->state[N] == ST_OPEN) {
 		if (mvars->chanptr->boxlist) {
 			box_ent_t *mbox = mvars->boxptr;
 			if (!mbox)
@@ -730,12 +730,10 @@ done_sync( int sts, void *aux )
 	stats();
 	if (sts) {
 		mvars->cvars->ret = 1;
-		if (sts & (SYNC_BAD(F) | SYNC_BAD(N))) {
-			if (sts & SYNC_BAD(F))
-				mvars->state[F] = ST_CLOSED;
-			if (sts & SYNC_BAD(N))
-				mvars->state[N] = ST_CLOSED;
-		}
+		if (sts & SYNC_BAD(F))
+			mvars->state[F] = ST_CLOSED;
+		if (sts & SYNC_BAD(N))
+			mvars->state[N] = ST_CLOSED;
 	}
 	mvars->box_done = 1;
 	if (mvars->box_cben)
