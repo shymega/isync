@@ -80,8 +80,10 @@ operations are determined, but no modifications are actually made
 to either the mailboxes or the state files.
 .TP
 \fB-e\fR, \fB--ext-exit\fR
-Return an extended exit code: Add 32 resp. 64 to the code if any
-modifications were made on the far resp. near side.
+Return an extended exit code: Add 32 or 64 to the code if any
+modifications were made on the far or near side, respectively; these
+are not mutually exclusive, so the code may be 96 if changes were both
+pushed and pulled.
 An error may be reported at the same time, so the code may be for example
 65 if some changes were successfully pulled, while others failed.
 .TP
