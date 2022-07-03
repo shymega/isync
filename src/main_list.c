@@ -126,7 +126,7 @@ do_list_stores( list_vars_t *lvars )
 	  next:
 		advance_store( lvars );
 	}
-	cleanup_drivers();
+	cleanup_mainloop();
 }
 
 static void

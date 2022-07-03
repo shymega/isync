@@ -496,7 +496,7 @@ do_sync_chans( main_vars_t *mvars )
 	  next:
 		advance_chan( mvars );
 	}
-	cleanup_drivers();
+	cleanup_mainloop();
 	if (!mvars->cvars->list && (DFlags & PROGRESS))
 		wipe_wakeup( &stats_wakeup );
 }

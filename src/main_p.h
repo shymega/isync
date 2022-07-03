@@ -21,5 +21,6 @@ typedef struct {
 
 void sync_chans( core_vars_t *cvars, char **argv );
 void list_stores( core_vars_t *cvars, char **argv );
+void cleanup_mainloop( void );
 
 #endif

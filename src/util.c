@@ -1110,6 +1110,8 @@ event_wait( void )
 	case 0:
 		return;
 	case -1:
+		if (errno == EINTR)
+			return;
 		perror( "poll() failed in event loop" );
 		abort();
 	default:
@@ -1162,6 +1164,8 @@ event_wait( void )
 	case 0:
 		return;
 	case -1:
+		if (errno == EINTR)
+			return;
 		perror( "select() failed in event loop" );
 		abort();
 	default:
