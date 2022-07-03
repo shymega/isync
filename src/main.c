@@ -89,6 +89,26 @@ PACKAGE " " VERSION " - mailbox synchronizer\n"
 	exit( code );
 }
 
+static int child_pipe[2];
+static notifier_t child_notifier;
+
+static void
+childHandler( int n ATTR_UNUSED )
+{
+	// We can't just reap everything here, as we might steal children
+	// from popen(). Let the main loop handle it synchronously instead.
+	char dummy = 0;
+	write( child_pipe[1], &dummy, 1 );
+}
+
+static void
+childReaper( int events ATTR_UNUSED, void *aux ATTR_UNUSED )
+{
+	char dummy;
+	while (read( child_pipe[0], &dummy, 1 ) == 1) {}
+	while (waitpid( -1, NULL, WNOHANG ) > 0) {}
+}
+
 #ifdef __linux__
 static void ATTR_NORETURN
 crashHandler( int n )
@@ -543,9 +563,29 @@ main( int argc, char **argv )
 
 	signal( SIGPIPE, SIG_IGN );
 
+	if (pipe( child_pipe )) {
+		perror( "pipe" );
+		return 1;
+	}
+	fcntl( child_pipe[0], F_SETFL, O_NONBLOCK );
+	fcntl( child_pipe[1], F_SETFL, O_NONBLOCK );
+	init_notifier( &child_notifier, child_pipe[0], childReaper, NULL );
+	conf_notifier( &child_notifier, 0, POLLIN );
+	struct sigaction sa = { 0 };
+	sa.sa_handler = childHandler;
+	sa.sa_flags = SA_NOCLDSTOP | SA_RESTART;
+	sigaction( SIGCHLD, &sa, NULL );
+
 	if (mvars->list_stores)
 		list_stores( mvars, argv + oind );
 	else
 		sync_chans( mvars, argv + oind );
 	return mvars->ret;
+}
+
+void
+cleanup_mainloop( void )
+{
+	cleanup_drivers();
+	wipe_notifier( &child_notifier );
 }
