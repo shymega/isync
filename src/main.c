@@ -541,6 +541,8 @@ main( int argc, char **argv )
 	if (load_config( config ))
 		return 1;
 
+	signal( SIGPIPE, SIG_IGN );
+
 	if (mvars->list_stores)
 		list_stores( mvars, argv + oind );
 	else
