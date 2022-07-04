@@ -43,9 +43,11 @@ print_stats( void )
 static void
 stats_timeout( void *aux ATTR_UNUSED )
 {
-	stats_steps = -1;
+	if (stats_steps != -1) {
+		stats_steps = -1;
+		print_stats();
+	}
 	conf_wakeup( &stats_wakeup, 200 );
-	print_stats();
 }
 
 void
@@ -55,8 +57,10 @@ stats( void )
 		return;
 
 	// If the main loop appears to be running, skip the sync path.
-	if (stats_steps < 0)
+	if (stats_steps < 0) {
+		stats_steps = -2;
 		return;
+	}
 
 	// Rate-limit the (somewhat) expensive timer queries.
 	if (++stats_steps < 10)
