@@ -57,11 +57,7 @@ typedef struct {
 	int fd;
 	int state;
 	const server_conf_t *conf; /* needed during connect */
-#ifdef HAVE_IPV6
-	struct addrinfo *addrs, *curr_addr; /* needed during connect */
-#else
-	struct addr_info *addrs, *curr_addr; /* needed during connect */
-#endif
+	char *addrs, *addrs_end, *curr_addr;  // needed during connect; assumed to be int-aligned
 	char *name;
 #ifdef HAVE_LIBSSL
 	SSL *ssl;
