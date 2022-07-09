@@ -17,7 +17,7 @@
 static void ATTR_NORETURN
 version( void )
 {
-	puts( PACKAGE " " VERSION );
+	puts( PACKAGE " " " 1.5-SHYMEGA" );
 	exit( 0 );
 }
 
