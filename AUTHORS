@@ -13,7 +13,7 @@ Lead Developers
 Oswald Buddenhagen <ossi@users.sf.net>
 - Current maintainer
 
-Michael Elkins <me@mutt.org>
+Michael Elkins <me@sigpipe.org>
 - Original author
 
 Contributors
@@ -22,10 +22,10 @@ Contributors
 (Some of these people also contributed bugfixes and optimizations.)
 (In chronological order.)
 
-Jeremy Katz <katzj@linuxpower.org>
+Jeremy Katz <katzj@fedoraproject.org>
 - UseNamespace & UseSSL* options
 
-Daniel Resare <noa@metamatrix.se>
+Noa (ex. Daniel) Resare <noa@resare.com>
 - Numerous SSL handling improvements
 
 Eivind Eklund <eivind@FreeBSD.org>
