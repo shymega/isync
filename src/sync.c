@@ -377,10 +377,13 @@ sync_boxes( store_t *ctx[], const char * const names[], int present[], channel_c
 	sync_ref( svars );
 	for (t = 0; ; t++) {
 		info( "Opening %s box %s...\n", str_fn[t], svars->orig_name[t] );
-		if (present[t] == BOX_ABSENT)
+		if (present[t] == BOX_ABSENT) {
 			box_confirmed2( svars, t );
-		else
+		} else {
+			if (present[t] == BOX_PRESENT)
+				svars->state[t] |= ST_PRESENT;
 			svars->drv[t]->open_box( ctx[t], box_confirmed, AUX );
+		}
 		if (t || check_cancel( svars ))
 			break;
 	}
@@ -399,6 +402,12 @@ box_confirmed( int sts, uint uidvalidity, void *aux )
 	if (sts == DRV_OK) {
 		svars->state[t] |= ST_PRESENT;
 		svars->newuidval[t] = uidvalidity;
+	} else if (svars->state[t] & ST_PRESENT) {
+		error( "Error: channel %s: %s box %s cannot be opened.\n",
+		       svars->chan->name, str_fn[t], svars->orig_name[t] );
+		svars->ret |= SYNC_FAIL;
+		cancel_sync( svars );
+		return;
 	}
 	box_confirmed2( svars, t );
 }
