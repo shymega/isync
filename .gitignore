@@ -33,3 +33,15 @@
 
 Makefile
 Makefile.in
+
+GPATH
+GRTAGS
+GSYMS
+GTAGS
+ID
+TAGS
+cscope.files
+cscope.in.out
+cscope.out
+cscope.po.out
+tags
