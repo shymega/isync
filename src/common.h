@@ -212,12 +212,12 @@ void fmt_bits( uint bits, uint num_bits, const char *bit_str, const int *bit_off
 #define BIT_FORMATTER_RET(name, pfx) \
 	struct name##_str { char str[sizeof(pfx##__STRINGS)]; };
 
-#define BIT_FORMATTER_PROTO(name, pfx, storage) \
+#define BIT_FORMATTER_PROTO(name, storage) \
 	storage struct name##_str ATTR_OPTIMIZE  /* force RVO */ \
 	fmt_##name( uint bits )
 
 #define BIT_FORMATTER_IMPL(name, pfx, storage) \
-	BIT_FORMATTER_PROTO(name, pfx, storage) \
+	BIT_FORMATTER_PROTO(name, storage) \
 	{ \
 		static const char strings[] = pfx##__STRINGS; \
 		static const int offsets[] = { pfx##__OFFSETS }; \
@@ -233,7 +233,7 @@ void fmt_bits( uint bits, uint num_bits, const char *bit_str, const int *bit_off
 
 #define DECL_BIT_FORMATTER_FUNCTION(name, pfx) \
 	BIT_FORMATTER_RET(name, pfx) \
-	BIT_FORMATTER_PROTO(name, pfx, );
+	BIT_FORMATTER_PROTO(name, );
 
 #define DEF_BIT_FORMATTER_FUNCTION(name, pfx) \
 	BIT_FORMATTER_IMPL(name, pfx, )
