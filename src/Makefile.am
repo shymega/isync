@@ -20,28 +20,6 @@ drv_proxy.$(OBJEXT): drv_proxy.inc
 drv_proxy.inc: $(srcdir)/driver.h $(srcdir)/drv_proxy.c $(srcdir)/drv_proxy_gen.pl
 	perl $(srcdir)/drv_proxy_gen.pl $(srcdir)/driver.h $(srcdir)/drv_proxy.c drv_proxy.inc
 
-ENUM_GEN = $(srcdir)/bit_enum_gen.pl
-
-$(mbsync_OBJECTS): common_enum.h
-common_enum.h: common.h $(ENUM_GEN)
-	perl $(ENUM_GEN) < $< > $@
-
-$(mbsync_OBJECTS): driver_enum.h
-driver_enum.h: driver.h $(ENUM_GEN)
-	perl $(ENUM_GEN) < $< > $@
-
-$(mbsync_OBJECTS): sync_enum.h
-sync_enum.h: sync.h $(ENUM_GEN)
-	perl $(ENUM_GEN) < $< > $@
-
-sync.$(OBJEXT): sync_c_enum.h
-sync_c_enum.h: sync.c $(ENUM_GEN)
-	perl $(ENUM_GEN) < $< > $@
-
-sync.$(OBJEXT) sync_state.$(OBJEXT): sync_p_enum.h
-sync_p_enum.h: sync_p.h $(ENUM_GEN)
-	perl $(ENUM_GEN) < $< > $@
-
 mdconvert_SOURCES = mdconvert.c
 mdconvert_LDADD = $(DB_LIBS)
 if with_mdconvert
@@ -69,6 +47,6 @@ EXTRA_PROGRAMS = tst_timers
 exampledir = $(docdir)/examples
 example_DATA = mbsyncrc.sample
 
-EXTRA_DIST = bit_enum_gen.pl drv_proxy_gen.pl run-tests.pl $(example_DATA) $(man_MANS)
+EXTRA_DIST = drv_proxy_gen.pl run-tests.pl $(example_DATA) $(man_MANS)
 
-CLEANFILES = *_enum.h drv_proxy.inc
+CLEANFILES = drv_proxy.inc

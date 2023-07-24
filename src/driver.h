@@ -9,7 +9,6 @@
 #define DRIVER_H
 
 #include "config.h"
-#include "driver_enum.h"
 
 typedef struct driver driver_t;
 
@@ -36,32 +35,32 @@ extern store_conf_t *stores;
 /* For message->flags */
 // Keep the MESSAGE_FLAGS in sync (grep that)!
 /* The order is according to alphabetical maildir flag sort */
-BIT_ENUM(
-	F_DRAFT,      // Draft
-	F_FLAGGED,    // Flagged
-	F_FORWARDED,  // Passed
-	F_ANSWERED,   // Replied
-	F_SEEN,       // Seen
-	F_DELETED,    // Trashed
-)
+#define msg_flags_enum(fn) \
+	fn(F, DRAFT)      /* Draft    */ \
+	fn(F, FLAGGED)    /* Flagged  */ \
+	fn(F, FORWARDED)  /* Passed   */ \
+	fn(F, ANSWERED)   /* Replied  */ \
+	fn(F, SEEN)       /* Seen     */ \
+	fn(F, DELETED)    /* Trashed  */
+DEFINE_PFX_BIT_ENUM(msg_flags_enum)
 
-extern const char MsgFlags[F__NUM_BITS];
-typedef struct { char str[F__NUM_BITS + 1]; } flag_str_t;
+extern const char MsgFlags[msg_flags_enum_num_bits];
+typedef struct { char str[msg_flags_enum_num_bits + 1]; } flag_str_t;
 flag_str_t ATTR_OPTIMIZE /* force RVO */ fmt_flags( uchar flags );
 flag_str_t ATTR_OPTIMIZE /* force RVO */ fmt_lone_flags( uchar flags );
 
 /* For message->status */
-BIT_ENUM(
-	M_RECENT,   // unsyncable flag; maildir_*() depend on this being bit 0
-	M_DEAD,     // expunged
-	M_EXPUNGE,  // for driver_t->close_box()
-	M_FLAGS,    // flags are valid
-	// The following are only for IMAP FETCH response parsing
-	M_DATE,
-	M_SIZE,
-	M_BODY,
-	M_HEADER,
-)
+#define msg_sts_enum(fn) \
+	fn(M, RECENT)   /* unsyncable flag; maildir_*() depend on this being bit 0 */ \
+	fn(M, DEAD)     /* expunged */ \
+	fn(M, EXPUNGE)  /* for driver_t->close_box() */ \
+	fn(M, FLAGS)    /* flags are valid */ \
+	/* The following are only for IMAP FETCH response parsing */ \
+	fn(M, DATE) \
+	fn(M, SIZE) \
+	fn(M, BODY) \
+	fn(M, HEADER)
+DEFINE_PFX_BIT_ENUM(msg_sts_enum)
 
 #define TUIDL 12
 
@@ -79,29 +78,29 @@ typedef struct message {
 	MESSAGE(struct message)
 } message_t;
 
-static_assert_bits(F, message_t, flags);
-static_assert_bits(M, message_t, status);
+static_assert_bits(msg_flags_enum, message_t, flags);
+static_assert_bits(msg_sts_enum, message_t, status);
 
 // For driver_t->prepare_load_box(), which may amend the passed flags.
 // The drivers don't use the first three, but may set them if loading the
 // particular range is required to handle some other flag; note that these
 // ranges may overlap.
-BIT_ENUM(
-	OPEN_PAIRED,      // Paired messages *in* this store.
-	OPEN_OLD,         // Messages that should be already propagated *from* this store.
-	OPEN_NEW,         // Messages (possibly) not yet propagated *from* this store.
-	OPEN_FIND,
-	OPEN_FLAGS,       // Note that fetch_msg() gets the flags regardless.
-	OPEN_OLD_SIZE,
-	OPEN_NEW_SIZE,
-	OPEN_PAIRED_IDS,
-	OPEN_APPEND,
-	OPEN_SETFLAGS,
-	OPEN_EXPUNGE,
-	// Expunge only deleted messages we know about. Relies on OPEN_{OLD,NEW,FLAGS}
-	// being set externally. The driver may unset it if it can't handle it.
-	OPEN_UID_EXPUNGE,
-)
+#define open_flags_enum(fn) \
+	fn(OPEN, PAIRED)        /* Paired messages *in* this store. */ \
+	fn(OPEN, OLD)           /* Messages that should be already propagated *from* this store. */ \
+	fn(OPEN, NEW)           /* Messages (possibly) not yet propagated *from* this store. */ \
+	fn(OPEN, FIND) \
+	fn(OPEN, FLAGS)         /* Note that fetch_msg() gets the flags regardless. */ \
+	fn(OPEN, OLD_SIZE) \
+	fn(OPEN, NEW_SIZE) \
+	fn(OPEN, PAIRED_IDS) \
+	fn(OPEN, APPEND) \
+	fn(OPEN, SETFLAGS) \
+	fn(OPEN, EXPUNGE) \
+	/* Expunge only deleted messages we know about. Relies on OPEN_{OLD,NEW,FLAGS} */ \
+	/* being set externally. The driver may unset it if it can't handle it. */ \
+	fn(OPEN, UID_EXPUNGE)
+DEFINE_PFX_BIT_ENUM(open_flags_enum)
 
 #define UIDVAL_BAD ((uint)-1)
 
@@ -122,7 +121,7 @@ typedef struct {
 	uchar flags;
 } msg_data_t;
 
-static_assert_bits(F, msg_data_t, flags);
+static_assert_bits(msg_flags_enum, msg_data_t, flags);
 
 #define DRV_OK          0
 /* Message went missing, or mailbox is full, etc. */

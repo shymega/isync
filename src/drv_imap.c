@@ -3110,7 +3110,7 @@ imap_load_box( store_t *gctx, uint minuid, uint maxuid, uint finduid, uint pairu
 				if (i != j)
 					bl += sprintf( buf + bl, ":%u", excs.data[i] );
 			}
-			imap_submit_load( ctx, buf, shifted_bit( ctx->opts, OPEN_PAIRED_IDS, WantMsgids ), sts );
+			imap_submit_load( ctx, buf, shifted_bit( ctx->opts, (int)OPEN_PAIRED_IDS, WantMsgids ), sts );
 		}
 		if (maxuid == UINT_MAX)
 			maxuid = ctx->uidnext - 1;

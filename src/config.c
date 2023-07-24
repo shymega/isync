@@ -22,7 +22,7 @@ char FieldDelimiter = ';';
 char FieldDelimiter = ':';
 #endif
 
-DEF_BIT_FORMATTER_FUNCTION(ops, OP)
+DEF_BIT_FORMATTER_FUNCTION(ops, sync_op_enum)
 
 char *
 expand_strdup( const char *s, const conffile_t *cfile )

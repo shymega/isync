@@ -21,8 +21,6 @@
 #include <string.h>
 #include <time.h>
 
-#include "common_enum.h"
-
 typedef unsigned char uchar;
 typedef unsigned short ushort;
 typedef unsigned int uint;
@@ -43,10 +41,55 @@ typedef unsigned long ulong;
 #define shifted_bit(in, from, to) \
 	((int)(((uint)(in) / (from > to ? from / to : 1) * (to > from ? to / from : 1)) & to))
 
-#define BIT_ENUM(...)
+#define BIT_ENUM_VAL(name) \
+	name, \
+	name##_dummy = 2 * name - 1,
 
-#define static_assert_bits(pfx, type, field) \
-	static_assert( pfx##__NUM_BITS <= sizeof(((type){ 0 }).field) * 8, \
+#define DEFINE_BIT_ENUM(list) \
+	enum list { \
+		list##_dummy, \
+		list(BIT_ENUM_VAL) \
+	};
+
+#define PFX_BIT_ENUM_VAL(pfx, name) \
+	pfx##_##name, \
+	pfx##_##name##_dummy = 2 * pfx##_##name - 1,
+
+#define PFX_BIT_ENUM_NUM(pfx, name) \
+	pfx##_##name##_bit,
+
+#define DEFINE_PFX_BIT_ENUM(list) \
+	enum list { \
+		list##_dummy, \
+		list(PFX_BIT_ENUM_VAL) \
+	}; \
+	enum { \
+		list(PFX_BIT_ENUM_NUM) \
+		list##_num_bits \
+	};
+
+#define BIT_ENUM_STR(pfx, name) \
+	stringify(name) "\0"
+
+#define BIT_ENUM_STR_OFF(pfx, name) \
+	name##_str_off, \
+	name##_str_off_dummy = name##_str_off + sizeof(stringify(name)) - 1,
+
+#define GET_BIT_ENUM_STR_OFF(pfx, name) \
+	name##_str_off,
+
+#define PFX_BIT_ENUM_STR(pfx, name) \
+	stringify(pfx) "_" stringify(name) "\0"
+
+#define PFX_BIT_ENUM_STR_OFF(pfx, name) \
+	pfx##_##name##_str_off, \
+	pfx##_##name##_str_end = pfx##_##name##_str_off + sizeof(stringify(pfx) "_" stringify(name)) - 1,
+
+#define GET_PFX_BIT_ENUM_STR_OFF(pfx, name) \
+	pfx##_##name##_str_off,
+
+#define static_assert_bits(list, type, field) \
+	static_assert( list##_num_bits <= sizeof(((type){ 0 }).field) * 8, \
 	               stringify(type) "::" stringify(field) " is too small" )
 
 #if __GNUC__ > 2 || (__GNUC__ == 2 && __GNUC_MINOR__ > 4)
@@ -100,30 +143,32 @@ enum {
 	VERBOSE,
 };
 
-BIT_ENUM(
-	DEBUG_MAILDIR,
-	DEBUG_NET,
-	DEBUG_NET_ALL,
-	DEBUG_SYNC,
-	DEBUG_MAIN,
-	DEBUG_DRV,
-	DEBUG_DRV_ALL,
-
-	DEBUG_CRASH,
-
-	PROGRESS,
-
-	DRYRUN,
-
-	EXT_EXIT,
-
-	ZERODELAY,
-	KEEPJOURNAL,
-	FORCEJOURNAL,
-	FORCEASYNC(2),
-	FAKEEXPUNGE,
-	FAKEDUMBSTORE,
-)
+#define options_enum(fn) \
+	fn(DEBUG_MAILDIR) \
+	fn(DEBUG_NET) \
+	fn(DEBUG_NET_ALL) \
+	fn(DEBUG_SYNC) \
+	fn(DEBUG_MAIN) \
+	fn(DEBUG_DRV) \
+	fn(DEBUG_DRV_ALL) \
+	\
+	fn(DEBUG_CRASH) \
+	\
+	fn(PROGRESS) \
+	\
+	fn(DRYRUN) \
+	\
+	fn(EXT_EXIT) \
+	\
+	fn(ZERODELAY) \
+	fn(KEEPJOURNAL) \
+	fn(FORCEJOURNAL) \
+	fn(FORCEASYNC_F) \
+	fn(FORCEASYNC_N) \
+	fn(FAKEEXPUNGE) \
+	fn(FAKEDUMBSTORE)
+DEFINE_BIT_ENUM(options_enum)
+#define FORCEASYNC(b) (FORCEASYNC_F << (b))
 
 #define DEBUG_ANY (DEBUG_MAILDIR | DEBUG_NET | DEBUG_SYNC | DEBUG_MAIN | DEBUG_DRV)
 #define DEBUG_ALL (DEBUG_ANY | DEBUG_CRASH)
@@ -209,34 +254,38 @@ time_t timegm( struct tm *tm );
 
 void fmt_bits( uint bits, uint num_bits, const char *bit_str, const int *bit_off, char *buf );
 
-#define BIT_FORMATTER_RET(name, pfx) \
-	struct name##_str { char str[sizeof(pfx##__STRINGS)]; };
+#define BIT_FORMATTER_RET(name, list, fn) \
+	enum { list(fn##_OFF) name##_str_len }; \
+	struct name##_str { char str[name##_str_len]; };
 
 #define BIT_FORMATTER_PROTO(name, storage) \
 	storage struct name##_str ATTR_OPTIMIZE  /* force RVO */ \
 	fmt_##name( uint bits )
 
-#define BIT_FORMATTER_IMPL(name, pfx, storage) \
+#define BIT_FORMATTER_IMPL(name, list, fn, storage) \
 	BIT_FORMATTER_PROTO(name, storage) \
 	{ \
-		static const char strings[] = pfx##__STRINGS; \
-		static const int offsets[] = { pfx##__OFFSETS }; \
+		static const char strings[] = list(fn); \
+		static const int offsets[] = { list(GET_##fn##_OFF) }; \
 		\
 		struct name##_str buf; \
 		fmt_bits( bits, as(offsets), strings, offsets, buf.str ); \
 		return buf; \
 	}
 
-#define BIT_FORMATTER_FUNCTION(name, pfx) \
-	BIT_FORMATTER_RET(name, pfx) \
-	BIT_FORMATTER_IMPL(name, pfx, static)
+// Note that this one uses enum labels without prefix ...
+#define BIT_FORMATTER_FUNCTION(name, list) \
+	BIT_FORMATTER_RET(name, list, BIT_ENUM_STR) \
+	BIT_FORMATTER_IMPL(name, list, BIT_ENUM_STR, static)
 
-#define DECL_BIT_FORMATTER_FUNCTION(name, pfx) \
-	BIT_FORMATTER_RET(name, pfx) \
+// ... while these ones use enum labels with prefix - this
+// is not fundamental, but simply because of the use cases.
+#define DECL_BIT_FORMATTER_FUNCTION(name, list) \
+	BIT_FORMATTER_RET(name, list, PFX_BIT_ENUM_STR) \
 	BIT_FORMATTER_PROTO(name, );
 
-#define DEF_BIT_FORMATTER_FUNCTION(name, pfx) \
-	BIT_FORMATTER_IMPL(name, pfx, )
+#define DEF_BIT_FORMATTER_FUNCTION(name, list) \
+	BIT_FORMATTER_IMPL(name, list, PFX_BIT_ENUM_STR, )
 
 void *nfmalloc( size_t sz );
 void *nfzalloc( size_t sz );

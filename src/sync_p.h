@@ -7,23 +7,28 @@
 #define DEBUG_FLAG DEBUG_SYNC
 
 #include "sync.h"
-#include "sync_p_enum.h"
 
-BIT_ENUM(
-	S_DEAD,         // ephemeral: the entry was killed and should be ignored
-	S_EXPIRE,       // the entry is being expired (expire-side message removal scheduled)
-	S_EXPIRED,      // the entry is expired (expire-side message removal confirmed)
-	S_NEXPIRE,      // temporary: new expiration state
-	S_PENDING,      // the entry is new and awaits propagation (possibly a retry)
-	S_DUMMY(2),     // f/n message is only a placeholder
-	S_SKIPPED,      // pre-1.4 legacy: the entry was not propagated (message is too big)
-	S_GONE(2),      // ephemeral: f/n message has been expunged
-	S_DEL(2),       // ephemeral: f/n message would be subject to non-selective expunge
-	S_DELETE,       // ephemeral: flags propagation is a deletion
-	S_UPGRADE,      // ephemeral: upgrading placeholder, do not apply MaxSize
-	S_PURGE,        // ephemeral: placeholder is being nuked
-	S_PURGED,       // ephemeral: placeholder was nuked
-)
+#define srec_sts_enum(fn) \
+	fn(S, DEAD)         /* ephemeral: the entry was killed and should be ignored */ \
+	fn(S, EXPIRE)       /* the entry is being expired (expire-side message removal scheduled) */ \
+	fn(S, EXPIRED)      /* the entry is expired (expire-side message removal confirmed) */ \
+	fn(S, NEXPIRE)      /* temporary: new expiration state */ \
+	fn(S, PENDING)      /* the entry is new and awaits propagation (possibly a retry) */ \
+	fn(S, DUMMY_F)      /* f/n message is only a placeholder */ \
+	fn(S, DUMMY_N)      \
+	fn(S, SKIPPED)      /* pre-1.4 legacy: the entry was not propagated (message is too big) */ \
+	fn(S, GONE_F)       /* ephemeral: f/n message has been expunged */ \
+	fn(S, GONE_N)       \
+	fn(S, DEL_F)        /* ephemeral: f/n message would be subject to non-selective expunge */ \
+	fn(S, DEL_N)        \
+	fn(S, DELETE)       /* ephemeral: flags propagation is a deletion */ \
+	fn(S, UPGRADE)      /* ephemeral: upgrading placeholder, do not apply MaxSize */ \
+	fn(S, PURGE)        /* ephemeral: placeholder is being nuked */ \
+	fn(S, PURGED)       /* ephemeral: placeholder was nuked */
+DEFINE_PFX_BIT_ENUM(srec_sts_enum)
+#define S_DUMMY(b) (S_DUMMY_F << (b))
+#define S_GONE(b) (S_GONE_F << (b))
+#define S_DEL(b) (S_DEL_F << (b))
 
 // This is the persistent status of the sync record, with regard to the journal.
 #define S_LOGGED (S_EXPIRE | S_EXPIRED | S_PENDING | S_DUMMY(F) | S_DUMMY(N) | S_SKIPPED)
@@ -38,8 +43,8 @@ typedef struct sync_rec {
 	char tuid[TUIDL];
 } sync_rec_t;
 
-static_assert_bits(F, sync_rec_t, flags);
-static_assert_bits(S, sync_rec_t, status);
+static_assert_bits(msg_flags_enum, sync_rec_t, flags);
+static_assert_bits(srec_sts_enum, sync_rec_t, status);
 
 typedef struct {
 	int t[2];

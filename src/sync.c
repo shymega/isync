@@ -6,7 +6,6 @@
  */
 
 #include "sync_p.h"
-#include "sync_c_enum.h"
 
 channel_conf_t global_conf;
 channel_conf_t *channels;
@@ -45,24 +44,24 @@ static int check_cancel( sync_vars_t *svars );
    cleanup: close(F) & close(N)
 */
 
-BIT_ENUM(
-	ST_PRESENT,
-	ST_CONFIRMED,
-	ST_SELECTED,
-	ST_FIND_OLD,
-	ST_LOADED,
-	ST_SENT_FLAGS,
-	ST_SENDING_NEW,
-	ST_SENT_NEW,
-	ST_FIND_NEW,
-	ST_FOUND_NEW,
-	ST_SENT_TRASH,
-	ST_TRASH_BAD,
-	ST_CLOSING,
-	ST_CLOSED,
-	ST_SENT_CANCEL,
-	ST_CANCELED,
-)
+#define sync_sts_enum(fn) \
+	fn(ST, PRESENT) \
+	fn(ST, CONFIRMED) \
+	fn(ST, SELECTED) \
+	fn(ST, FIND_OLD) \
+	fn(ST, LOADED) \
+	fn(ST, SENT_FLAGS) \
+	fn(ST, SENDING_NEW) \
+	fn(ST, SENT_NEW) \
+	fn(ST, FIND_NEW) \
+	fn(ST, FOUND_NEW) \
+	fn(ST, SENT_TRASH) \
+	fn(ST, TRASH_BAD) \
+	fn(ST, CLOSING) \
+	fn(ST, CLOSED) \
+	fn(ST, SENT_CANCEL) \
+	fn(ST, CANCELED)
+DEFINE_PFX_BIT_ENUM(sync_sts_enum)
 
 static uchar
 sanitize_flags( uchar tflags, sync_vars_t *svars, int t )

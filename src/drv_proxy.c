@@ -8,7 +8,7 @@
 
 #include "driver.h"
 
-BIT_FORMATTER_FUNCTION(opts, OPEN)
+BIT_FORMATTER_FUNCTION(opts, open_flags_enum)
 
 typedef struct gen_cmd gen_cmd_t;
 

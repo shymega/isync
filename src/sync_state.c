@@ -17,7 +17,7 @@
 
 const char *str_fn[] = { "far side", "near side" }, *str_hl[] = { "push", "pull" };
 
-BIT_FORMATTER_FUNCTION(sts, S)
+BIT_FORMATTER_FUNCTION(sts, srec_sts_enum)
 
 static char *
 clean_strdup( const char *s )
