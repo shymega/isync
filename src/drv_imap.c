@@ -1031,7 +1031,7 @@ parse_date( const char *str )
 	struct tm datetime;
 
 	memset( &datetime, 0, sizeof(datetime) );
-	if (!(end = strptime( str, "%e-%b-%Y %H:%M:%S ", &datetime )))
+	if (!(end = strptime( str, " %e-%b-%Y %H:%M:%S ", &datetime )))
 		return -1;
 	if ((date = timegm( &datetime )) == -1)
 		return -1;
