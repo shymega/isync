@@ -186,7 +186,8 @@ filter_boxes( string_list_t *boxes, const char *prefix, string_list_t *patterns 
 			boxarr[num] = NULL;
 		}
 	}
-	qsort( boxarr, num, sizeof(*boxarr), cmp_box_names );
+	if (boxarr)
+		qsort( boxarr, num, sizeof(*boxarr), cmp_box_names );
 	return boxarr;
 }
 
