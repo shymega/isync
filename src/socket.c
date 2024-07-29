@@ -908,8 +908,11 @@ socket_fill( conn_t *sock )
 		// IIR filter for tracking average size of bulk reads.
 		// We use this to optimize the free space at the end of the
 		// buffer, hence the factor of 1.5.
-		if (n >= MIN_BULK_READ)
+		if (n >= MIN_BULK_READ) {
 			sock->readsz = (sock->readsz * 3 + n * 3 / 2) / 4;
+			if (sock->readsz > sizeof(sock->buf))
+				sock->readsz = sizeof(sock->buf);
+		}
 
 		socket_filled( sock, (uint)n );
 	}
