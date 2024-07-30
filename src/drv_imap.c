@@ -163,8 +163,7 @@ union imap_store {
 		// Command queue
 		imap_cmd_t *pending, **pending_append;
 		imap_cmd_t *in_progress, **in_progress_append;
-		imap_cmd_t *wait_check, **wait_check_append;
-		int nexttag, num_in_progress, num_wait_check;
+		int nexttag, num_in_progress;
 		uint buffer_mem;  // Memory currently occupied by buffers in the queue
 
 		// Used during sequential operations like connect
@@ -204,7 +203,6 @@ union imap_store {
 		uint data_len; \
 		uint uid;  /* to identify fetch responses */ \
 		char high_prio;  /* if command is queued, put it at the front of the queue. */ \
-		char wait_check;  /* Don't report success until subsequent CHECK success. */ \
 		char to_trash;  /* we are storing to trash, not current. */ \
 		char create;  /* create the mailbox if we get an error which suggests so. */ \
 		char failok;  /* Don't complain about NO (@1) / BAD (@2) response. */ \
@@ -352,8 +350,6 @@ new_imap_cmd( uint size )
 static void
 done_imap_cmd( imap_store_t *ctx, imap_cmd_t *cmd, int response )
 {
-	if (cmd->param.wait_check)
-		ctx->num_wait_check--;
 	if (cmd->param.data) {
 		free( cmd->param.data );
 		cmd->param.data = NULL;
@@ -483,18 +479,6 @@ flush_imap_cmds( imap_store_t *ctx )
 }
 
 static void
-finalize_checked_imap_cmds( imap_store_t *ctx, int resp )
-{
-	imap_cmd_t *cmd;
-
-	while ((cmd = ctx->wait_check)) {
-		if (!(ctx->wait_check = cmd->next))
-			ctx->wait_check_append = &ctx->wait_check;
-		done_imap_cmd( ctx, cmd, resp );
-	}
-}
-
-static void
 cancel_pending_imap_cmds( imap_store_t *ctx )
 {
 	imap_cmd_t *cmd;
@@ -527,8 +511,6 @@ submit_imap_cmd( imap_store_t *ctx, imap_cmd_t *cmd )
 	assert( cmd );
 	assert( cmd->param.done );
 
-	if (cmd->param.wait_check)
-		ctx->num_wait_check++;
 	if ((ctx->pending && !cmd->param.high_prio) || !cmd_sendable( ctx, cmd )) {
 		if (ctx->pending && cmd->param.high_prio) {
 			cmd->next = ctx->pending;
@@ -1943,13 +1925,7 @@ imap_socket_read( void *aux )
 			imap_ref( ctx );
 			if (resp == RESP_CANCEL)
 				imap_invoke_bad_callback( ctx );
-			if (resp == RESP_OK && cmdp->param.wait_check) {
-				cmdp->next = NULL;
-				*ctx->wait_check_append = cmdp;
-				ctx->wait_check_append = &cmdp->next;
-			} else {
-				done_imap_cmd( ctx, cmdp, resp );
-			}
+			done_imap_cmd( ctx, cmdp, resp );
 			if (imap_deref( ctx ))
 				return;
 			if (ctx->canceling && !ctx->in_progress) {
@@ -1972,7 +1948,6 @@ get_cmd_result_p2( imap_store_t *ctx, imap_cmd_t *cmd, int response )
 	if (response != RESP_OK) {
 		done_imap_cmd( ctx, ocmd, response );
 	} else {
-		assert( !ocmd->param.wait_check );
 		ctx->uidnext = 1;
 		if (ocmd->param.to_trash)
 			ctx->trashnc = TrashKnown;
@@ -1993,7 +1968,6 @@ imap_cancel_store( store_t *gctx )
 	sasl_dispose( &ctx->sasl );
 #endif
 	socket_close( &ctx->conn );
-	finalize_checked_imap_cmds( ctx, RESP_CANCEL );
 	cancel_sent_imap_cmds( ctx );
 	cancel_pending_imap_cmds( ctx );
 	free( ctx->ns_prefix );
@@ -2053,7 +2027,7 @@ imap_free_store( store_t *gctx )
 {
 	imap_store_t *ctx = (imap_store_t *)gctx;
 
-	assert( !ctx->pending && !ctx->in_progress && !ctx->wait_check );
+	assert( !ctx->pending && !ctx->in_progress );
 
 	if (ctx->state == SST_BAD) {
 		imap_cancel_store( gctx );
@@ -2164,7 +2138,6 @@ imap_alloc_store( store_conf_t *conf, const char *label )
 	             imap_socket_read, (void (*)(void *))flush_imap_cmds, ctx );
 	ctx->in_progress_append = &ctx->in_progress;
 	ctx->pending_append = &ctx->pending;
-	ctx->wait_check_append = &ctx->wait_check;
 
   gotsrv:
 	ctx->conf = cfg;
@@ -2878,7 +2851,7 @@ imap_select_box( store_t *gctx, const char *name )
 {
 	imap_store_t *ctx = (imap_store_t *)gctx;
 
-	assert( !ctx->pending && !ctx->in_progress && !ctx->wait_check );
+	assert( !ctx->pending && !ctx->in_progress );
 
 	reset_imap_messages( &ctx->msgs );
 
@@ -3278,9 +3251,7 @@ imap_flags_helper( imap_store_t *ctx, uint uid, char what, int flags,
 	char buf[256];
 
 	buf[imap_make_flags( flags, buf )] = 0;
-	imap_cmd_t *cmd = imap_refcounted_new_cmd( &sts->gen );
-	cmd->param.wait_check = 1;
-	imap_exec( ctx, cmd, imap_set_flags_p2,
+	imap_exec( ctx, imap_refcounted_new_cmd( &sts->gen ), imap_set_flags_p2,
 	           "UID STORE %u %cFLAGS.SILENT %s", uid, what, buf );
 }
 
@@ -3352,7 +3323,7 @@ imap_close_box( store_t *gctx,
 {
 	imap_store_t *ctx = (imap_store_t *)gctx;
 
-	assert( !ctx->num_wait_check );
+	assert( !ctx->pending && !ctx->in_progress );
 
 	if (ctx->opts & OPEN_UID_EXPUNGE) {
 		INIT_REFCOUNTED_STATE(imap_expunge_state_t, sts, cb, aux)
@@ -3672,7 +3643,6 @@ imap_cancel_cmds( store_t *gctx,
 {
 	imap_store_t *ctx = (imap_store_t *)gctx;
 
-	finalize_checked_imap_cmds( ctx, RESP_CANCEL );
 	cancel_pending_imap_cmds( ctx );
 	if (ctx->in_progress) {
 		ctx->canceling = 1;
@@ -3685,21 +3655,10 @@ imap_cancel_cmds( store_t *gctx,
 
 /******************* imap_commit_cmds *******************/
 
-static void imap_commit_cmds_p2( imap_store_t *, imap_cmd_t *, int );
-
 static void
 imap_commit_cmds( store_t *gctx )
 {
-	imap_store_t *ctx = (imap_store_t *)gctx;
-
-	if (ctx->num_wait_check)
-		imap_exec( ctx, NULL, imap_commit_cmds_p2, "CHECK" );
-}
-
-static void
-imap_commit_cmds_p2( imap_store_t *ctx, imap_cmd_t *cmd ATTR_UNUSED, int response )
-{
-	finalize_checked_imap_cmds( ctx, response );
+	(void)gctx;
 }
 
 /******************* imap_get_memory_usage *******************/
