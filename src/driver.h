@@ -295,9 +295,6 @@ struct driver {
 	void (*cancel_cmds)( store_t *ctx,
 	                     void (*cb)( void *aux ), void *aux );
 
-	/* Commit any pending set_msg_flags() commands. */
-	void (*commit_cmds)( store_t *ctx );
-
 	/* Get approximate amount of memory occupied by the driver. */
 	uint (*get_memory_usage)( store_t *ctx );
 

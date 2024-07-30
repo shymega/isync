@@ -21,7 +21,6 @@ typedef union proxy_store {
 		driver_t *real_driver;
 		store_t *real_store;
 		gen_cmd_t *pending_cmds, **pending_cmds_append;
-		gen_cmd_t *check_cmds, **check_cmds_append;
 		wakeup_t wakeup;
 		uint fake_nextuid;
 		char is_fake;  // Was "created" by dry-run
@@ -91,20 +90,15 @@ proxy_wakeup( void *aux )
 }
 
 static void
-proxy_invoke( gen_cmd_t *cmd, int checked, const char *name )
+proxy_invoke( gen_cmd_t *cmd, const char *name )
 {
 	proxy_store_t *ctx = cmd->ctx;
 	if (ctx->force_async) {
-		debug( "%s[% 2d] Queue %s%s\n", ctx->label, cmd->tag, name, checked ? " (checked)" : "" );
+		debug( "%s[% 2d] Queue %s\n", ctx->label, cmd->tag, name );
 		cmd->next = NULL;
-		if (checked) {
-			*ctx->check_cmds_append = cmd;
-			ctx->check_cmds_append = &cmd->next;
-		} else {
-			*ctx->pending_cmds_append = cmd;
-			ctx->pending_cmds_append = &cmd->next;
-			conf_wakeup( &ctx->wakeup, 0 );
-		}
+		*ctx->pending_cmds_append = cmd;
+		ctx->pending_cmds_append = &cmd->next;
+		conf_wakeup( &ctx->wakeup, 0 );
 	} else {
 		cmd->queued_cb( cmd );
 		proxy_cmd_done( cmd );
@@ -112,21 +106,9 @@ proxy_invoke( gen_cmd_t *cmd, int checked, const char *name )
 }
 
 static void
-proxy_flush_checked_cmds( proxy_store_t *ctx )
-{
-	if (ctx->check_cmds) {
-		*ctx->pending_cmds_append = ctx->check_cmds;
-		ctx->pending_cmds_append = ctx->check_cmds_append;
-		ctx->check_cmds_append = &ctx->check_cmds;
-		ctx->check_cmds = NULL;
-		conf_wakeup( &ctx->wakeup, 0 );
-	}
-}
-
-static void
 proxy_cancel_queued_cmds( proxy_store_t *ctx )
 {
-	if (ctx->pending_cmds || ctx->check_cmds) {
+	if (ctx->pending_cmds) {
 		// This would involve directly invoking the result callbacks with
 		// DRV_CANCEL, for which we'd need another set of dispatch functions.
 		// The autotest doesn't need that, so save the effort.
@@ -253,7 +235,7 @@ static @type@proxy_@name@( store_t *gctx@decl_args@, void (*cb)( @decl_cb_args@v
 	cmd->callback = cb;
 	cmd->callback_aux = aux;
 	@assign_state@
-	proxy_invoke( &cmd->gen, @checked@, "@name@" );
+	proxy_invoke( &cmd->gen, "@name@" );
 }
 //# END
 
@@ -382,7 +364,6 @@ static @type@proxy_@name@( store_t *gctx@decl_args@, void (*cb)( @decl_cb_args@v
 //# DEFINE store_msg_fake_cb_args , cmd->to_trash ? 0 : ctx->fake_nextuid++
 //# DEFINE store_msg_counted 1
 
-//# DEFINE set_msg_flags_checked 1
 //# DEFINE set_msg_flags_print_fmt_args , uid=%u, add=%s, del=%s
 //# DEFINE set_msg_flags_print_pass_args , cmd->uid, fmt_flags( cmd->add ).str, fmt_flags( cmd->del ).str
 //# DEFINE set_msg_flags_driable 1
@@ -396,10 +377,6 @@ static @type@proxy_@name@( store_t *gctx@decl_args@, void (*cb)( @decl_cb_args@v
 //# DEFINE close_box_driable 1
 //# DEFINE close_box_fake_cb_args , 0
 //# DEFINE close_box_counted 1
-
-//# DEFINE commit_cmds_print_args
-	proxy_flush_checked_cmds( ctx );
-//# END
 
 //# DEFINE cancel_cmds_print_cb_args
 	proxy_cancel_queued_cmds( ctx );
@@ -465,7 +442,6 @@ proxy_alloc_store( store_t *real_ctx, const char *label, int force_async )
 	ctx->label = label;
 	ctx->force_async = force_async;
 	ctx->pending_cmds_append = &ctx->pending_cmds;
-	ctx->check_cmds_append = &ctx->check_cmds;
 	ctx->real_driver = real_ctx->driver;
 	ctx->real_store = real_ctx;
 	ctx->real_driver->set_callbacks( ctx->real_store,

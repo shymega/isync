@@ -1373,7 +1373,6 @@ box_loaded( int sts, message_t *msgs, int total_msgs, int recent_msgs, void *aux
 		}
 	}
 	for (t = 0; t < 2; t++) {
-		svars->drv[t]->commit_cmds( svars->ctx[t] );
 		svars->state[t] |= ST_SENT_FLAGS;
 		msgs_flags_set( svars, t );
 		if (check_cancel( svars ))

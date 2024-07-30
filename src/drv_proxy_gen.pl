@@ -158,7 +158,6 @@ for (@ptypes) {
 			my $r_pass_args = make_args($r_cmd_args);
 			$replace{'assign_state'} = $r_pass_args =~ s/([^,]+), /cmd->$1 = $1\;\n/gr;
 
-			$replace{'checked'} = '0';
 			$template = "CALLBACK";
 		} else {
 			$pass_args = make_args($cmd_args);

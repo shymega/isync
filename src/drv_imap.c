@@ -3653,14 +3653,6 @@ imap_cancel_cmds( store_t *gctx,
 	}
 }
 
-/******************* imap_commit_cmds *******************/
-
-static void
-imap_commit_cmds( store_t *gctx )
-{
-	(void)gctx;
-}
-
 /******************* imap_get_memory_usage *******************/
 
 static uint
@@ -4039,7 +4031,6 @@ struct driver imap_driver = {
 	imap_trash_msg,
 	imap_close_box,
 	imap_cancel_cmds,
-	imap_commit_cmds,
 	imap_get_memory_usage,
 	imap_get_fail_state,
 };

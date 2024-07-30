@@ -1853,12 +1853,6 @@ maildir_cancel_cmds( store_t *gctx ATTR_UNUSED,
 	cb( aux );
 }
 
-static void
-maildir_commit_cmds( store_t *gctx )
-{
-	(void) gctx;
-}
-
 static uint
 maildir_get_memory_usage( store_t *gctx ATTR_UNUSED )
 {
@@ -1983,7 +1977,6 @@ struct driver maildir_driver = {
 	maildir_trash_msg,
 	maildir_close_box,
 	maildir_cancel_cmds,
-	maildir_commit_cmds,
 	maildir_get_memory_usage,
 	maildir_get_fail_state,
 };
