@@ -884,4 +884,4 @@ http://www.iana.org/assignments/sasl-mechanisms/sasl-mechanisms.xhtml
 .SH AUTHORS
 Originally written by Michael R. Elkins,
 rewritten and currently maintained by Oswald Buddenhagen,
-contributions by Theodore Y. Ts'o.
+contributions by many others; see the AUTHORS file for details.
