@@ -1,6 +1,8 @@
 /drv_proxy.inc
 /mbsync
+/mbsync.1
 /mdconvert
+/mdconvert.1
 /tst_imap_msgs
 /tst_imap_utf7
 /tst_msg_cvt

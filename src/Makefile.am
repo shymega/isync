@@ -27,7 +27,10 @@ mdconvert_prog = mdconvert
 mdconvert_man = mdconvert.1
 endif
 
+in_man = mbsync.1.in mdconvert.1.in
+
 bin_PROGRAMS = mbsync $(mdconvert_prog)
+# don't forget to update AC_CONFIG_FILES in configure.ac!
 man_MANS = mbsync.1 $(mdconvert_man)
 
 tst_imap_msgs_SOURCES = tst_imap_msgs.c imap_msgs.c util.c
@@ -47,6 +50,6 @@ EXTRA_PROGRAMS = tst_timers
 exampledir = $(docdir)/examples
 example_DATA = mbsyncrc.sample
 
-EXTRA_DIST = drv_proxy_gen.pl run-tests.pl $(example_DATA) $(man_MANS)
+EXTRA_DIST = drv_proxy_gen.pl run-tests.pl $(example_DATA) $(in_man)
 
 CLEANFILES = drv_proxy.inc

@@ -3,7 +3,7 @@
 .\"
 .\" mdconvert - Maildir mailbox UID storage scheme converter
 .
-.TH mdconvert 1 "2004 Mar 27"
+.TH mdconvert 1 @RELEASE_DATE@ "@PACKAGE_STRING@" "User Commands"
 .
 .SH NAME
 mdconvert - Maildir mailbox UID storage scheme converter

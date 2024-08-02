@@ -4,7 +4,7 @@
 .\"
 .\" mbsync - mailbox synchronizer
 .
-.TH mbsync 1 "2022 Jun 16"
+.TH mbsync 1 @RELEASE_DATE@ "@PACKAGE_STRING@" "User Commands"
 .
 .SH NAME
 mbsync - synchronize IMAP4 and Maildir mailboxes
