@@ -4,7 +4,7 @@
 
 SUBDIRS = src
 bin_SCRIPTS = mbsync-get-cert
-EXTRA_DIST = LICENSES debian isync.spec $(bin_SCRIPTS)
+EXTRA_DIST = LICENSES VERSION debian isync.spec $(bin_SCRIPTS)
 
 LOG_PL = \
     use POSIX qw(strftime); \

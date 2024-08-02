@@ -1,6 +1,7 @@
 /.autoconf_trace
 /ChangeLog
 /INSTALL
+/VERSION
 /autom4te.cache/
 /aclocal.m4
 /autodefs.h
