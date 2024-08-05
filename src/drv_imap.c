@@ -1682,7 +1682,7 @@ prepare_box( char **buf, const imap_store_t *ctx )
 		if (!memcmp( name, "INBOX", 5 )) {
 			pfx = "";
 		} else if (!*pfx) {
-			error( "IMAP error: cannot use unqualified '%s'. Did you mean INBOX?", name );
+			error( "IMAP error: cannot use unqualified '%s'. Did you mean INBOX?\n", name );
 			return -1;
 		}
 	}

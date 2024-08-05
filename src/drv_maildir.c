@@ -1533,7 +1533,7 @@ maildir_fetch_msg( store_t *gctx, message_t *gmsg, msg_data_t *data, int minimal
 	}
 	fstat( fd, &st );
 	if (st.st_size > INT_MAX) {
-		error( "Maildir error: %s is too big", buf );
+		error( "Maildir error: %s is too big\n", buf );
 		goto mbad;
 	}
 	data->len = st.st_size;
