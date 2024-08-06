@@ -1530,7 +1530,7 @@ is_inbox( imap_store_t *ctx, const char *arg, int argl )
 {
 	if (!starts_with_upper( arg, argl, "INBOX", 5 ))
 		return 0;
-	if (arg[5] && arg[5] != ctx->delimiter[0])
+	if (argl > 5 && arg[5] != ctx->delimiter[0])
 		return 0;
 	return 1;
 }
@@ -3602,7 +3602,7 @@ imap_list_store( store_t *gctx, int flags,
 	// path      | P [i] | i [P] | P
 	//
 	int pfx_is_empty = !*ctx->prefix;
-	int pfx_is_inbox = !pfx_is_empty && is_inbox( ctx, ctx->prefix, -1 );
+	int pfx_is_inbox = !pfx_is_empty && is_inbox( ctx, ctx->prefix, strlen( ctx->prefix ) );
 	if (((flags & (LIST_PATH | LIST_PATH_MAYBE)) || pfx_is_empty) && !pfx_is_inbox && !(ctx->listed & LIST_PATH)) {
 		ctx->listed |= LIST_PATH;
 		if (pfx_is_empty)
