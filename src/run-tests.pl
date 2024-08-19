@@ -36,7 +36,7 @@ if (!-d "tmp") {
   my $tdir = tempdir();
   symlink $tdir, "tmp" or die "Cannot symlink temp directory: $!\n";
 }
-chdir "tmp" or die "Cannot enter temp direcory.\n";
+chdir "tmp" or die "Cannot enter temp directory.\n";
 
 use enum qw(:=1 A..Z);
 sub mn($) { my ($n) = @_; $n == 0 ? "0" : chr(64 + $n) }
@@ -959,7 +959,7 @@ sub test($$$$;$)
 #     # => create in trash; deletion may follow
 #     | => use zero UID for state modification, even if msg exists; cmd may follow
 #     & => use zero UID for state identification, even if message exists
-#     &n => use UID of n'th occurence of subject for state id; command may follow
+#     &n => use UID of n'th occurrence of subject for state id; command may follow
 #   Special flag suffixes:
 #     * => big
 #     ? => placeholder

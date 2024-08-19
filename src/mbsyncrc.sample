@@ -73,12 +73,12 @@ Inbox ~/Mail/w0rk_InBoX
 Channel personal-joined
 Far :personal:
 Near :local-personal:
-Paterns *
+Patterns *
 
 Channel work-joined
 Far :work:
 Near :local-work:
-Paterns *
+Patterns *
 
 Group joined personal-joined work-joined
 

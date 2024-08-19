@@ -532,7 +532,7 @@ store_connected( int sts, void *aux )
 					int bufl = snprintf( buf, sizeof(buf), "%s%s", nz( mvars->chan->boxes[t], "" ), pat );
 					int flags = 0;
 					// Partial matches like "INB*" or even "*" are not considered,
-					// except implicity when the INBOX lives under Path.
+					// except implicitly when the INBOX lives under Path.
 					if (starts_with( buf, bufl, "INBOX", 5 )) {
 						char c = buf[5];
 						if (!c) {

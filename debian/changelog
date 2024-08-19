@@ -181,7 +181,7 @@ isync (1.0.3-1) experimental; urgency=low
     - It also supports unflagging messages. (Closes: #111286)
     - IMAP commands are sent asynchronously. (Closes: #226222)
   * Kill the old debconf question about upgrades from pre-0.8 versions.
-  * Use the (now obsolete) swedish and portugese translations anyway.
+  * Use the (now obsolete) swedish and portuguese translations anyway.
     (Closes: #337771, #378891)
   * New debconf note that warns about upgrades from pre-1.0 versions.
   * Add a build dependency on po-debconf.
@@ -273,7 +273,7 @@ isync (0.9.1-1) unstable; urgency=low
   * Remove sample.isyncrc from debian/docs: no need to have it both as a
     doc and as an example.
   * Move package from section non-US/main (?) to mail. (Closes: #154216)
-  * Update versionned build-dependency on debhelper to >= 4.1.16.
+  * Update versioned build-dependency on debhelper to >= 4.1.16.
   * Bump Standards-Version to 3.6.1. (No change required.)
 
  -- Nicolas Boullis <nboullis@debian.org>  Tue, 14 Oct 2003 22:02:20 +0200
@@ -311,7 +311,7 @@ isync (0.8-1) unstable; urgency=low
     duplicate messages on your IMAP server.
 
   * Has better support for uploading locally added messages. Closes: #120272
-  * Added a debconf queston with some info about this that lets you abort the
+  * Added a debconf question with some info about this that lets you abort the
     upgrade.
   * Added NEWS.Debian with same info.
   * New maintainer.

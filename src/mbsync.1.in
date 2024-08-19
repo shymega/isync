@@ -111,7 +111,7 @@ Enable debugging categories:
 .br
 \fBs\fR, \fBsync\fR - print synchronization debug info
 .in -4
-All categories except \fBcrash\fR implictly enable \fIverbose\fR mode.
+All categories except \fBcrash\fR implicitly enable \fIverbose\fR mode.
 Without category specification, all categories except net-all are enabled.
 .TP
 \fB-q\fR, \fB--quiet\fR
@@ -368,7 +368,7 @@ See \fBUserCmd\fR above for details.
 Whether to use the macOS Keychain to obtain the password.
 (Default: \fBno\fR)
 .IP
-The neccessary keychain item can be created this way:
+The necessary keychain item can be created this way:
 .RS
 .IP
 .nh

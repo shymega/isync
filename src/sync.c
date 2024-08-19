@@ -431,7 +431,7 @@ box_confirmed2( sync_vars_t *svars, int t )
 					/* This can legitimately happen if a deletion propagation was interrupted.
 					 * We have no place to record this transaction, so we just assume it.
 					 * Of course this bears the danger of clearing the state if both mailboxes
-					 * temorarily cannot be opened for some weird reason (while the stores can). */
+					 * temporarily cannot be opened for some weird reason (while the stores can). */
 					delete_state( svars );
 				}
 			  done:
