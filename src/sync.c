@@ -440,12 +440,12 @@ box_confirmed2( sync_vars_t *svars, int t )
 			}
 			if (svars->existing) {
 				if (!(svars->chan->ops[t^1] & OP_REMOVE)) {
-					error( "Error: channel %s: %s box %s cannot be opened.\n",
+					error( "Error: channel %s: %s box %s cannot be opened anymore.\n",
 					       svars->chan->name, str_fn[t], svars->orig_name[t] );
 					goto bail;
 				}
 				if (svars->drv[t^1]->confirm_box_empty( svars->ctx[t^1] ) != DRV_OK) {
-					warn( "Warning: channel %s: %s box %s cannot be opened and %s box %s is not empty.\n",
+					warn( "Warning: channel %s: %s box %s cannot be opened anymore, and %s box %s is not empty.\n",
 					      svars->chan->name, str_fn[t], svars->orig_name[t], str_fn[t^1], svars->orig_name[t^1] );
 					goto done;
 				}
