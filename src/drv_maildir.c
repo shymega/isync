@@ -372,6 +372,8 @@ maildir_list_maildirpp( maildir_store_t *ctx, int flags, const char *inbox )
 	return 0;
 }
 
+static int maildir_list_inbox( maildir_store_t *ctx );
+
 static int
 maildir_list_recurse( maildir_store_t *ctx, int isBox,
                       const char *inbox, uint inboxLen,
@@ -422,6 +424,10 @@ maildir_list_recurse( maildir_store_t *ctx, int isBox,
 		pl += pathLen;
 		if (inbox && equals( path, pl, inbox, inboxLen )) {
 			// Inbox nested into Path.
+			if (maildir_list_inbox( ctx ) < 0) {
+				closedir( dir );
+				return -1;
+			}
 		} else {
 			if (style == SUB_LEGACY) {
 				if (*ent == '.') {
