@@ -12,7 +12,7 @@ mbsync - synchronize IMAP4 and Maildir mailboxes
 .SH SYNOPSIS
 \fBmbsync\fR [\fIoptions\fR ...] {{\fIchannel\fR[\fB:\fIbox\fR[{\fB,\fR|\fB\\n\fR}...]]|\fIgroup\fR} ...|\fB-a\fR}
 .br
-\fBmbsync\fR --list-stores [\fIoptions\fR ...] [\fIstore\fR} ...]
+\fBmbsync\fR --list-stores [\fIoptions\fR ...] [\fIstore\fR ...]
 .
 .SH DESCRIPTION
 \fBmbsync\fR is a command line application which synchronizes mailboxes;
